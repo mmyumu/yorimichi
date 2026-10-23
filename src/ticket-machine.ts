@@ -184,11 +184,11 @@ export class TicketMachine {
     }else if(this.step==='map'){
       const tools=this.element(body,'div','','map-tools');
       const viewport=this.element(body,'div','','fare-map-viewport');viewport.tabIndex=0;viewport.setAttribute('aria-label','Scrollable Tokyo JR fare map');
-      const diagram=renderTokyoFareMap();diagram.style.width=(1275*this.mapZoom)+'px';diagram.style.height=(855*this.mapZoom)+'px';viewport.append(diagram);
+      const diagram=renderTokyoFareMap();diagram.style.width=(1500*this.mapZoom)+'px';diagram.style.height=(844*this.mapZoom)+'px';viewport.append(diagram);
       const zoom=(factor:number)=>{
         const old=this.mapZoom;this.mapZoom=Math.max(.55,Math.min(1.8,old*factor));const ratio=this.mapZoom/old;
         const x=(viewport.scrollLeft+viewport.clientWidth/2)*ratio-viewport.clientWidth/2,y=(viewport.scrollTop+viewport.clientHeight/2)*ratio-viewport.clientHeight/2;
-        diagram.style.width=(1275*this.mapZoom)+'px';diagram.style.height=(855*this.mapZoom)+'px';viewport.scrollLeft=x;viewport.scrollTop=y;
+        diagram.style.width=(1500*this.mapZoom)+'px';diagram.style.height=(844*this.mapZoom)+'px';viewport.scrollLeft=x;viewport.scrollTop=y;
       };
       this.button(tools,'−',()=>zoom(.8),'map-zoom');this.button(tools,'+',()=>zoom(1.25),'map-zoom');
       this.element(tools,'span',tr('ドラッグで移動 · 東京から','Drag map · from Tokyo'),'map-hint');
@@ -198,7 +198,7 @@ export class TicketMachine {
       viewport.addEventListener('pointermove',event=>{if(drag){const scale=this.panel.clientWidth/960;viewport.scrollLeft=drag.left-(event.clientX-drag.x)/scale;viewport.scrollTop=drag.top-(event.clientY-drag.y)/scale}});
       viewport.addEventListener('pointerup',()=>drag=null);viewport.addEventListener('pointercancel',()=>drag=null);
       this.element(body,'p',tr('JRのみ・きっぷ運賃 / ゲーム用参考図','JR East 2024 · Proposed 2026 paper fares · Game reference, not live fares'),'map-source');
-      requestAnimationFrame(()=>{viewport.scrollLeft=800*this.mapZoom-viewport.clientWidth/2;viewport.scrollTop=490*this.mapZoom-viewport.clientHeight/2});
+      requestAnimationFrame(()=>{viewport.scrollLeft=926*this.mapZoom-viewport.clientWidth/2;viewport.scrollTop=477*this.mapZoom-viewport.clientHeight/2});
     }else if(this.step==='destination'){
       this.element(body,'p',tr('乗車駅：','From: ')+this.hub.toUpperCase(),'origin-note');
       const grid=this.element(body,'div','','station-grid');this.options.forEach(route=>this.routeButton(grid,route));
