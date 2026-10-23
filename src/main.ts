@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import './style.css';
 import { makeArt } from './art';
-import { TicketMachine, type TravelTicket } from './ticket-machine';
+import { MachineHall } from './machine-hall';
+import { TicketMachine, type TravelTicket, type FareTicket } from './ticket-machine';
+import { openTokyoDepartures, type FareStation } from './tokyo-fares';
 
 import { places, isHub, returnHub, platformFor, type Place, type Service } from './network';
 class Journey extends Phaser.Scene {
@@ -14,6 +16,10 @@ class Journey extends Phaser.Scene {
   private actionKey!: Phaser.Input.Keyboard.Key;
   private place:Place='tokyo';
   private ticket:TravelTicket|null=null;
+  private currentStation:FareStation|null=null;
+  private departures:{destroy:()=>void}|null=null;
+  private hall:MachineHall|null=null;
+  private machineId:string|null=null;
   private machine:TicketMachine|null=null;
   private modal:Phaser.GameObjects.Container|null=null;
   private direction={x:0,y:0};
@@ -42,13 +48,15 @@ class Journey extends Phaser.Scene {
   private rect(x:number,y:number,w:number,h:number,color:number,container=this.world){const r=this.add.rectangle(x,y,w,h,color).setOrigin(0);container.add(r);return r}
   private label(x:number,y:number,text:string,size=16,color='#283d3c',container=this.world){const t=this.add.text(x,y,text,{fontFamily:'monospace',fontSize:size,color,lineSpacing:5});container.add(t);return t}
   private loadPlace(place:Place){
-    this.machine?.destroy();this.machine=null;
+    this.machine?.destroy();this.machine=null;this.hall?.destroy();this.hall=null;this.machineId=null;this.departures?.destroy();this.departures=null;
+    if(place!=='jr-stop')this.currentStation=null;
     this.modal?.destroy();this.modal=null;this.world?.destroy(true);this.hud?.destroy(true);
     this.place=place;this.commuters=[];this.path=[];this.solids=[];this.direction={x:0,y:0};
     this.world=this.add.container(0,0);this.hud=this.add.container(0,0);
     this.world.add(this.add.image(0,0,'map-'+place).setOrigin(0).setScale(2));
     if(isHub(place))this.solids.push(new Phaser.Geom.Rectangle(0,70,960,177),new Phaser.Geom.Rectangle(350,250,260,65),new Phaser.Geom.Rectangle(451,375,58,62));
     if(place==='kamakura'||place==='arashiyama')this.solids.push(new Phaser.Geom.Rectangle(330,94,270,178));
+    if(place==='jr-stop')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,185));
     if(place==='kawaguchiko')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,265));
     if(isHub(place))for(let i=0;i<9;i++){
       const commuter=this.add.image(94+i*87,352+(i%3)*58,'traveller-'+(i%2?'left':'right')+'-0').setOrigin(.5,.85).setScale(1.7).setTint([0xb5c7c0,0xc7baa0,0x8facae][i%3]);
@@ -60,7 +68,8 @@ class Journey extends Phaser.Scene {
     this.rect(0,0,960,70,0x263d39,this.hud);
     this.rect(0,66,960,2,0xb8ad83,this.hud);
     this.label(24,12,'寄り道 / JOURNAL DE VOYAGE',11,'#b6bd98',this.hud);
-    this.label(24,32,places[place],18,'#f3dfb1',this.hud);
+    if(place==='jr-stop'&&this.currentStation){this.label(348,176,this.currentStation.ja,24,'#f1e5ba');this.label(348,210,this.currentStation.en.toUpperCase(),13,'#cbd6b1');}
+    this.label(24,32,this.currentStation?this.currentStation.en+' · Gare JR':places[place],18,'#f3dfb1',this.hud);
     this.button(548,14,108,40,'Billet',()=>this.showTicket(),this.hud);
     this.label(676,26,`${this.collected.size}/3 souvenirs`,12,'#cfceaa',this.hud);
     this.button(833,14,104,40,'Carnet',()=>this.album(),this.hud);
@@ -88,7 +97,7 @@ class Journey extends Phaser.Scene {
       if(Phaser.Math.Distance.Between(x,y,750,300)<95)return 'shinkansen';
     }else{
       if(x<240&&y<453)return 'return';
-      if(Phaser.Math.Distance.Between(x,y,710,409)<95)return 'photo';
+      if(this.place!=='jr-stop'&&Phaser.Math.Distance.Between(x,y,710,409)<95)return 'photo';
     }
     return '';
   }
@@ -105,10 +114,12 @@ class Journey extends Phaser.Scene {
       case 'ticket':this.ticketTerminal();break;
       case 'local':case 'shinkansen':{
         const service=this.nearby() as Service;
+        if(service==='local'&&this.place==='tokyo'&&this.ticket?.kind==='fare'){this.tokyoDepartures(this.ticket);break;}
         if(!this.ticket||this.ticket.from!==this.place||this.ticket.service!==service){
-          this.dialog(service==='local'?'在来線 改札 / Portiques locaux':'新幹線 改札 / Portiques Shinkansen',this.ticket?`Votre billet est pour le ${this.ticket.platform.toLowerCase()}.\nChoisissez le quai correspondant ou un autre billet.`:'Achetez votre billet à la borne au centre du hall.',[[service==='local'?'Voir les lignes locales':'Voir le Shinkansen',()=>this.ticketTerminal(service)]]);
+          this.dialog(service==='local'?'在来線 改札 / Portiques locaux':'新幹線 改札 / Portiques Shinkansen',this.ticket?this.ticket.kind==='fare'?'Ce billet est réservé aux lignes JR locales de Tokyo.':`Votre billet est pour le ${this.ticket.platform.toLowerCase()}.\nChoisissez le quai correspondant ou un autre billet.`:'Achetez votre billet à la borne au centre du hall.',[[service==='local'?'Voir les lignes locales':'Voir le Shinkansen',()=>this.ticketTerminal(service)]]);
         }else{
           const ticket=this.ticket;
+          if(ticket.kind==='fare')break;
           const correct=service==='shinkansen'?(this.place==='tokyo'?'のぞみ / NOZOMI → KYOTO':'のぞみ / NOZOMI → TOKYO'):(ticket.to==='kamakura'?'横須賀線 / YOKOSUKA → KAMAKURA':ticket.to==='arashiyama'?'嵯峨野線 / SAGANO → SAGA-ARASHIYAMA':'中央線 / CHUO → FUJI (correspondances)');
           const decoy=service==='shinkansen'?'回送 / HORS SERVICE':this.place==='tokyo'?'品川止まり / TERMINUS SHINAGAWA':'反対方向 / DIRECTION KYOTO';
           this.dialog(ticket.platform+' · 発車案内',`Deux rames sont annoncées.\nBillet : ${ticket.to.toUpperCase()} · ${ticket.line}\nVérifiez la destination avant de monter.`,[
@@ -125,7 +136,7 @@ class Journey extends Phaser.Scene {
       }
       case 'return':{
         const hub=returnHub(this.place);
-        this.dialog('Retour à '+(hub==='tokyo'?'Tokyo':'Kyoto'),'Le retour local est inclus dans le billet excursion.',[['Revenir à la gare',()=>this.loadPlace(hub)]]);break;
+        this.dialog('Retour à '+(hub==='tokyo'?'Tokyo':'Kyoto'),this.place==='jr-stop'?'Retour libre vers Tokyo pour ce prototype.':'Le retour local est inclus dans le billet excursion.',[['Revenir à la gare',()=>this.loadPlace(hub)]]);break;
       }
       case 'photo':this.collected.add(this.place);localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]));this.dialog('Un souvenir dans votre carnet',`${places[this.place]}\n\nEmplacement réservé à votre future photo de voyage.\nLe souvenir est conservé sur cet appareil.`);break;
       default:this.dialog('Bienvenue au Japon','Touchez la carte pour vous déplacer.\nLes flèches fonctionnent aussi au clavier.\nAGIR, E ou Espace : interagir.\n\nBorne au centre : choisissez votre billet.\nRepérez les panneaux ou demandez à l’agent.');
@@ -134,19 +145,45 @@ class Journey extends Phaser.Scene {
   private showTicket(){
     if(!this.ticket){this.dialog('Votre pochette à billets','Aucun billet.\nCherchez la borne きっぷ dans le hall.\nL’agent au comptoir peut vous renseigner.');return;}
     const ticket=this.ticket;
+    if(ticket.kind==='fare'){this.dialog('普通乗車券 / Billet à montant',`TOKYO → ¥${ticket.fare.toLocaleString('fr-FR')}\nJR · 1 adulte · Aller simple\nAucune destination choisie à l’achat.\nCherchez son tarif sur le plan de la borne.`);return;}
     this.dialog('乗車券 / Votre billet',`${ticket.from.toUpperCase()} → ${ticket.to.toUpperCase()}\n${ticket.line}\n${ticket.platform} · 1 adulte · ¥${ticket.fare.toLocaleString('fr-FR')}\n${ticket.reservation?ticket.reservation.day+' · '+ticket.reservation.train+' · '+ticket.reservation.seat:ticket.service==='local'?'Retour au hub inclus':'Shinkansen · aller simple'}`);
   }
   private stationHelp(){
     const hub=isHub(this.place)?this.place:'tokyo';
-    const body=this.ticket?`Pour ${this.ticket.to.toUpperCase()}, cherchez ${this.ticket.platform}.\n${this.ticket.service==='local'?'Portiques 在来線, à gauche.':'Portiques 新幹線, à droite.'}\nSur le panneau, vérifiez aussi le nom de la ligne.\nLes sorties 西口 et 東口 mènent hors de la gare.`:`きっぷ : billets à la borne centrale.\n在来線 : lignes locales, ${platformFor(hub,'local')}, à gauche.\n新幹線 : Shinkansen, ${platformFor(hub,'shinkansen')}, à droite.\nLes grandes flèches jaunes indiquent aussi des sorties.`;
-    this.dialog('駅員 / Agent de gare',body,[['Merci, je vais chercher',()=>{this.modal?.destroy(true);this.modal=null;}]]);
+    const body=this.ticket?.kind==='fare'?`Votre billet JR vaut ¥${this.ticket.fare.toLocaleString('fr-FR')}.\nLe plan à la borne indique le prix de chaque gare.\nChoisissez ensuite votre trajet aux portiques locaux,\nà gauche. Un billet trop faible sera refusé.`:this.ticket?`Pour ${this.ticket.to.toUpperCase()}, cherchez ${this.ticket.platform}.\n${this.ticket.service==='local'?'Portiques 在来線, à gauche.':'Portiques 新幹線, à droite.'}\nSur le panneau, vérifiez aussi le nom de la ligne.\nLes sorties 西口 et 東口 mènent hors de la gare.`:`きっぷ : billets à la borne centrale.\n在来線 : lignes locales, ${platformFor(hub,'local')}, à gauche.\n新幹線 : Shinkansen, ${platformFor(hub,'shinkansen')}, à droite.\nLes grandes flèches jaunes indiquent aussi des sorties.`;
+    const choices:[string,()=>void][]=[['Merci, je vais chercher',()=>{this.modal?.destroy(true);this.modal=null;}]];
+    if(hub==='tokyo')choices.push(['Demander un indice de tarif',()=>this.tokyoFareHint()]);
+    this.dialog('駅員 / Agent de gare',body,choices);
+  }
+  private tokyoFareHint(){
+    this.stopNavigation();this.modal?.destroy(true);this.modal=this.add.container(0,0).setDepth(20);
+    const close=()=>{this.departures?.destroy();this.departures=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
+    this.departures=openTokyoDepartures(station=>{close();this.dialog('駅員 / Indice de tarif',`Pour ${station.en}, cherchez ¥${station.fare}\nsur le plan au départ de Tokyo.\nLigne : ${station.line}.\nÀ vous de sélectionner le montant à la borne.`)},close,true);
+  }
+  private tokyoDepartures(ticket:FareTicket){
+    this.stopNavigation();this.modal?.destroy(true);this.modal=this.add.container(0,0).setDepth(20);
+    const close=()=>{this.departures?.destroy();this.departures=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
+    this.departures=openTokyoDepartures(station=>{
+      close();
+      if(ticket.fare<station.fare){
+        this.dialog('運賃不足 / Montant insuffisant',`Vers ${station.en} : ¥${station.fare}.\nVotre billet : ¥${ticket.fare}.\nLe billet est conservé. Choisissez un autre montant.`,[['Retour à la borne',()=>this.ticketTerminal('local')]]);return;
+      }
+      this.dialog(station.line,`TOKYO → ${station.en.toUpperCase()}\nTarif : ¥${station.fare} · Billet : ¥${ticket.fare}\n${ticket.fare>station.fare?'Billet accepté. Le trop-payé ne sera pas remboursé.':'Le montant correspond.'}`,[['Monter dans le train',()=>{this.ticket=null;this.currentStation=station;this.loadPlace('jr-stop');}]]);
+    },close);
   }
   private ticketTerminal(service:Service='local'){
     if(!isHub(this.place))return;
-    this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);this.machine?.destroy();
+    const hub=this.place;
+    this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);this.machine?.destroy();this.hall?.destroy();this.machine=null;this.machineId=null;
     this.modal=this.add.container(0,0).setDepth(20);
-    this.machine=new TicketMachine(this.place,service,ticket=>{this.ticket=ticket},()=>{
-      this.machine=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();
+    this.hall=new MachineHall(hub,service,(kind,id)=>{
+      if(this.machine&&this.machineId===id){this.machine.resume();return;}
+      this.machine?.destroy();this.machineId=id;
+      this.machine=new TicketMachine(hub,kind,ticket=>{this.ticket=ticket},()=>{
+        this.machine=null;this.machineId=null;this.hall?.resume();this.input.keyboard?.resetKeys();
+      },{fixedService:true,lookAtWall:()=>{this.machine?.suspend();this.hall?.resume(true);}});
+    },()=>{
+      this.machine?.destroy();this.machine=null;this.machineId=null;this.hall=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();
     });
   }
   private album(){this.dialog('Mon carnet de voyage',`SOUVENIRS COLLECTÉS · ${this.collected.size}/3\n\n${this.collected.has('kamakura')?'●':'○'} Kamakura · Les cerisiers du temple\n${this.collected.has('kawaguchiko')?'●':'○'} Kawaguchiko · Le reflet du Fuji\n${this.collected.has('arashiyama')?'●':'○'} Arashiyama · Le chemin des bambous\n\nLes vraies photos seront ajoutées dans une prochaine version.`);}

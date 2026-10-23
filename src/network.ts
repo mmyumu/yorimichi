@@ -1,8 +1,8 @@
 export type Hub='tokyo'|'kyoto';
-export type Place=Hub|'kamakura'|'kawaguchiko'|'arashiyama';
+export type Place=Hub|'kamakura'|'kawaguchiko'|'arashiyama'|'jr-stop';
 export type Service='shinkansen'|'local';
 export interface Route {id:string;from:Hub;to:Place;service:Service;name:string;line:string;fare:number;platform:string}
-export const places:Record<Place,string>={tokyo:'Tokyo · Gare centrale',kyoto:'Kyoto · Gare centrale',kamakura:'Kamakura · Le sentier des temples',kawaguchiko:'Kawaguchiko · Au pied du Fuji',arashiyama:'Arashiyama · Le chemin des bambous'};
+export const places:Record<Place,string>={tokyo:'Tokyo · Gare centrale',kyoto:'Kyoto · Gare centrale',kamakura:'Kamakura · Le sentier des temples',kawaguchiko:'Kawaguchiko · Au pied du Fuji',arashiyama:'Arashiyama · Le chemin des bambous','jr-stop':'Gare JR'};
 export const routes:Route[]=[
 {id:'tokyo-kyoto',from:'tokyo',to:'kyoto',service:'shinkansen',name:'KYOTO / 京都',line:'Tokaido Shinkansen',fare:14000,platform:'QUAI 19'},
 {id:'kyoto-tokyo',from:'kyoto',to:'tokyo',service:'shinkansen',name:'TOKYO / 東京',line:'Tokaido Shinkansen',fare:14000,platform:'QUAI 11'},

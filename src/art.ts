@@ -5,6 +5,7 @@ import { platformFor, type Hub } from './network';
 const C={grass:'#92ad70',dark:'#344c42',leaf:'#497452',light:'#86a466',cream:'#efdbac',wood:'#806049',shadow:'#657756'};
 export function makeArt(scene:Phaser.Scene){
   makeHubs(scene);
+  makeJrStop(scene);
   for(const place of ['kamakura','kawaguchiko','arashiyama']){
     const texture=scene.textures.createCanvas('map-'+place,480,320)!;
     const g=texture.context;
@@ -153,4 +154,22 @@ function makeHubs(scene:Phaser.Scene){
     else{for(let x=0;x<480;x+=24){r(x,36,2,17,'#a3b3a6');for(let k=0;k<15;k++)r(x+k,36+k,2,1,'#7e978e')}r(0,53,480,2,'#c0c6b0')}
     texture.refresh();
   }
+}
+
+function makeJrStop(scene:Phaser.Scene){
+  const texture=scene.textures.createCanvas('map-jr-stop',480,320)!;const g=texture.context;
+  const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  const t=(x:number,y:number,text:string,size=8,c='#e9dbaf')=>{g.fillStyle=c;g.font=`bold ${size}px monospace`;g.fillText(text,x,y)};
+  r(0,35,480,285,'#9dae8b');
+  for(let x=0;x<480;x+=24){r(x,45,20,24,'#748a78');r(x+2,48,5,4,'#b7c4a4');r(x+10,55,6,5,'#b7c4a4')}
+  r(0,70,480,42,'#64736c');for(let x=0;x<480;x+=14)r(x,72,4,37,'#40534c');for(const y of[77,100]){r(0,y,480,3,'#acb6a1');r(0,y+3,480,2,'#354e47')}
+  r(0,114,480,170,'#c4c3a8');for(let y=118;y<284;y+=12)for(let x=0;x<480;x+=20){r(x,y,19,11,'#d5d0b4');r(x,y,19,1,'#eee3c1')}
+  r(0,116,480,5,'#d0b56b');for(let x=0;x<480;x+=7)r(x,117,3,1,'#8b8758');
+  r(160,77,164,44,'#344f48');r(166,81,152,35,'#355b4e');r(160,75,164,4,'#bbd0a2');r(172,121,5,17,'#718573');r(306,121,5,17,'#718573');
+  for(const x of[15,439]){r(x,129,8,126,'#8b9d86');r(x-3,252,14,5,'#617b68')}
+  for(const x of[165,270]){r(x,235,52,4,'#9e8259');r(x,242,52,4,'#b99d6c');r(x+4,246,4,12,'#68745b');r(x+44,246,4,12,'#68745b')}
+  r(53,168,97,23,'#385d4c');t(59,183,'← TOKYO 東京',10);r(66,191,4,22,'#7d896b');r(133,191,4,22,'#7d896b');
+  r(356,161,58,46,'#dde0c4');r(360,165,50,25,'#57776b');for(let x=365;x<405;x+=10)r(x,170,6,12,'#b9c9a6');r(360,194,50,4,'#aab48d');t(363,205,'JR',6,'#456b54');
+  r(0,280,480,40,'#587b58');for(let x=0;x<480;x+=16){r(x,277,14,12,'#799762');r(x+2,275,8,5,'#a9b97b')}
+  t(202,270,'JR / LOCAL',8,'#6e7e63');texture.refresh();
 }
