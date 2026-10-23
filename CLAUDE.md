@@ -1,0 +1,29 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+Yorimichi (寄り道) is a small top-down Japan travel-journal game prototype: Phaser 3 + TypeScript + Vite, with no external assets and no backend. `AGENTS.md` holds the repository guidelines (style, commits, PRs). Follow it as well.
+
+## Commands
+
+- `npm ci`: install (Node.js 22.12+).
+- `npm run dev`: Vite dev server (binds `0.0.0.0`).
+- `npm run build`: `tsc --noEmit` then `vite build` to `dist/`. This is the only automated check: there are no tests, linter, or formatter.
+- `npm run preview`: serve `dist/`.
+- `npm run build:mobile`: build, then `scripts/export-mobile.mjs` inlines the bundled JS and CSS into `dist/yorimichi-mobile.html` (optional output path argument: `node scripts/export-mobile.mjs <path>`). The script finds assets by regex-matching Vite's `<script type="module" crossorigin src=…>` and `<link rel="stylesheet" crossorigin href=…>` tags, so a change to how `index.html` loads assets can break it.
+
+Verification is manual in the browser: movement (tap-to-walk and arrow keys), interaction prompts, ticket purchase and cancellation, platform validation, return trips, and the souvenir journal. For kiosk changes, check both the Japanese and English screens and that Escape closes the kiosk.
+
+## Architecture
+
+- **`src/main.ts`**: a single Phaser scene, `Journey`, on a fixed 960×640 canvas. `loadPlace(place)` tears down and rebuilds everything per location: the world container, HUD, collision rectangles (`solids`), commuters, and player. Interaction hotspots in `nearby()` and the collision rectangles are **hardcoded pixel coordinates** that must line up with what `art.ts` draws. Tap-to-walk uses a BFS over a 16px grid (`navigate`). In-game dialogs are Phaser containers stored in `this.modal`. Any non-null `modal` suspends movement and interaction.
+- **`src/art.ts`**: all visuals are drawn procedurally into 480×320 canvas textures (`map-<place>`, `traveller-<dir>-<frame>`) and shown at 2× with `pixelArt: true`. So art coordinates × 2 = scene coordinates. Platform signage is drawn from `platformFor()`.
+- **`src/network.ts`**: the single source of truth for places, hubs (`tokyo`, `kyoto`), routes, fares, and platform numbers. `platformFor(hub, service)` keeps the station signs, kiosk, ticket, and station staff (`駅員`) consistent. Adding a route or place usually also needs changes in `main.ts` (decoy and correct train names in `interact`, `returnHub`, the souvenir count and journal entries in `album`) and new map art in `art.ts`.
+- **`src/ticket-machine.ts`**: the kiosk is a **DOM overlay**, not Phaser. It is a step-based state machine (`Step`, with `history` for going back) and supports `ja`/`en` through `tr()`. It is scaled to a 960px design width with a `ResizeObserver`. It captures keyboard events (`stopPropagation`, Tab focus trap, Escape to close). It reports the purchased ticket through the `issue` callback. `main.ts` keeps the scene's `modal` set while the kiosk is open and resets the keyboard state when it closes. Screens are re-drawn from the JR West vending-machine guide; see `REFERENCES.md` for the sources and the deliberate adaptations.
+- **State**: the active ticket lives only in memory (`Journey.ticket`). It is consumed when the player boards. Shinkansen tickets are one-way, and local excursions return to their hub via the `return` hotspot. Souvenirs persist in `localStorage['yorimichi-memories']`.
+
+## Conventions
+
+- Player-facing game text is in **French** (with Japanese signage). The kiosk is Japanese/English. Keep `README.md` (in French) and `REFERENCES.md` in sync when gameplay or sources change.
+- The code is deliberately compact: dense one-line methods and inline styles. Match the surrounding density instead of reformatting.
+- Fares are fictional and timetables are decorative. Platform numbers are fictional but must stay consistent everywhere (Tokyo 3/19, Kyoto 33/11).
