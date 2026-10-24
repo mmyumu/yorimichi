@@ -1,0 +1,354 @@
+import * as THREE from 'three';
+import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+import { renderWallFareMap } from './tokyo-fares';
+import type { Hub } from './network';
+
+/** Machines as the hall knows them; x is the left edge in wall pixels. */
+export interface HallDevice {id:string;kind:string;x:number}
+type Painter=(g:CanvasRenderingContext2D,w:number,h:number)=>void;
+
+// World units are the old CSS wall pixels: x to the right, y up (CSS y negated), z out of the wall towards the player.
+const eyeY=-1120,machineW=500,floorY=1760;
+// Machine bank, in CSS-style y down from the ceiling: facade under the fare map, sign band, recesses down to the ledge, cabinet below.
+const facadeTop=950,recessTop=1110,recessBottom=1500,facadeD=110,recessD=50,signW=400,signH=134;
+// Concourse around the bank: the machine wall runs between two pillars, the ticket gates open to the left and the ticket office to the right; haze hides where the station ends.
+const wallL=-900,wallR=4700,gateZ=-1100,backZ=-2800,officeZ=-700,westX=-8000,eastX=10000,frontZ=4500;
+// One texel covers ~4 world px, about one pixel of the low-resolution render at the default distance.
+const texel=4;
+// Muted palette shared with art.ts so the hall reads as the same game.
+const C={ink:'#283e40',dark:'#314c51',tile:'#e6e3cc',grout:'#c9c4a6',tileShade:'#d8d3b8',floorA:'#74855e',floorB:'#68745b',floorLine:'#5a6650',ceiling:'#5d6a62',ceilingSeam:'#4c5852',haze:'#55625b',signBoard:'#2f3638',gate:'#d5d8d0',gateTop:'#3d4846',light:'#fffbe0',body:'#dfe1d6',bodyShade:'#c3c8b8',bodyEdge:'#9aa69a',side:'#9aa69a',sideDark:'#7d897e',plinth:'#3b4541',bezel:'#86967e',panel:'#b7c4a4',tray:'#2d4133',frame:'#8f9e8b',facade:'#e4e6df',facadeShade:'#d4d7ce',facadeSeam:'#b9bdb3',reveal:'#9ea69c',steel:'#aeb4b0'};
+const accents:Record<string,string>={local:'#2c754e',charge:'#c5487e',shinkansen:'#6c78b8'};
+const housings:Record<string,string>={local:'#d9dcd6',charge:'#d9dcd6',shinkansen:'#3d9a4c'};
+// Signs as at JR East stations: Japanese over English.
+const titles:Record<string,[string,string]>={local:['きっぷ','Tickets'],charge:['チャージ専用','IC Charge'],shinkansen:['新幹線・特急','Shinkansen & Limited Express']};
+
+/** Canvas text snapped to whole texels: anti-aliasing is thresholded away so glyphs read as pixel art. */
+function pixelText(g:CanvasRenderingContext2D,text:string,x:number,y:number,size:number,color:string,align:'left'|'center'|'right'='center',bold=false){
+  const scratch=document.createElement('canvas'),c=scratch.getContext('2d')!,font=`${bold?'bold ':''}${size}px "Yorimichi JP", sans-serif`;
+  c.font=font;const w=Math.ceil(c.measureText(text).width)+2,h=Math.ceil(size*1.5);scratch.width=w;scratch.height=h;
+  c.font=font;c.fillStyle=color;c.textBaseline='middle';c.fillText(text,1,h/2);
+  const data=c.getImageData(0,0,w,h);for(let i=3;i<data.data.length;i+=4)data.data[i]=data.data[i]>100?255:0;c.putImageData(data,0,0);
+  g.drawImage(scratch,Math.round(align==='center'?x-w/2:align==='right'?x-w:x),Math.round(y-h/2));
+}
+/** 50% checkerboard, the pixel-art way to shade without gradients. */
+function dither(g:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,color:string){g.fillStyle=color;for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)g.fillRect(x+i,y+j,1,1)}
+function box(g:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,fill:string,line?:string){g.fillStyle=fill;g.fillRect(x,y,w,h);if(line){g.fillStyle=line;g.fillRect(x,y,w,1);g.fillRect(x,y+h-1,w,1);g.fillRect(x,y,1,h);g.fillRect(x+w-1,y,1,h)}}
+/** Payment face after the Tokyo Station machines, in 2-px texels (244 × 111): labels, yellow-rimmed slots, coin funnel, keypad, QR reader, tray. The outer 3 texels sit under the hole's edge. */
+function paintPayment(g:CanvasRenderingContext2D,w:number,h:number,kind:string){
+  const Y='#e2c234',D='#1d2622',unit='#f6f6f0',edge='#b9bdb3',ink='#3f4a48',c1=6,c1w=76,c2=86,c2w=60,c3=150,c3w=w-6-c3,r2=22,r3=54,rh=28;
+  box(g,0,0,w,h,'#e9eae2');box(g,0,0,w,5,'#c3c7bf');box(g,0,5,w,1,'#fbfbf6');
+  const label=(x:number,lw:number,text:string)=>{box(g,x,8,lw,11,'#4c565a');pixelText(g,text,x+lw/2,13.5,9,'#fff')};
+  const slot=(x:number,y:number,sw:number,sh:number,text='')=>{box(g,x,y,sw,sh,unit,edge);box(g,x+1,y+sh-3,sw-2,2,'#dfe1d8');const lw=Math.round(sw*.62),lx=x+Math.round((sw-lw)/2),ly=y+(text?6:Math.round(sh/2)-2);box(g,lx-2,ly-2,lw+4,8,Y);box(g,lx,ly,lw,4,D);if(text)pixelText(g,text,x+sw/2,y+sh-9,8,ink)};
+  if(kind==='charge'){
+    label(c1,c1w,'IC カード');label(c2,c2w,'紙幣 Bills');label(c3,c3w,'おつり Change');
+    box(g,c1,r2,c1w,rh*2+4,unit,edge);const cx=c1+c1w/2,cy=r2+25;
+    for(let dy=-16;dy<=16;dy++)for(let dx=-16;dx<=16;dx++){const d=Math.hypot(dx,dy);if(d<=16)box(g,cx+dx,cy+dy,1,1,d>=13?'#7dba71':'#e7f1e4')}
+    pixelText(g,'Suica · PASMO',cx,r2+rh*2-4,8,ink);slot(c2,r2,c2w,rh);slot(c3,r2,c3w,rh*2+4);
+  }else{
+    label(c1,c1w,'カード Card');label(c2,c2w,'紙幣 Bills');label(c3,c3w,'硬貨 Coins');
+    slot(c1,r2,c1w,rh);slot(c2,r2,c2w,rh);
+    // Coin funnel: dark bowl ringed in yellow, corners cut.
+    box(g,c3,r2,c3w,rh,Y);box(g,c3+3,r2+3,c3w-6,rh-6,D);dither(g,c3+3,r2+3,c3w-6,6,'#3c4a44');box(g,c3+c3w/2-8,r2+rh-9,16,2,'#c9a54a');
+    for(const [x,y] of [[c3,r2],[c3+c3w-2,r2],[c3,r2+rh-2],[c3+c3w-2,r2+rh-2]])box(g,x,y,2,2,'#e9eae2');
+    slot(c1,r3,c1w,rh,'きっぷ Ticket');slot(c2,r3,c2w,rh,'おつり Change');
+    // Keypad (red cancel, green confirm) and QR reader.
+    const kw=46,qx=c3+kw+4,qw=c3+c3w-qx;box(g,c3,r3,kw,rh,Y);box(g,c3+2,r3+2,kw-4,rh-4,'#f2e9b8');
+    for(let i=0;i<12;i++)box(g,c3+4+(i%3)*13,r3+4+Math.floor(i/3)*6,11,4,i===9?'#d9534f':i===11?'#4f9a59':'#ffffff',i===9||i===11?undefined:'#c9c3a0');
+    box(g,qx,r3,qw,rh,unit,edge);pixelText(g,'QR',qx+qw/2,r3+6,8,ink);box(g,qx+6,r3+11,qw-12,rh-15,'#2b3d44');box(g,qx+7,r3+12,qw-14,2,'#4f6a73');
+  }
+  // Tray for tickets and change, with its caution sticker.
+  const ty=86,th=h-6-ty;box(g,c1,ty,c2+c2w-c1,th,'#262f2c');dither(g,c1+1,ty+1,c2+c2w-c1-2,5,'#111a17');box(g,c3,ty+3,12,12,Y);pixelText(g,'!',c3+6,ty+9,10,D,'center',true);
+}
+
+/** Overhead concourse sign: a pictogram square, Japanese over English, and an optional arrow. */
+function paintHanging(g:CanvasRenderingContext2D,w:number,h:number,o:{ja:string;en:string;mark:string;markBg:string;markInk?:string;arrow?:'←'|'→';bg?:string;ink?:string}){
+  const ink=o.ink??'#fff',s=h-14;let x=8;
+  box(g,0,0,w,h,o.bg??C.signBoard,'#77817c');box(g,1,h-3,w-2,2,'#00000033');
+  if(o.arrow==='←'){pixelText(g,'←',x+s/2,h/2,s,ink,'center',true);x+=s+4}
+  box(g,x,7,s,s,o.markBg);pixelText(g,o.mark,x+s/2,7+s/2,Math.round(s*.72),o.markInk??'#1d2622','center',true);x+=s+10;
+  pixelText(g,o.ja,x,h*.36,Math.round(h*.4),ink,'left',true);pixelText(g,o.en,x,h*.78,Math.round(h*.25),ink,'left',true);
+  if(o.arrow==='→')pixelText(g,'→',w-8-s/2,h/2,s,ink,'center',true);
+}
+/** Light-box travel posters for the game's own destinations. */
+function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakura'|'fuji'|'arashiyama'){
+  let seed=place.length*977;const rand=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
+  const ih=h-36;
+  if(place==='fuji'){
+    box(g,0,0,w,ih,'#a8d4e8');dither(g,0,0,w,Math.round(ih*.3),'#86bede');
+    const top=Math.round(ih*.24),base=Math.round(ih*.62),cx=Math.round(w/2);
+    for(let y=top;y<base;y++){const half=Math.round((y-top)*1.3+2);box(g,cx-half,y,half*2,1,'#56679a')}
+    for(let x=cx-26;x<cx+26;x++)box(g,x,Math.round(top+Math.abs(x-cx)/1.3),1,12+(x*13)%7,'#fbfbf6');
+    box(g,0,base-4,w,6,'#4c7a4a');box(g,0,base+2,w,ih-base-2,'#5f9cc4');
+    for(let y=base+5;y<ih;y+=4)box(g,Math.round(rand()*w*.6),y,Math.round(w*.3),1,'#9ccbe3');
+  }else if(place==='kamakura'){
+    box(g,0,0,w,ih,'#f7ead2');dither(g,0,0,w,Math.round(ih*.35),'#f2d9c4');
+    const ground=Math.round(ih*.78);box(g,0,ground-18,w,18,'#7c9a6a');box(g,0,ground,w,ih-ground,'#d9c9a3');
+    // Temple hall: dark roof over red pillars.
+    const cx=Math.round(w/2);for(let i=0;i<16;i++)box(g,cx-30-i,ground-60+i,60+2*i,1,'#4a4a52');
+    box(g,cx-34,ground-44,68,44,'#b8503e');for(let x=cx-30;x<cx+30;x+=12)box(g,x,ground-44,3,44,'#8c3a2e');box(g,cx-38,ground-2,76,3,'#6b6258');
+    for(let i=0;i<70;i++){const x=rand()<.5?rand()*w*.35:w-rand()*w*.35,y=rand()*ih*.7,r=3+rand()*6;for(let dy=-r;dy<=r;dy++){const half=Math.round(Math.sqrt(r*r-dy*dy));box(g,Math.round(x-half),Math.round(y+dy),half*2,1,rand()<.6?'#f2a7c0':'#f8c9d8')}}
+  }else{
+    box(g,0,0,w,ih,'#b9d8a0');
+    for(let x=0;x<w;){const sw=3+Math.round(rand()*2),color=['#4f8a4a','#6fa863','#3f6f3e'][Math.floor(rand()*3)];box(g,x,0,sw,ih,color);for(let y=Math.round(rand()*18);y<ih;y+=18)box(g,x,y,sw,1,'#a9cf8f');x+=sw+2+Math.round(rand()*5)}
+    for(let y=Math.round(ih*.72);y<ih;y++){const half=Math.round((y-ih*.72)*1.1+4);box(g,Math.round(w/2-half),y,half*2,1,'#d8cfa8')}
+  }
+  pixelText(g,'寄り道しよう。',8,12,11,'#283e40','left',true);
+  box(g,0,ih,w,h-ih,'#fbfbf6');box(g,0,ih,w,2,'#c9c4a6');
+  const [ja,en]={kamakura:['鎌倉','Kamakura'],fuji:['河口湖','Kawaguchiko'],arashiyama:['嵐山','Arashiyama']}[place];
+  pixelText(g,ja,8,ih+13,16,C.ink,'left',true);pixelText(g,en,8,ih+28,9,'#65735a','left');pixelText(g,'JR線でどうぞ',w-6,ih+28,8,'#65735a','right');
+}
+/** The ticket office front: green sign band, glazed counters with clerks, an open door. */
+function paintOffice(g:CanvasRenderingContext2D,w:number,h:number){
+  box(g,0,0,w,40,'#2c8a4a');box(g,0,2,w,1,'#7fc495');box(g,0,37,w,1,'#1f6636');
+  pixelText(g,'みどりの窓口',16,20,26,'#fff','left',true);pixelText(g,'JR Ticket Office',190,24,12,'#fff','left');pixelText(g,'営業時間 5:30 – 23:00',w-12,20,9,'#d6efd9','right');
+  box(g,0,40,w,6,'#3b4541');const bay=75,door=4,glassTop=46,counter=150,plinth=h-26;
+  for(let i=0;i*bay<w;i++){
+    const x=i*bay;
+    if(i===door){box(g,x,glassTop,bay,plinth-glassTop,'#4c5f5c');dither(g,x,glassTop,bay,plinth-glassTop,'#5b706c');continue}
+    box(g,x,glassTop,bay,plinth-glassTop,'#9fc3c2');
+    for(let d=0;d<40;d+=1)box(g,x+8+d,glassTop+40-d,2,1,'#c3dddb');
+    // Clerk behind the counter, a screen beside.
+    const cx=x+bay/2;box(g,cx-9,counter-14,18,14,'#2f4f7a');box(g,cx-5,counter-25,10,11,'#e9c4a0');box(g,cx-5,counter-26,10,4,'#2b2420');box(g,cx+14,counter-16,12,10,'#283e40');
+    box(g,x,counter,bay,8,'#d9d3bf');box(g,x,counter+8,bay,plinth-counter-8,'#c3c8b8');pixelText(g,String(i<door?i+1:i),cx,counter+24,10,'#283e40','center',true);
+  }
+  for(let x=0;x<w;x+=bay)box(g,x,glassTop,3,plinth-glassTop,'#8f9e8b');
+  box(g,0,plinth,w,h-plinth,'#3b4541');
+}
+interface Look {coat:string;pants:string;hair:string;bag?:string}
+const looks:Look[]=[{coat:'#2d3a4a',pants:'#262f3a',hair:'#1f1c1a',bag:'#3b2f28'},{coat:'#c9b38a',pants:'#3a3f48',hair:'#4a3426',bag:'#8a3b3b'},{coat:'#27324f',pants:'#27324f',hair:'#141414'},{coat:'#c25b4a',pants:'#5a6b86',hair:'#2b2420',bag:'#d9c06a'},{coat:'#7c8580',pants:'#3d4441',hair:'#9a9a96',bag:'#283e40'}];
+/** A commuter in four 20 × 48 frames: front step A/B, back step A/B. */
+function paintPerson(g:CanvasRenderingContext2D,look:Look){
+  const skin='#e9c4a0';
+  for(let f=0;f<4;f++){
+    const o=f*20,back=f>1,step=f%2===1;
+    box(g,o+(step?6:7),30,3,step?15:16,look.pants);box(g,o+(step?11:10),30,3,16,look.pants);box(g,o+(step?5:6),45,4,2,'#2a2a2a');box(g,o+(step?11:10),46,4,2,'#2a2a2a');
+    box(g,o+5,14,10,17,look.coat);box(g,o+3,15,2,12,look.coat);box(g,o+15,15,2,12,look.coat);box(g,o+3,27,2,2,skin);box(g,o+15,27,2,2,skin);
+    if(!back){box(g,o+8,14,4,4,'#f4f4ee');box(g,o+9,15,2,5,'#6c3b3b')}
+    box(g,o+7,4,6,9,skin);box(g,o+7,3,6,back?9:3,look.hair);if(!back){box(g,o+6,4,1,4,look.hair);box(g,o+13,4,1,4,look.hair);box(g,o+8,8,1,1,'#283e40');box(g,o+11,8,1,1,'#283e40')}
+    if(look.bag)box(g,back?o+1:o+16,22,4,7,look.bag);
+  }
+}
+
+/** The ticket hall rendered with three.js into a small canvas, scaled up without smoothing. */
+export class HallScene {
+  private renderer:THREE.WebGLRenderer|null=null;
+  // Crisp DOM layer behind the canvas: the fare map stays vector-sharp, seen through a hole punched in the WebGL image.
+  private css=new CSS3DRenderer();
+  private cssScene=new THREE.Scene();
+  private scene=new THREE.Scene();
+  private camera=new THREE.PerspectiveCamera(26,1.5,10,12000);
+  private painted:{texture:THREE.CanvasTexture;paint:Painter}[]=[];
+  // Pixel-art canvases shown in the crisp DOM layer, repainted like the textures once the font is ready.
+  private crisp:(()=>void)[]=[];
+  private machines=new Map<string,{group:THREE.Group;outline:THREE.Group;materials:THREE.MeshBasicMaterial[];sign:HTMLElement}>();
+  // Clears the WebGL pixels so the crisp DOM layer behind shows through; depth still lets nearer meshes cover it.
+  private hole=new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:0,blending:THREE.NoBlending,fog:false});
+  private raycaster=new THREE.Raycaster();
+  private resize=new ResizeObserver(()=>this.fit());
+  private hovered:string|null=null;
+  // Fare map frame (yellow when it is looked at or hovered) and the meshes a click on the map hits.
+  private boardFrame:THREE.Mesh<THREE.BoxGeometry,THREE.MeshBasicMaterial>|null=null;
+  private boardMeshes:THREE.Mesh[]=[];
+  private near:string|null=null;
+  // Commuters crossing the concourse along z; each sprite has its own texture to step through the frames.
+  private walkers:{sprite:THREE.Sprite;x:number;from:number;to:number;speed:number;phase:number;dir:number}[]=[];
+  constructor(private host:HTMLElement,private hub:Hub,devices:HallDevice[]){
+    try{this.renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'low-power'})}
+    catch{const message=document.createElement('p');message.className='hall-no-webgl';message.textContent='WebGL est indisponible : utilisez les boutons ci-dessous pour choisir une borne.';host.append(message);return}
+    this.css.domElement.className='hall-css3d';host.append(this.css.domElement);
+    this.renderer.setPixelRatio(1);host.append(this.renderer.domElement);
+    this.camera.rotation.order='YXZ';this.scene.background=new THREE.Color(C.haze);this.scene.fog=new THREE.Fog(C.haze,3200,8500);
+    this.buildRoom();this.buildConcourse();this.buildBoard();this.buildBank(devices);
+    this.resize.observe(host);this.fit();
+    // Signs are painted with the bundled Japanese font once it is ready; until then the fallback font is used.
+    document.fonts?.load('16px "Yorimichi JP"').then(()=>{for(const {texture,paint} of this.painted){const canvas=texture.image as HTMLCanvasElement;paint(canvas.getContext('2d')!,canvas.width,canvas.height);texture.needsUpdate=true}for(const paint of this.crisp)paint()}).catch(()=>{});
+  }
+  private texture(w:number,h:number,paint:Painter,repeat?:[number,number]){
+    const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(w));canvas.height=Math.max(1,Math.round(h));
+    const g=canvas.getContext('2d')!;g.imageSmoothingEnabled=false;paint(g,canvas.width,canvas.height);
+    const texture=new THREE.CanvasTexture(canvas);texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.generateMipmaps=true;texture.colorSpace=THREE.SRGBColorSpace;
+    if(repeat){texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(...repeat)}
+    this.painted.push({texture,paint});return texture;
+  }
+  private material(source:THREE.Texture|string){return new THREE.MeshBasicMaterial(typeof source==='string'?{color:source}:{map:source})}
+  /** A plane placed by its CSS-style top-left corner on the wall (z sets how far it stands out). */
+  private plane(w:number,h:number,material:THREE.Material,parent:THREE.Object3D=this.scene){const mesh=new THREE.Mesh(new THREE.PlaneGeometry(w,h),material);parent.add(mesh);return mesh}
+  private buildRoom(){
+    const tiles:Painter=(g,w,h)=>{box(g,0,0,w,h,C.tile);dither(g,0,h-6,w,6,C.tileShade);g.fillStyle=C.grout;g.fillRect(0,h-1,w,1);g.fillRect(w-1,0,1,h)};
+    const tiled=(w:number,shade=1)=>{const m=this.material(this.texture(75,44,tiles,[w/300,floorY/176]));m.color.setScalar(shade);return m};
+    const wall=this.plane(wallR-wallL,floorY,tiled(wallR-wallL));wall.position.set((wallL+wallR)/2,-floorY/2,0);
+    // Set-back walls behind the gates and behind the ticket office, a little darker.
+    this.plane(wallL-westX,floorY,tiled(wallL-westX,.8)).position.set((westX+wallL)/2,-floorY/2,backZ);
+    this.plane(eastX-wallR,floorY,tiled(eastX-wallR,.85)).position.set((wallR+eastX)/2,-floorY/2,officeZ);
+    const floorW=eastX-westX,floorD=frontZ-backZ;
+    const floorTexture=this.texture(30,30,(g,w,h)=>{box(g,0,0,w,h,C.floorA);box(g,0,0,w/2,h/2,C.floorB);box(g,w/2,h/2,w/2,h/2,C.floorB);g.fillStyle=C.floorLine;g.fillRect(0,0,w,1);g.fillRect(0,0,1,h)},[floorW/240,floorD/240]);
+    const floor=this.plane(floorW,floorD,this.material(floorTexture));floor.rotation.x=-Math.PI/2;floor.position.set((westX+eastX)/2,-floorY,(backZ+frontZ)/2);
+    // A darker band along the wall stands in for the machines' contact shadow.
+    const shadow=this.plane(wallR-wallL,60,new THREE.MeshBasicMaterial({color:'#000',transparent:true,opacity:.18}));shadow.rotation.x=-Math.PI/2;shadow.position.set((wallL+wallR)/2,-floorY+1,facadeD+30);
+    // Tactile paving along the machines, as in every Japanese concourse.
+    const paving=this.plane(wallR-wallL-600,64,this.material(this.texture(8,8,(g,w,h)=>{box(g,0,0,w,h,'#e8c440');for(const [x,y] of [[1,1],[5,1],[3,5],[7,5]])box(g,x,y,2,2,'#cfa72c')},[(wallR-wallL-600)/64,1])));
+    paving.rotation.x=-Math.PI/2;paving.position.set((wallL+wallR)/2,-floorY+1,560);
+    const ceiling=this.plane(floorW,floorD,this.material(this.texture(162,40,(g,w,h)=>{box(g,0,0,w,h,C.ceiling);dither(g,0,0,w,4,C.ceilingSeam);box(g,20,18,110,4,C.light);g.fillStyle=C.ceilingSeam;g.fillRect(w-1,0,1,h)},[floorW/650,floorD/160])));
+    ceiling.rotation.x=Math.PI/2;ceiling.position.set((westX+eastX)/2,0,(backZ+frontZ)/2);
+    // Square tiled pillars: at both ends of the machine wall, out in the concourse and behind the gates.
+    const pillarTiles=tiled(300),base=this.material(C.steel);
+    for(const [x,z] of [[wallL,0],[wallR,0],[-2300,700],[-5100,700],[6100,700],[8900,700],[-2900,-2000],[-5700,-2000]]){
+      const pillar=new THREE.Mesh(new THREE.BoxGeometry(300,floorY,300),pillarTiles);pillar.position.set(x,-floorY/2,z);this.scene.add(pillar);
+      const skirt=new THREE.Mesh(new THREE.BoxGeometry(316,110,316),base);skirt.position.set(x,-floorY+55,z);this.scene.add(skirt);
+    }
+  }
+  /** A sign hung from the ceiling on two rods, its top edge `top` below the ceiling. */
+  private hanging(x:number,z:number,top:number,w:number,h:number,paint:Painter){
+    this.plane(w,h,this.material(this.texture(w/texel,h/texel,paint))).position.set(x,-(top+h/2),z);
+    const rod=this.material(C.steel);for(const dx of [-w*.35,w*.35]){const r=new THREE.Mesh(new THREE.BoxGeometry(8,top,8),rod);r.position.set(x+dx,-top/2,z);this.scene.add(r)}
+  }
+  /** What surrounds the bank: posters beside it, the ticket gates on the left, the ticket office on the right, overhead signs and commuters. */
+  private buildConcourse(){
+    const poster=(x:number,z:number,place:'kamakura'|'fuji'|'arashiyama')=>{
+      const frame=new THREE.Mesh(new THREE.BoxGeometry(600,840,24),this.material(C.steel));frame.position.set(x,-1010,z+12);this.scene.add(frame);
+      this.plane(560,800,this.material(this.texture(140,200,(g,w,h)=>paintPoster(g,w,h,place)))).position.set(x,-1010,z+25);
+    };
+    poster(-280,0,'kamakura');poster(4080,0,'fuji');poster(8000,officeZ,'arashiyama');
+    // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow.
+    const gateFront=this.material(this.texture(28,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);box(g,0,0,w,10,C.gateTop);box(g,4,14,w-8,12,'#1d2622');pixelText(g,'↑',w/2,20,10,'#57c26a','center',true);box(g,0,h-10,w,10,'#9aa29a')}));
+    const gateSide=this.material(this.texture(175,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);dither(g,0,h-14,w,4,C.bodyShade);box(g,0,0,w,10,C.gateTop);box(g,0,26,w,3,'#3a78c2');box(g,0,h-10,w,10,'#9aa29a');box(g,w/2-14,40,28,30,'#c9cdc4',C.bodyEdge)}));
+    const gateTop=this.material(C.gateTop),reader=this.material('#5aa9d8');
+    for(let i=0;i<9;i++){
+      const x=-1300-i*360,gate=new THREE.Mesh(new THREE.BoxGeometry(110,480,700),[gateSide,gateSide,gateTop,gateTop,gateFront,gateFront]);gate.position.set(x,-floorY+240,gateZ);this.scene.add(gate);
+      const ic=new THREE.Mesh(new THREE.BoxGeometry(80,8,110),reader);ic.position.set(x,-floorY+484,gateZ+240);this.scene.add(ic);
+    }
+    this.hanging(-2740,gateZ,420,1700,220,(g,w,h)=>paintHanging(g,w,h,{ja:'中央改札',en:'Central Gate',mark:'改',markBg:'#f2c230'}));
+    // Past the gates, the yellow exit sign on the far wall.
+    this.plane(1500,220,this.material(this.texture(1500/texel,220/texel,(g,w,h)=>paintHanging(g,w,h,{ja:'出口 · のりば',en:'Exit · Platforms',mark:'出',markBg:'#1d2622',markInk:'#f2c230',arrow:'←',bg:'#f2c230',ink:'#1d2622'})))).position.set(-4300,-610,backZ+2);
+    this.hanging(5300,300,560,1300,200,(g,w,h)=>paintHanging(g,w,h,{ja:'みどりの窓口',en:'JR Ticket Office',mark:'み',markBg:'#2c8a4a',markInk:'#fff',arrow:'→'}));
+    // Over the bank, high enough to clear the fare map from every standing distance.
+    this.hanging(1900,900,200,1500,200,(g,w,h)=>paintHanging(g,w,h,{ja:'きっぷうりば',en:'Tickets',mark:'券',markBg:'#fff'}));
+    const office=this.plane(2700,floorY-300,this.material(this.texture(450,(floorY-300)/6,paintOffice)));office.position.set(6350,-(300+floorY)/2,officeZ+2);
+    // Commuters: through the gates on the left, to and from the ticket office on the right; two stand still reading.
+    const frames=looks.map(look=>this.texture(80,48,(g)=>{g.clearRect(0,0,80,48);paintPerson(g,look)},[.25,1]));
+    const person=(look:number,x:number,z:number)=>{
+      const map=frames[look%frames.length].clone();map.repeat.set(.25,1);
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map,alphaTest:.5}));sprite.center.set(.5,0);sprite.scale.set(320,768,1);sprite.position.set(x,-floorY,z);this.scene.add(sprite);return sprite;
+    };
+    [[-1480,1],[-1840,-1],[-2560,1],[-3280,1],[-3640,-1]].forEach(([x,dir],i)=>this.walkers.push({sprite:person(i,x,0),x,from:backZ+300,to:frontZ,speed:520+i*37,phase:i*1900,dir}));
+    [[5500,-1],[6600,1],[7400,-1]].forEach(([x,dir],i)=>this.walkers.push({sprite:person(i+2,x,0),x,from:officeZ+60,to:frontZ,speed:480+i*45,phase:i*2300+700,dir}));
+    for(const [look,x,z] of [[1,-330,300],[4,6200,officeZ+220]])(person(look,x,z).material.map as THREE.Texture).offset.x=.5;
+  }
+  private buildBoard(){
+    const left=1238,top=120,w=1387,h=780,border=18;
+    const frame=new THREE.Mesh(new THREE.BoxGeometry(w+border*2,h+border*2,14),this.material(C.frame));frame.position.set(left+w/2+border,-(top+h/2+border),7);this.scene.add(frame);
+    // Only the Tokyo map opens in detail, so only it can be highlighted and clicked.
+    if(this.hub==='tokyo'){this.boardFrame=frame;frame.userData.device='map';this.boardMeshes.push(frame)}
+    if(this.hub==='tokyo'){
+      // The fare map is the vector SVG itself, kept sharp to be readable; the WebGL plane only clears its pixels to transparent.
+      const holder=document.createElement('div');holder.className='hall-board';holder.style.width=w+'px';holder.style.height=h+'px';
+      const svg=renderWallFareMap();svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));holder.append(svg);
+      const board=new CSS3DObject(holder);board.position.set(left+border+w/2,-(top+border+h/2),14.5);this.cssScene.add(board);
+      const hole=this.plane(w,h,this.hole);hole.position.copy(board.position);hole.userData.device='map';this.boardMeshes.push(hole);
+    }else{
+      const texture=this.texture(w/texel,h/texel,(g,cw,ch)=>{
+        box(g,0,0,cw,ch,'#fffef2');pixelText(g,'京都駅 · のりば案内',cw-12,14,14,'#2d563e','right',true);
+        const row=(y:number,line:string,color:string,destination:string)=>{g.fillStyle=color;g.fillRect(70,y,cw-180,4);box(g,58,y-4,12,12,'#fff',C.ink);box(g,cw-110,y-4,12,12,'#fff',C.ink);pixelText(g,'京都',40,y+2,13,C.ink);pixelText(g,line,(cw-40)/2,y-12,12,color,'center',true);pixelText(g,destination,cw-92,y+2,13,C.ink,'left')};
+        row(70,'新幹線 SHINKANSEN','#2a6fb3','東京');row(130,'嵯峨野線 SAGANO','#b45843','嵐山 ¥240');
+        pixelText(g,'Plan tarifaire détaillé de Kyoto à venir.',12,ch-14,12,'#65735a','left');
+      });
+      const board=this.plane(w,h,this.material(texture));board.position.set(left+border+w/2,-(top+border+h/2),14.5);
+    }
+  }
+  /** The machine bank: a pale facade standing out from the wall, a lit sign over each machine, the machines set back in their recesses, a steel ledge and a plain cabinet below. */
+  private buildBank(devices:HallDevice[]){
+    const left=Math.min(...devices.map(d=>d.x))-120,right=Math.max(...devices.map(d=>d.x))+machineW+120;
+    const panels:Painter=(g,w,h)=>{box(g,0,0,w,h,C.facade);dither(g,0,h-2,w,2,C.facadeShade);g.fillStyle=C.facadeSeam;g.fillRect(w-1,0,1,h)};
+    const reveal=this.material(C.reveal);
+    // Box faces: the sides and underside are the recess reveals (separate planes there would z-fight with them).
+    const facade=(x0:number,x1:number,y0:number,y1:number)=>{const m=this.material(this.texture(75,(y1-y0)/texel,panels,[(x1-x0)/300,1]));const b=new THREE.Mesh(new THREE.BoxGeometry(x1-x0,y1-y0,facadeD),[reveal,reveal,m,reveal,m,m]);b.position.set((x0+x1)/2,-(y0+y1)/2,facadeD/2);this.scene.add(b)};
+    facade(left,right,facadeTop,recessTop);facade(left,right,recessBottom,floorY);
+    const edges=[left,...devices.flatMap(d=>[d.x,d.x+machineW]),right];
+    for(let i=0;i<edges.length;i+=2)facade(edges[i],edges[i+1],recessTop,recessBottom);
+    const ledge=new THREE.Mesh(new THREE.BoxGeometry(right-left+40,16,facadeD+40),this.material(C.steel));ledge.position.set((left+right)/2,-recessBottom-7,(facadeD+40)/2);this.scene.add(ledge);
+    for(const device of devices)this.buildMachine(device);
+  }
+  private buildMachine(device:HallDevice){
+    const housing=housings[device.kind]??housings.local,group=new THREE.Group(),materials:THREE.MeshBasicMaterial[]=[];
+    group.position.set(device.x,0,0);group.userData.device=device.id;this.scene.add(group);
+    const mat=(source:THREE.Texture|string)=>{const m=this.material(source);materials.push(m);return m};
+    const add=(mesh:THREE.Mesh)=>{mesh.userData.device=device.id;group.add(mesh);return mesh};
+    const back=facadeD-recessD,recessH=recessBottom-recessTop;
+    // Recess: housing face at the back; the facade boxes around it provide the reveals.
+    add(new THREE.Mesh(new THREE.PlaneGeometry(machineW,recessH),mat(housing))).position.set(machineW/2,-(recessTop+recessBottom)/2,back);
+    // Sign over the recess: crisp DOM text (like the fare map), seen through a hole in the facade.
+    const sign=document.createElement('div');sign.className='hall-sign';sign.style.background=accents[device.kind]??accents.local;
+    const [ja,en]=titles[device.kind]??['',''];sign.innerHTML=`<b></b><small></small><i>${device.id.slice(-2)}</i>`;sign.querySelector('b')!.textContent=ja;sign.querySelector('small')!.textContent=en;
+    const signY=-(facadeTop+recessTop)/2;
+    const signObject=new CSS3DObject(sign);signObject.position.set(device.x+machineW/2,signY,facadeD+.5);this.cssScene.add(signObject);
+    add(new THREE.Mesh(new THREE.PlaneGeometry(signW-8,signH-8),this.hole)).position.set(machineW/2,signY,facadeD+.5);
+    // Screen tilted back in a dark bezel, its bottom edge just over the payment face; cheeks close the sides.
+    const screenX=40,screenW=machineW-80,screenTop=recessTop+18,payTop=recessTop+180,slope=payTop-screenTop-4,run=recessD-14,tilt=Math.asin(run/slope),drop=slope*Math.cos(tilt);
+    const screen=this.texture(screenW/texel,slope/texel,(g,w,h)=>{
+      box(g,0,0,w,h,C.bezel);const sx=4,sy=4,sw=w-8,sh=h-8;
+      if(device.kind==='charge'){box(g,sx,sy,sw,sh,'#faf9eb');box(g,w/2-9,sy+10,18,12,'#7dba71');pixelText(g,'IC',w/2,sy+16,11,'#fff','center',true);g.fillStyle='#526c5a';g.fillRect(sx+18,sy+30,sw-36,2);g.fillRect(sx+28,sy+35,sw-56,1)}
+      else if(device.kind==='shinkansen'){box(g,sx,sy,sw,sh,'#eef0e0');pixelText(g,'指定席',w/2,sy+6,10,'#41613b','center',true);['新幹線','指定席','予約','受取'].forEach((label,i)=>{const kw=(sw-12)/2,kh=Math.floor((sh-16)/2),kx=sx+4+(i%2)*(kw+4),ky=sy+13+Math.floor(i/2)*(kh+2);box(g,kx,ky,kw,kh,'#697268');pixelText(g,label,kx+kw/2,ky+kh/2,9,'#fff')})}
+      else{box(g,sx,sy,sw,sh,'#0960bc');dither(g,sx,sy,sw,sh/2,'#4dcae3');pixelText(g,'きっぷ購入',w/2,sy+6,10,'#f3fbef','center',true);['160','200','210','260','350','440'].forEach((fare,i)=>{const kw=(sw-12)/3,kh=Math.floor((sh-16)/2),kx=sx+3+(i%3)*(kw+3),ky=sy+13+Math.floor(i/3)*(kh+2);box(g,kx,ky,kw,kh,'#deedf0','#b9d8d8');pixelText(g,fare,kx+kw/2,ky+kh/2,9,'#345769','center',true)})}
+    });
+    const panel=add(new THREE.Mesh(new THREE.PlaneGeometry(screenW,slope),mat(screen)));
+    panel.rotation.x=-tilt;panel.position.set(screenX+screenW/2,-screenTop-drop/2,back+run/2);
+    const cheekMaterial=mat(housing);cheekMaterial.side=THREE.DoubleSide;cheekMaterial.color.multiplyScalar(.85);
+    const cheekShape=new THREE.Shape([new THREE.Vector2(0,0),new THREE.Vector2(run,-drop),new THREE.Vector2(0,-drop)]);
+    for(const x of [screenX,screenX+screenW]){const cheek=add(new THREE.Mesh(new THREE.ShapeGeometry(cheekShape),cheekMaterial));cheek.rotation.y=-Math.PI/2;cheek.position.set(x,-screenTop,back)}
+    // Payment block (after the Tokyo Station machines): crisp DOM face on a shallow box.
+    const payH=recessBottom-payTop,payZ=facadeD-6;
+    const top=mat(housing);top.color.multiplyScalar(.9);
+    add(new THREE.Mesh(new THREE.BoxGeometry(machineW-24,payH,payZ-back),[top,top,top,top,this.hole,top])).position.set(machineW/2,-payTop-payH/2,(back+payZ)/2);
+    const pay=document.createElement('canvas');pay.className='hall-pay';pay.width=(machineW-12)/2;pay.height=(payH+12)/2;pay.style.width=machineW-12+'px';pay.style.height=payH+12+'px';
+    const paint=()=>paintPayment(pay.getContext('2d')!,pay.width,pay.height,device.kind);paint();this.crisp.push(paint);
+    const payObject=new CSS3DObject(pay);payObject.position.set(device.x+machineW/2,-payTop-payH/2,payZ+.5);this.cssScene.add(payObject);
+    // Hover outline: a frame around the recess and sign.
+    const outline=new THREE.Group();outline.visible=false;group.add(outline);
+    const rim=new THREE.MeshBasicMaterial({color:'#fff'}),t=10,frameTop=facadeTop+6,frameH=recessBottom-frameTop;
+    for(const [w,h,x,y] of [[machineW+2*t,t,machineW/2,frameTop-t/2],[machineW+2*t,t,machineW/2,recessBottom-t/2],[t,frameH,-t/2,frameTop+frameH/2],[t,frameH,machineW+t/2,frameTop+frameH/2]]){const bar=new THREE.Mesh(new THREE.PlaneGeometry(w,h),rim);bar.position.set(x,-y,facadeD+1);outline.add(bar)}
+    this.machines.set(device.id,{group,outline,materials,sign});
+  }
+  private fit(){
+    if(!this.renderer)return;
+    const w=Math.max(1,this.host.clientWidth),h=Math.max(1,this.host.clientHeight);
+    // Same framing as the former CSS scene (perspective: 1000px), at about the game's 480px art width.
+    const scale=Math.max(1,Math.round(w/640));
+    this.renderer.setSize(Math.ceil(w/scale),Math.ceil(h/scale),false);this.css.setSize(w,h);
+    this.camera.fov=2*Math.atan(h/2/1000)*180/Math.PI;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
+  }
+  /** Highlights: yellow rim on the machine in front or the map looked at (A / E or a click uses it), white rim on another hovered machine. */
+  setHover(id:string|null){this.hovered=id;this.refresh()}
+  private refresh(){
+    this.boardFrame?.material.color.set(this.near==='map'||this.hovered==='map'?'#f3d76b':C.frame);
+    for(const [id,machine] of this.machines){
+      const hovered=id===this.hovered||id===this.near;machine.outline.visible=hovered;
+      ((machine.outline.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(id===this.near?'#f3d76b':'#ffffff');
+      for(const m of machine.materials)m.userData.base??=m.color.clone(),m.color.copy(m.userData.base).multiplyScalar(hovered?1.12:1);
+      machine.sign.classList.toggle('is-hover',hovered);
+    }
+  }
+  render(x:number,yaw:number,pitch:number,distance:number,near:string|null){
+    if(!this.renderer)return;
+    if(near!==this.near){this.near=near;this.refresh()}
+    // The eye stays 1000px behind the former CSS pivot (perspective: 1000px) and the head turns in place, like a first-person look.
+    this.camera.rotation.set(pitch*Math.PI/180,-yaw*Math.PI/180,0);
+    this.camera.position.set(x,eyeY,distance+1000);
+    const t=performance.now()/1000;
+    for(const w of this.walkers){const span=w.to-w.from,p=(t*w.speed+w.phase)%span;w.sprite.position.z=w.dir>0?w.from+p:w.to-p;(w.sprite.material.map as THREE.Texture).offset.x=((w.dir>0?0:2)+Math.floor(t*4+w.phase)%2)*.25}
+    this.renderer.render(this.scene,this.camera);this.css.render(this.cssScene,this.camera);
+  }
+  /** The machine under a viewport point, from the same camera as the last frame. */
+  pick(clientX:number,clientY:number){
+    if(!this.renderer)return null;
+    const rect=this.renderer.domElement.getBoundingClientRect();
+    this.raycaster.setFromCamera(new THREE.Vector2((clientX-rect.left)/rect.width*2-1,-((clientY-rect.top)/rect.height)*2+1),this.camera);
+    const hit=this.raycaster.intersectObjects([...[...this.machines.values()].map(m=>m.group as THREE.Object3D),...this.boardMeshes],true).find(h=>h.object.userData.device);
+    return (hit?.object.userData.device as string|undefined)??null;
+  }
+  dispose(){
+    this.resize.disconnect();
+    this.scene.traverse(object=>{const mesh=object as THREE.Mesh;mesh.geometry?.dispose();for(const m of [mesh.material??[]].flat())(m as THREE.Material).dispose()});
+    for(const {texture} of this.painted)texture.dispose();for(const {sprite} of this.walkers)sprite.material.map?.dispose();
+    this.renderer?.dispose();this.renderer?.domElement.remove();this.css.domElement.remove();
+  }
+}
