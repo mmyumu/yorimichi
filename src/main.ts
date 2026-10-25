@@ -397,7 +397,7 @@ class Journey extends Phaser.Scene {
       this.bump=Math.min(this.bump,.35);c.bump=Math.min(c.bump??1,.4);
       const push=(18-d)*.25/(d||1),nx=this.player.x+dx*push,ny=this.player.y+dy/1.6*push;if((x||y||this.path.length)&&d&&this.canWalk(nx,ny))this.player.setPosition(nx,ny);
     }
-    const speed=150*walkFactor(this.wallet)*this.bump*Math.min(delta,40)/1000;
+    const speed=190*walkFactor(this.wallet)*this.bump*Math.min(delta,40)/1000;
     if(this.path.length){
       let target=this.path[0];
       while(target&&Phaser.Math.Distance.Between(this.player.x,this.player.y,target.x,target.y)<=speed){
