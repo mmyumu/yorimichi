@@ -7,9 +7,9 @@ import { openTokyoDepartures, type FareStation } from './tokyo-fares';
 import { coinCount, coins, loadWallet, notes, saveWallet, walkFactor, walletTotal } from './wallet';
 
 import { looks, type Figure } from './people';
-import { places, isHub, returnHub, platformFor, type Place, type Service } from './network';
+import { places, isHub, returnHub, platformFor, hasShinkansen, routes, stations, type Hub, type Place, type Service } from './network';
 // Highlight frames around the hotspots of nearby(), in scene pixels (art × 2), shown while the player is in range.
-const hotspotFrames:Record<string,[number,number,number,number]>={staff:[724,130,152,92],ticket:[336,150,288,94],local:[0,132,256,100],shinkansen:[878,132,82,100],westExit:[14,444,162,64],eastExit:[778,444,168,64],photo:[682,376,56,58],return:[96,336,116,58],'return-jr-stop':[100,330,206,94]};
+const hotspotFrames:Record<string,[number,number,number,number]>={staff:[0,130,124,92],ticket:[336,150,288,94],local:[124,132,136,100],shinkansen:[724,132,236,100],shop:[724,130,236,92],westExit:[14,444,162,64],eastExit:[778,444,168,64],photo:[682,376,56,58],return:[96,336,116,58],'return-jr-stop':[100,330,206,94]};
 type Step={x:number;y:number;alpha?:number}|{wait:number;face:string;spot?:string};
 type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:number;face?:string;bump?:number};
 const pick=<T,>(items:readonly T[])=>items[Math.floor(Math.random()*items.length)],between=(a:number,b:number)=>a+Math.random()*(b-a);
@@ -54,8 +54,8 @@ class Journey extends Phaser.Scene {
   // Jostling: brushing past someone slows the walk for a moment (see update).
   private bump=1;
   private announcement!:Phaser.GameObjects.Text;
-  // Only places that still exist: memories from removed trips (Kawaguchiko) are dropped.
-  private collected=new Set<string>((JSON.parse(localStorage.getItem('yorimichi-memories')||'[]') as string[]).filter(place=>place==='kamakura'||place==='arashiyama'));
+  // Only places that still exist: memories from removed trips (Kawaguchiko) are dropped, and the Kamakura one, kept before the station, is the temple trail's.
+  private collected=new Set<string>((JSON.parse(localStorage.getItem('yorimichi-memories')||'[]') as string[]).map(place=>place==='kamakura'?'kamakura-trail':place).filter(place=>place==='kamakura-trail'||place==='arashiyama'));
   private wallet=loadWallet();
   private purse!:Phaser.GameObjects.Text;
   constructor(){super('Journey')}
@@ -69,7 +69,7 @@ class Journey extends Phaser.Scene {
     this.loadPlace('tokyo');
     // A click or tap on a hotspot uses it, walking there first if needed; elsewhere it walks.
     this.input.on('pointerdown',(pointer:Phaser.Input.Pointer, objects:Phaser.GameObjects.GameObject[])=>{
-      const x=pointer.x,y=pointer.y-this.world.y;if(this.modal||objects.length||pointer.y<=70||y>=550)return;
+      const x=pointer.x,y=pointer.y-this.world.y;if(this.modal||objects.length||pointer.y<=70)return;
       const spot=this.hotspotAt(x,y);
       if(spot&&spot===this.nearby()){this.interact();return}
       const frame=spot?this.frameFor(spot):null;this.pending=spot;
@@ -87,9 +87,9 @@ class Journey extends Phaser.Scene {
     // The stations sit lower under the top band, leaving the back wall room for the station's name.
     this.world=this.add.container(0,isHub(place)?24:0);this.hud=this.add.container(0,0);
     this.world.add(this.add.image(0,0,'map-'+place).setOrigin(0));
-    // The back wall and the gates (set back on the left), the machine wall between its pillars, the ticket office and the Shinkansen gates.
-    if(isHub(place))this.solids.push(new Phaser.Geom.Rectangle(0,70,960,64),new Phaser.Geom.Rectangle(0,70,264,162),new Phaser.Geom.Rectangle(260,70,464,180),new Phaser.Geom.Rectangle(724,70,156,146),new Phaser.Geom.Rectangle(876,70,84,162));
-    if(place==='kamakura'||place==='arashiyama')this.solids.push(new Phaser.Geom.Rectangle(330,94,270,178));
+    // The back wall, the ticket office and the gates beside it (set back on the left), the machine wall between its pillars, and the Shinkansen gates or the shop on the right.
+    if(isHub(place))this.solids.push(new Phaser.Geom.Rectangle(0,70,960,64),new Phaser.Geom.Rectangle(0,70,124,146),new Phaser.Geom.Rectangle(124,70,140,162),new Phaser.Geom.Rectangle(260,70,464,180),new Phaser.Geom.Rectangle(724,70,236,hasShinkansen(place)?162:146));
+    if(place==='kamakura-trail'||place==='arashiyama')this.solids.push(new Phaser.Geom.Rectangle(330,94,270,178));
     if(place==='jr-stop')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,185));
     // Two concourse pillars carrying the yellow exit signs, drawn in depth order with the people (see update) and solid at their foot.
     if(isHub(place))for(const [x,side] of [[254,'west'],[690,'east']] as const){this.world.add(this.add.image(x,380,`exit-pillar-${place}-${side}`).setOrigin(.5,1));this.solids.push(new Phaser.Geom.Rectangle(x-30,364,60,16))}
@@ -122,7 +122,7 @@ class Journey extends Phaser.Scene {
   }
   private frameFor(spot:string){return hotspotFrames[spot==='return'&&this.place==='jr-stop'?'return-jr-stop':spot]}
   private hotspotAt(x:number,y:number){
-    const spots=isHub(this.place)?['staff','ticket','local','shinkansen','westExit','eastExit']:this.place==='jr-stop'?['return']:['return','photo'];
+    const spots=isHub(this.place)?['staff','ticket','local',this.right(this.place),'westExit','eastExit']:this.place==='jr-stop'?['return']:['return','photo'];
     return spots.find(spot=>{const [fx,fy,w,h]=this.frameFor(spot);return x>=fx&&x<fx+w&&y>=fy&&y<fy+h})??'';
   }
   private nearby(){
@@ -131,15 +131,17 @@ class Journey extends Phaser.Scene {
       if(x<115&&y>455)return 'westExit';
       if(x>845&&y>455)return 'eastExit';
       if(x>330&&x<630&&y<310)return 'ticket';
+      if(x<128&&y<275)return 'staff';
       if(x<272&&y<300)return 'local';
-      if(x>=868&&y<300)return 'shinkansen';
-      if(x>712&&y<275)return 'staff';
+      if(x>724&&y<300)return this.right(this.place);
     }else{
       if(x<240&&y<453)return 'return';
       if(this.place!=='jr-stop'&&Phaser.Math.Distance.Between(x,y,710,409)<95)return 'photo';
     }
     return '';
   }
+  /** What stands on the right of a hub's concourse: the Shinkansen transfer gates, or a shop where there is no Shinkansen. */
+  private right(hub:Hub){return hasShinkansen(hub)?'shinkansen':'shop'}
   private dialog(title:string,body:string,choices:[string,()=>void][]=[]){
     this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);const c=this.add.container(0,0).setDepth(20);this.modal=c;
     this.rect(0,70,960,570,0x142e35,c).setAlpha(.76).setInteractive();this.rect(200,145,560,365,0xf0e6cb,c);this.rect(200,145,560,7,0xba654c,c);
@@ -189,8 +191,8 @@ class Journey extends Phaser.Scene {
         }else{
           const ticket=this.ticket;
           if(ticket.kind==='fare')break;
-          const correct=service==='shinkansen'?(this.place==='tokyo'?'のぞみ / NOZOMI → KYOTO':'のぞみ / NOZOMI → TOKYO'):'嵯峨野線 / SAGANO → SAGA-ARASHIYAMA';
-          const decoy=service==='shinkansen'?'回送 / NOT IN SERVICE':'反対方向 / DIRECTION KYOTO';
+          // From the network rather than the ticket, which may have waited in a machine's outlet since before the routes had their trains.
+          const {train:correct,decoy}=routes.find(route=>route.id===ticket.id)??ticket;
           this.dialog(ticket.platform+' · 発車案内',`Two trains are announced.\nTicket: ${ticket.to.toUpperCase()} · ${ticket.line}\nCheck the destination before boarding.`,[
             [decoy,()=>this.dialog('Wrong train',service==='shinkansen'?'This train is not in service.\nYour ticket is still valid.':'This departure does not serve your destination.\nYour ticket is still valid.',[['Read the board again',()=>{this.modal?.destroy(true);this.modal=null;this.interact();}]])],
             [correct,()=>this.dialog(ticket.line,`${places[ticket.from]} → ${places[ticket.to]}\n${ticket.platform} · Departure confirmed.`,[['Board the train',()=>{this.ticket=null;this.loadPlace(ticket.to);}]])]
@@ -199,13 +201,14 @@ class Journey extends Phaser.Scene {
         break;
       }
       case 'staff':this.stationHelp();break;
+      case 'shop':this.dialog('NewDays / ニューデイズ','The station’s convenience store: onigiri, ekiben, drinks and snacks.\nShopping, and spending those ¥1 and ¥5 coins, will come in a later version.');break;
       case 'westExit':case 'eastExit':{
-        const west=this.nearby()==='westExit';
-        this.dialog(west?'西口 / West exit':'東口 / East exit',`This way leads to ${this.place==='tokyo'?(west?'Marunouchi and the buses':'Yaesu and the taxis'):(west?'Hachijo and the buses':'Karasuma and the taxis')}.\nIt does not lead to the trains.`,[['Check my ticket',()=>this.showTicket()]]);break;
+        const west=this.nearby()==='westExit',station=stations[this.place as Hub],walk=west?undefined:station.walk;
+        this.dialog(west?'西口 / West exit':'東口 / East exit',`This way leads to ${station[west?'west':'east'][1]}.\nIt does not lead to the trains.`,walk?[[walk.label,()=>this.loadPlace(walk.east)]]:[['Check my ticket',()=>this.showTicket()]]);break;
       }
       case 'return':{
         const hub=returnHub(this.place);
-        this.dialog('Back to '+(hub==='tokyo'?'Tokyo':'Kyoto'),hub==='tokyo'?'Free return to Tokyo in this prototype.':'The local return is included in the excursion ticket.',[['Return to the station',()=>this.loadPlace(hub)]]);break;
+        this.dialog('Back to '+stations[hub].en,hub==='tokyo'?'Free return to Tokyo in this prototype.':hub==='kamakura'?'A short walk back to the JR station.\nThe way to Tokyo is a ticket from its machines.':'The local return is included in the excursion ticket.',[['Return to the station',()=>this.loadPlace(hub)]]);break;
       }
       case 'photo':this.collected.add(this.place);localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]));this.dialog('A memory for your journal',`${places[this.place]}\n\nPlaceholder for your future travel photo.\nThe memory is saved on this device.`);break;
       default:this.dialog('Welcome to Japan','Tap the map to move, or tap a spot to walk there.\nKeyboard: arrows or WASD (ZQSD on AZERTY), E or Space to interact.\nGamepad: stick or D-pad, A to interact.\n\nTicket machines on the back wall.\nFollow the signs or ask at the ticket office.');
@@ -215,11 +218,11 @@ class Journey extends Phaser.Scene {
     if(!this.ticket){this.dialog('Your ticket wallet','No ticket.\nLook for the きっぷ machines on the back wall.\nThe staff at the みどりの窓口 counter can help.');return;}
     const ticket=this.ticket;
     if(ticket.kind==='fare'){this.dialog('普通乗車券 / Fare ticket',`TOKYO → ¥${ticket.fare.toLocaleString('en-US')}\nJR · 1 adult · One way\nNo destination chosen at purchase.\nFind its fare on the map at the machines.`);return;}
-    this.dialog('乗車券 / Your ticket',`${ticket.from.toUpperCase()} → ${ticket.to.toUpperCase()}\n${ticket.line}\n${ticket.platform} · 1 adult · ¥${ticket.fare.toLocaleString('en-US')}\n${ticket.reservation?ticket.reservation.day+' · '+ticket.reservation.train+' · '+ticket.reservation.seat:ticket.service==='local'?'Return to hub included':'Shinkansen · one way'}`);
+    this.dialog('乗車券 / Your ticket',`${ticket.from.toUpperCase()} → ${ticket.to.toUpperCase()}\n${ticket.line}\n${ticket.platform} · 1 adult · ¥${ticket.fare.toLocaleString('en-US')}\n${ticket.reservation?ticket.reservation.day+' · '+ticket.reservation.train+' · '+ticket.reservation.seat:ticket.service==='shinkansen'?'Shinkansen · one way':isHub(ticket.to)?'One way':'Return to hub included'}`);
   }
   private stationHelp(){
     const hub=isHub(this.place)?this.place:'tokyo';
-    const body=this.ticket?.kind==='fare'?`Your JR ticket is worth ¥${this.ticket.fare.toLocaleString('en-US')}.\nThe map at the machines shows each station’s fare.\nThen choose your trip at the local gates,\non the left. A ticket that is too cheap is refused.`:this.ticket?`For ${this.ticket.to.toUpperCase()}, look for ${this.ticket.platform}.\n${this.ticket.service==='local'?'在来線 gates, on the left.':'新幹線 gates, on the right.'}\nOn the board, check the line name too.\nThe 西口 and 東口 exits lead out of the station.`:`きっぷ: ticket machines on the back wall.\n在来線: local lines, ${platformFor(hub,'local')}, central gates on the left.\n新幹線: Shinkansen, ${platformFor(hub,'shinkansen')}, gates on the far right.\nThe yellow signs point to the exits.`;
+    const body=this.ticket?.kind==='fare'?`Your JR ticket is worth ¥${this.ticket.fare.toLocaleString('en-US')}.\nThe map at the machines shows each station’s fare.\nThen choose your trip at the local gates,\nright beside this office. A ticket that is too cheap is refused.`:this.ticket?`For ${this.ticket.to.toUpperCase()}, look for ${this.ticket.platform}.\n${this.ticket.service==='local'?'在来線 gates, right beside this office.':'新幹線 gates, on the far right.'}\nOn the board, check the line name too.\nThe 西口 and 東口 exits lead out of the station.`:`きっぷ: ticket machines on the back wall.\n在来線: local lines, ${platformFor(hub,'local')}, central gates beside this office.\n${hasShinkansen(hub)?`新幹線: Shinkansen, ${platformFor(hub,'shinkansen')}, gates on the far right.`:'No Shinkansen here: the far right is the NewDays.'}\nThe yellow signs point to the exits.`;
     const choices:[string,()=>void][]=[['Thanks, I’ll look',()=>{this.modal?.destroy(true);this.modal=null;}]];
     if(hub==='tokyo')choices.push(['Ask for a fare hint',()=>this.tokyoFareHint()]);
     this.dialog('駅員 / Station staff',body,choices);
@@ -268,9 +271,10 @@ class Journey extends Phaser.Scene {
       ['Withdraw ¥10,000 at the ATM',()=>{this.wallet[10000]=(this.wallet[10000]??0)+1;saveWallet(this.wallet);this.refreshPurse();this.showWallet();}]
     ]);
   }
-  private album(){this.dialog('My travel journal',`MEMORIES COLLECTED · ${this.collected.size}/2\n\n${this.collected.has('kamakura')?'●':'○'} Kamakura · The temple cherry trees\n${this.collected.has('arashiyama')?'●':'○'} Arashiyama · The bamboo path\n\nReal photos will be added in a future version.`);}
+  private album(){this.dialog('My travel journal',`MEMORIES COLLECTED · ${this.collected.size}/2\n\n${this.collected.has('kamakura-trail')?'●':'○'} Kamakura · The temple cherry trees\n${this.collected.has('arashiyama')?'●':'○'} Arashiyama · The bamboo path\n\nReal photos will be added in a future version.`);}
   private canWalk(x:number,y:number){
-    return x>18&&x<942&&y>88&&y<548&&!this.solids.some(r=>Phaser.Geom.Intersects.RectangleToRectangle(r,new Phaser.Geom.Rectangle(x-10,y-10,20,25)));
+    // Down to the canvas edge, feet still in view (the hub's world sits 24px lower).
+    return x>18&&x<942&&y>88&&y<628-this.world.y&&!this.solids.some(r=>Phaser.Geom.Intersects.RectangleToRectangle(r,new Phaser.Geom.Rectangle(x-10,y-10,20,25)));
   }
   private stopNavigation(){this.path=[];this.marker?.setVisible(false);}
   private navigate(x:number,y:number){
@@ -281,7 +285,7 @@ class Journey extends Phaser.Scene {
   }
   /** BFS over a 16px grid of walkable ground from (fx, fy) to the reachable cell nearest (x, y), so a tap on scenery stops beside the obstacle. */
   private gridPath(fx:number,fy:number,x:number,y:number){
-    const cols=58,rows=28,step=16;
+    const cols=58,rows=33,step=16;
     const point=(id:number)=>({x:24+(id%cols)*step,y:104+Math.floor(id/cols)*step});
     const start=Phaser.Math.Clamp(Math.round((fy-104)/step),0,rows-1)*cols+Phaser.Math.Clamp(Math.round((fx-24)/step),0,cols-1);
     const queue=[start],parents=new Map<number,number>([[start,-1]]);
@@ -324,26 +328,30 @@ class Journey extends Phaser.Scene {
     if(other)this.spots.add(other.spot);
     c.steps=[...(other?[...this.route(here,other),{wait:between(3000,7000),face:'up',spot:other.spot},...this.route(other,inner)]:this.route(here,inner)),...tail.slice(1)];
   }
-  /** A random trip: in from an exit, the bottom of the concourse or off a train through the gates, maybe a stop at a free machine, counter or spot to look around, then out through the gates or an exit. */
+  /** A random trip: in from an exit, the bottom of the concourse, off a train through the gates or out of the shop, maybe a stop at a free machine, counter or spot to look around,
+   * then out through the gates, into the shop or out by an exit. */
   private planTrip(c:Commuter){
+    // The far right of the concourse: the Shinkansen transfer gates, or the shop's door, where people vanish inside.
+    const far=this.right(this.place as Hub);
     const end=(kind:string)=>{
       if(kind==='west'||kind==='east'){const y=between(440,530),west=kind==='west';return {outer:{x:west?-24:984,y},inner:{x:west?34:926,y}}}
       if(kind==='bottom'){const x=between(300,660);return {outer:{x,y:700},inner:{x,y:540}}}
-      const x=pick(kind==='local'?[46,98,150,202]:[912,940]);return {outer:{x,y:kind==='local'?150:165,alpha:0},inner:{x,y:250}};
+      if(kind==='shop')return {outer:{x:906,y:200,alpha:0},inner:{x:906,y:250}};
+      const x=pick(kind==='local'?[158,202,246]:[770,814,858,902]);return {outer:{x,y:150,alpha:0},inner:{x,y:250}};
     };
     const free=(spots:{spot:string;x:number;y:number}[])=>{const open=spots.filter(({spot})=>!this.spots.has(spot)&&spot!==this.playerSpot);return open.length?pick(open):null};
-    const machine=()=>this.freeMachine(),office=()=>free([743,781,819].map((x,i)=>({spot:'office'+i,x,y:228})));
+    const machine=()=>this.freeMachine(),office=()=>free([22,62,102].map((x,i)=>({spot:'office'+i,x,y:228})));
     const look=()=>({spot:'',x:between(300,640),y:between(300,500)}),r=Math.random();
     let from:string,to:string,stop:{spot:string;x:number;y:number}|null=null,wait=0,face='up';
     if(Math.random()<.35){
-      // Off a train: out of the station, sometimes by the ticket office or changing between local lines and the Shinkansen.
-      from=pick(['local','local','shinkansen']);to=r<.1?(from==='local'?'shinkansen':'local'):pick(['west','east','bottom']);
+      // Off a train (or out of the shop): out of the station, sometimes by the ticket office or changing between local lines and the Shinkansen.
+      from=pick(['local','local',far]);to=r<.1?(from==='local'?far:'local'):pick(['west','east','bottom']);
       if(r>.75){stop=office();wait=between(5000,10000)}else if(r>.6){stop=look();wait=between(1000,3000);face=pick(['left','right','down'])}
     }else{
       from=pick(['west','east','bottom']);
-      if(r<.45){stop=machine();wait=between(3000,7000);to=r<.35?'local':'shinkansen'}
-      else if(r<.6){stop=office();wait=between(5000,10000);to='shinkansen'}
-      else if(r<.78)to=r<.72?'local':'shinkansen';
+      if(r<.45){stop=machine();wait=between(3000,7000);to=r<.35?'local':far}
+      else if(r<.6){stop=office();wait=between(5000,10000);to=far}
+      else if(r<.78)to=r<.72?'local':far;
       else{to=pick(['west','east','bottom'].filter(kind=>kind!==from));if(r>.9){stop=look();wait=between(1000,3000);face=pick(['up','left','right'])}}
     }
     const start=end(from),finish=end(to);c.image.setPosition(start.outer.x,start.outer.y).setAlpha(start.outer.alpha??1);c.speed=(.045+(c.look*7%5)*.006)*(looks[c.look].pace??1)*between(.85,1.15);
@@ -404,7 +412,7 @@ class Journey extends Phaser.Scene {
     this.moving=!!(x||y);this.walk+=delta;
     if(this.moving)this.facing=Math.abs(x)>Math.abs(y)?(x<0?'left':'right'):(y<0?'up':'down');
     this.sprite.setTexture(`traveller-${this.facing}-${this.moving?Math.floor(this.walk/130)%3:0}`);
-    const messages:Record<string,string>={ticket:'Buy a ticket',local:'在来線 改札',shinkansen:'新幹線 改札',staff:'駅員 / Staff',westExit:'西口',eastExit:'東口',return:'Back to the station',photo:'Keep a memory'};
+    const messages:Record<string,string>={ticket:'Buy a ticket',local:'在来線 改札',shinkansen:'新幹線 改札',shop:'NewDays',staff:'駅員 / Staff',westExit:'西口',eastExit:'東口',return:'Back to the station',photo:'Keep a memory'};
     const near=this.nearby(),frame=near?this.frameFor(near):null;
     if(this.pending&&near===this.pending){this.pending='';this.stopNavigation();this.interact();return}
     if(!this.path.length)this.pending='';
@@ -413,6 +421,7 @@ class Journey extends Phaser.Scene {
     this.glow.clear();if(frame)this.glow.fillStyle(0xf3d76b,.14).fillRoundedRect(...frame,6).lineStyle(3,0xf3d76b,.6+.35*Math.sin(this.time.now/170)).strokeRoundedRect(...frame,6);
   }
 }
-export const game = new Phaser.Game({type:Phaser.AUTO,parent:'game',width:960,height:640,backgroundColor:'#91ab78',pixelArt:true,antialias:false,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:Journey});
+// Started once the pixel font is in: the map lettering is painted into textures with it.
+document.fonts.load('10px "Yorimichi Bitmap"').catch(()=>{}).finally(()=>new Phaser.Game({type:Phaser.AUTO,parent:'game',width:960,height:640,backgroundColor:'#91ab78',pixelArt:true,antialias:false,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:Journey}));
 // No browser menu on right click, over the scene or the hall and kiosk overlays.
 document.addEventListener('contextmenu',e=>e.preventDefault());

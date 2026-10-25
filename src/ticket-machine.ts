@@ -1,4 +1,4 @@
-import { routes, type Hub, type Route, type Service } from './network';
+import { routes, stations, type Hub, type Route, type Service } from './network';
 import { tokyoFareAmounts, renderTokyoFareMap } from './tokyo-fares';
 import { accepted, coinCount, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
 
@@ -281,7 +281,7 @@ export class TicketMachine {
       }else{
         const grid=this.element(body,'div','','fare-grid');
         this.options.forEach(route=>this.button(grid,'¥'+route.fare.toLocaleString('en-US'),()=>{this.route=route;this.fareAmount=null;this.pay()}));
-        this.element(body,'p',tr('京都の運賃表は準備中です。','Kyoto fare map will come later.'),'fare-note');
+        this.element(body,'p',tr(stations[this.hub].ja+'の運賃表は準備中です。',stations[this.hub].en+' fare map will come later.'),'fare-note');
         const table=this.element(body,'div','','fare-table');this.options.forEach(route=>this.element(table,'span',route.name+'   ¥'+route.fare.toLocaleString('en-US')));
       }
     }else if(this.step==='map'){

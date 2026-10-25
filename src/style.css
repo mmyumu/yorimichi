@@ -30,6 +30,7 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .hall-pay{display:block;image-rendering:pixelated}.hall-sign.is-hover{filter:brightness(1.15)}.hall-board svg{display:block}
 .hall-no-webgl{color:#e8d9b5;font:14px monospace;padding:24px;text-align:center}
 /* Pixel skin for the kiosk screens and the IC notice: hard edges, stepped colour bands, bevels and the DotGothic16 pixel font (subset, see scripts/subset-pixel-font.mjs). The JR-West redraw above stays the layout source. */
+@font-face{font-family:'Yorimichi Bitmap';src:url('./fonts/PixelMplus10-subset.woff2') format('woff2');font-style:normal;font-weight:400;font-display:swap}
 @font-face{font-family:'Yorimichi Pixel';src:url('./fonts/DotGothic16-subset.woff2') format('woff2');font-style:normal;font-weight:400;font-display:swap}
 .machine-overlay,.machine-overlay button,.machine-overlay input,.charge-notice,.machine-hall .charge-notice button{font-family:'Yorimichi Pixel','Yorimichi JP',monospace!important;letter-spacing:.5px}
 .machine-overlay *:not(svg *),.charge-notice *{border-radius:0!important;font-weight:400!important}

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { renderWallFareMap } from './tokyo-fares';
-import type { Hub } from './network';
+import { hasShinkansen, routes, stations, type Hub } from './network';
 import { looks, type Figure, type Look } from './people';
 
 /** Machines as the hall knows them; x is the left edge in wall pixels. */
@@ -12,18 +12,18 @@ type Painter=(g:CanvasRenderingContext2D,w:number,h:number)=>void;
 const eyeY=-1120,machineW=500,floorY=1760;
 // Machine bank, in CSS-style y down from the ceiling: facade under the fare map, sign band, recesses down to the ledge, cabinet below.
 const facadeTop=950,recessTop=1110,recessBottom=1500,facadeD=110,recessD=50,signW=400,signH=134;
-// Concourse around the bank: the machine wall runs between two pillars, the ticket gates open to the left and the ticket office to the right; haze hides where the station ends.
-const wallL=-900,wallR=4700,gateZ=-1100,backZ=-2800,officeZ=-700,westX=-8000,eastX=10000,frontZ=4500;
-// The opening behind the ticket office where the Shinkansen transfer gates stand, set back like the central gates.
-const transferL=7700,transferR=8800;
-// The top-down concourse (main.ts, art.ts, in scene pixels) laid onto the hall: x by the landmarks both show (the lanes between the central gates, the bank's pillars and machines,
-// the office counters, the Shinkansen gate lanes), y to z by the gates, the machine wall and the spot before a machine. Keep these in step with either layout.
-const xAnchors=[[28,-4180],[236,-1300],[272,-900],[368,700],[592,3100],[712,4700],[743,5225],[819,6125],[912,8080],[940,8440]],zAnchors=[[182,gateZ],[244,0],[262,250],[600,2700]];
+// Concourse around the bank: the machine wall runs between two pillars; on the left the central gates stand set back in an opening (centralL to the wall), the ticket office past them;
+// on the right the Shinkansen transfer gates in their own opening (the wall to transferR), or a NewDays front where the station has no Shinkansen. Haze hides where the station ends.
+const wallL=-900,wallR=4700,gateZ=-1100,backZ=-2800,officeZ=-700,westX=-8000,eastX=10000,frontZ=4500,centralL=-2700,transferR=6700;
+// Gates 360 apart, from the machine wall outwards; the office's door bay and three counters (450 each) end at the central opening; the shop front starts at the right pillar.
+const centralGates=[-1300,-1660,-2020,-2380],transferGates=[5000,5360,5720,6080,6440],officeL=-4500,shopL=4850,shopR=7400,shopDoor=6800;
+// The top-down concourse (main.ts, art.ts, in scene pixels) laid onto the hall: x by the landmarks both show (the office counters, the lanes between the central gates,
+// the bank's pillars and machines, then the transfer gate lanes or the shop door), y to z by the gates, the machine wall and the spot before a machine. Keep these in step with either layout.
+const anchors=(shinkansen:boolean)=>[[22,-3825],[102,-2925],[158,-2200],[246,-1480],[272,-900],[368,700],[592,3100],[712,4700],...(shinkansen?[[770,5180],[902,6260]]:[[906,shopDoor]])];
+const zAnchors=[[182,gateZ],[244,0],[262,250],[600,2700]];
 const piecewise=(anchors:number[][],v:number)=>{let i=1;while(i<anchors.length-1&&v>anchors[i][0])i++;const [[a,p],[b,q]]=[anchors[i-1],anchors[i]];return p+(v-a)*(q-p)/(b-a)};
 /** A point of the top-down concourse in hall units, on the floor. */
-const fromConcourse=(x:number,y:number)=>({x:piecewise(xAnchors,x),z:piecewise(zAnchors,y)});
-// The two pillars with the yellow exit signs, where main.ts stands them on the top-down map.
-const exitPillars=[fromConcourse(254,380),fromConcourse(690,380)];
+const fromConcourse=(xAnchors:number[][],x:number,y:number)=>({x:piecewise(xAnchors,x),z:piecewise(zAnchors,y)});
 // One texel covers ~4 world px, about one pixel of the low-resolution render at the default distance.
 const texel=4;
 // Muted palette shared with art.ts so the hall reads as the same game.
@@ -115,11 +115,11 @@ function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakur
   const [ja,en]={kamakura:['鎌倉','Kamakura'],nikko:['日光','Nikko'],arashiyama:['嵐山','Arashiyama']}[place];
   pixelText(g,ja,8,ih+13,16,C.ink,'left',true);pixelText(g,en,8,ih+28,9,'#65735a','left');pixelText(g,'JR線でどうぞ',w-6,ih+28,8,'#65735a','right');
 }
-/** The ticket office front: green sign band, glazed counters with clerks, an open door. */
-function paintOffice(g:CanvasRenderingContext2D,w:number,h:number){
+/** The ticket office front: green sign band, glazed counters with clerks, an open door (the `door`th bay). */
+function paintOffice(g:CanvasRenderingContext2D,w:number,h:number,door:number){
   box(g,0,0,w,40,'#2c8a4a');box(g,0,2,w,1,'#7fc495');box(g,0,37,w,1,'#1f6636');
-  pixelText(g,'みどりの窓口',16,20,26,'#fff','left',true);pixelText(g,'JR Ticket Office',190,24,12,'#fff','left');pixelText(g,'営業時間 5:30 – 23:00',w-12,20,9,'#d6efd9','right');
-  box(g,0,40,w,6,'#3b4541');const bay=75,door=4,glassTop=46,counter=150,plinth=h-26;
+  pixelText(g,'みどりの窓口',16,20,26,'#fff','left',true);pixelText(g,'JR Ticket Office',190,24,12,'#fff','left');if(w>=420)pixelText(g,'営業時間 5:30 – 23:00',w-12,20,9,'#d6efd9','right');
+  box(g,0,40,w,6,'#3b4541');const bay=75,glassTop=46,counter=150,plinth=h-26;
   for(let i=0;i*bay<w;i++){
     const x=i*bay;
     if(i===door){box(g,x,glassTop,bay,plinth-glassTop,'#4c5f5c');dither(g,x,glassTop,bay,plinth-glassTop,'#5b706c');continue}
@@ -131,6 +131,26 @@ function paintOffice(g:CanvasRenderingContext2D,w:number,h:number){
   }
   for(let x=0;x<w;x+=bay)box(g,x,glassTop,3,plinth-glassTop,'#8f9e8b');
   box(g,0,plinth,w,h-plinth,'#3b4541');
+}
+/** The NewDays front: white sign band with its green and orange stripes, then the glazing, a drinks fridge, shelves, the till with its clerk, and the automatic door centred on `door`. */
+function paintShop(g:CanvasRenderingContext2D,w:number,h:number,door:number){
+  const top=46,plinth=h-26,dw=90,font='bold 26px "Yorimichi JP", sans-serif',m=document.createElement('canvas').getContext('2d')!;m.font=font;
+  box(g,0,0,w,40,'#fbfbf6');box(g,0,30,w,4,'#3c9a5c');box(g,0,34,w,3,'#e8853a');box(g,0,40,w,6,'#3b4541');
+  pixelText(g,'New',14,16,26,'#d2402e','left',true);pixelText(g,'Days',14+Math.round(m.measureText('New').width),16,26,'#2f8a4a','left',true);pixelText(g,'ニューデイズ',w-12,16,10,'#56605a','right');
+  box(g,0,top,w,plinth-top,'#9fc3c2');for(let x=20;x<w;x+=110)for(let d=0;d<40;d++)box(g,x+d,top+44-d,2,1,'#c3dddb');
+  // Drinks fridge: rows of bottles behind its own glass.
+  box(g,8,top+8,96,plinth-top-12,'#dfe9ec');
+  for(let k=0;k<6;k++){const y=top+12+k*24;for(let b=0;b<12;b++)box(g,12+b*8,y,5,16,['#d2402e','#3c9a5c','#e8c440','#3a78c2','#f4f4ee','#e8853a'][(b+k)%6]);box(g,8,y+17,96,2,'#9aa29a')}
+  // Shelves of onigiri, sweets and snacks.
+  for(let k=0;k<5;k++){const y=top+20+k*26;box(g,114,y+14,90,3,'#7d8a84');for(let b=0;b<11;b++)box(g,116+b*8,y+4+(b%2)*2,6,10-(b%2)*2,['#e9a6ad','#f2c230','#86a367','#f4f4ee','#b66c51'][(b*3+k)%5])}
+  // The till, its clerk in the shop's green.
+  const counter=top+104;box(g,214,counter-16,22,16,'#3c9a5c');box(g,219,counter-29,12,13,'#e9c4a0');box(g,219,counter-30,12,4,'#2b2420');box(g,242,counter-14,12,10,'#283e40');
+  box(g,206,counter,64,10,'#efe9d4');box(g,206,counter+10,64,plinth-counter-10,'#d9d3bf');
+  for(const x of [0,106,206,270])box(g,x,top,3,plinth-top,'#8f9e8b');
+  box(g,0,plinth,w,h-plinth,'#3b4541');
+  // Automatic door, down to the floor: two glass leaves.
+  box(g,door-dw/2,top,dw,h-top,'#4c5f5c');dither(g,door-dw/2,top,dw,h-top,'#5b706c');box(g,door-dw/2,top,dw,3,'#8f9e8b');box(g,door-1,top,3,h-top,'#8f9e8b');for(const x of [door-dw/2,door+dw/2-3])box(g,x,top,3,h-top,'#8f9e8b');
+  pixelText(g,'自動ドア',door,top+60,9,'#e7f1e4');
 }
 /** A commuter in eight 20 × 48 frames: front step A/B, back step A/B, left step A/B, right step A/B. */
 function paintPerson(g:CanvasRenderingContext2D,look:Look){
@@ -196,7 +216,13 @@ export class HallScene {
   private near:string|null=null;
   // One sprite per look, each with its own texture to step through the frames, placed every frame where the top-down concourse has that commuter.
   private crowd:THREE.Sprite[]=[];
+  // The far right of this station: Shinkansen transfer gates, or a shop. It sets the walls, what stands there and how the top-down concourse maps onto the hall.
+  private shinkansen:boolean;
+  private xAnchors:number[][];
+  // The two pillars with the yellow exit signs, where main.ts stands them on the top-down map.
+  private exitPillars:{x:number;z:number}[];
   constructor(private host:HTMLElement,private hub:Hub,devices:HallDevice[],private figures:()=>Figure[]=()=>[]){
+    this.shinkansen=hasShinkansen(hub);this.xAnchors=anchors(this.shinkansen);this.exitPillars=[fromConcourse(this.xAnchors,254,380),fromConcourse(this.xAnchors,690,380)];
     try{this.renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'low-power'})}
     catch{const message=document.createElement('p');message.className='hall-no-webgl';message.textContent='WebGL is unavailable: use the buttons below to choose a machine.';host.append(message);return}
     this.css.domElement.className='hall-css3d';host.append(this.css.domElement);
@@ -221,11 +247,11 @@ export class HallScene {
     const tiles:Painter=(g,w,h)=>{box(g,0,0,w,h,C.tile);dither(g,0,h-6,w,6,C.tileShade);g.fillStyle=C.grout;g.fillRect(0,h-1,w,1);g.fillRect(w-1,0,1,h)};
     const tiled=(w:number,shade=1)=>{const m=this.material(this.texture(75,44,tiles,[w/300,floorY/176]));m.color.setScalar(shade);return m};
     const wall=this.plane(wallR-wallL,floorY,tiled(wallR-wallL));wall.position.set((wallL+wallR)/2,-floorY/2,0);
-    // Set-back walls behind the gates and behind the ticket office, a little darker.
-    this.plane(wallL-westX,floorY,tiled(wallL-westX,.8)).position.set((westX+wallL)/2,-floorY/2,backZ);
-    const east=(x0:number,x1:number,z:number)=>this.plane(x1-x0,floorY,tiled(x1-x0,.85)).position.set((x0+x1)/2,-floorY/2,z);
-    east(wallR,transferL,officeZ);east(transferR,eastX,officeZ);east(transferL,transferR,backZ);
-    for(const x of [transferL,transferR]){const side=this.plane(officeZ-backZ,floorY,tiled(officeZ-backZ,.75));side.rotation.y=x===transferL?Math.PI/2:-Math.PI/2;side.position.set(x,-floorY/2,(officeZ+backZ)/2)}
+    // Set-back walls, a little darker: behind the ticket office and the shop, and deeper at the back of the gates' openings, with their side walls.
+    const back=(x0:number,x1:number,z:number,shade:number)=>this.plane(x1-x0,floorY,tiled(x1-x0,shade)).position.set((x0+x1)/2,-floorY/2,z);
+    const side=(x:number,facing:1|-1)=>{const plane=this.plane(officeZ-backZ,floorY,tiled(officeZ-backZ,.75));plane.rotation.y=facing*Math.PI/2;plane.position.set(x,-floorY/2,(officeZ+backZ)/2)};
+    back(westX,centralL,officeZ,.85);back(centralL,wallL,backZ,.8);side(centralL,1);
+    if(this.shinkansen){back(wallR,transferR,backZ,.8);side(transferR,-1);back(transferR,eastX,officeZ,.85)}else back(wallR,eastX,officeZ,.85);
     const floorW=eastX-westX,floorD=frontZ-backZ;
     const floorTexture=this.texture(30,30,(g,w,h)=>{box(g,0,0,w,h,C.floorA);box(g,0,0,w/2,h/2,C.floorB);box(g,w/2,h/2,w/2,h/2,C.floorB);g.fillStyle=C.floorLine;g.fillRect(0,0,w,1);g.fillRect(0,0,1,h)},[floorW/240,floorD/240]);
     const floor=this.plane(floorW,floorD,this.material(floorTexture));floor.rotation.x=-Math.PI/2;floor.position.set((westX+eastX)/2,-floorY,(backZ+frontZ)/2);
@@ -238,7 +264,8 @@ export class HallScene {
     ceiling.rotation.x=Math.PI/2;ceiling.position.set((westX+eastX)/2,0,(backZ+frontZ)/2);
     // Square tiled pillars: at both ends of the machine wall, out in the concourse (the exit pillars among them) and behind the gates.
     const pillarTiles=tiled(300),base=this.material(C.steel);
-    for(const [x,z] of [[wallL,0],[wallR,0],...exitPillars.map(p=>[p.x,p.z]),[-5100,exitPillars[0].z],[8900,exitPillars[0].z],[-2900,-2000],[-5700,-2000]]){
+    const exitZ=this.exitPillars[0].z;
+    for(const [x,z] of [[wallL,0],[wallR,0],...this.exitPillars.map(p=>[p.x,p.z]),[-5100,exitZ],[8900,exitZ],[-1840,-2100],...(this.shinkansen?[[5720,-2100]]:[])]){
       const pillar=new THREE.Mesh(new THREE.BoxGeometry(300,floorY,300),pillarTiles);pillar.position.set(x,-floorY/2,z);this.scene.add(pillar);
       const skirt=new THREE.Mesh(new THREE.BoxGeometry(316,110,316),base);skirt.position.set(x,-floorY+55,z);this.scene.add(skirt);
     }
@@ -248,33 +275,34 @@ export class HallScene {
     this.plane(w,h,this.material(this.texture(w/texel,h/texel,paint))).position.set(x,-(top+h/2),z);
     const rod=this.material(C.steel);for(const dx of [-w*.35,w*.35]){const r=new THREE.Mesh(new THREE.BoxGeometry(8,top,8),rod);r.position.set(x+dx,-top/2,z);this.scene.add(r)}
   }
-  /** What surrounds the bank: posters beside it, the ticket gates on the left, the ticket office on the right, overhead signs and commuters. */
+  /** What surrounds the bank: posters beside it, the ticket office and the central gates on the left, the transfer gates or the shop on the right, overhead signs and commuters. */
   private buildConcourse(){
     const poster=(x:number,z:number,place:'kamakura'|'nikko'|'arashiyama')=>{
       const frame=new THREE.Mesh(new THREE.BoxGeometry(600,840,24),this.material(C.steel));frame.position.set(x,-1010,z+12);this.scene.add(frame);
       this.plane(560,800,this.material(this.texture(140,200,(g,w,h)=>paintPoster(g,w,h,place)))).position.set(x,-1010,z+25);
     };
     poster(-280,0,'kamakura');poster(4080,0,'nikko');poster(9300,officeZ,'arashiyama');
-    // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow; nine central gates on the left, three Shinkansen transfer gates on the right.
+    // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow; the central gates on the left, the Shinkansen transfer gates on the right.
     const gateFront=this.material(this.texture(28,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);box(g,0,0,w,10,C.gateTop);box(g,4,14,w-8,12,'#1d2622');pixelText(g,'↑',w/2,20,10,'#57c26a','center',true);box(g,0,h-10,w,10,'#9aa29a')}));
     const gateSide=this.material(this.texture(175,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);dither(g,0,h-14,w,4,C.bodyShade);box(g,0,0,w,10,C.gateTop);box(g,0,26,w,3,'#3a78c2');box(g,0,h-10,w,10,'#9aa29a');box(g,w/2-14,40,28,30,'#c9cdc4',C.bodyEdge)}));
     const gateTop=this.material(C.gateTop),reader=this.material('#5aa9d8');
-    for(const x of [...Array.from({length:9},(_,i)=>-1300-i*360),7900,8260,8620]){
+    for(const x of [...centralGates,...(this.shinkansen?transferGates:[])]){
       const gate=new THREE.Mesh(new THREE.BoxGeometry(110,480,700),[gateSide,gateSide,gateTop,gateTop,gateFront,gateFront]);gate.position.set(x,-floorY+240,gateZ);this.scene.add(gate);
       const ic=new THREE.Mesh(new THREE.BoxGeometry(80,8,110),reader);ic.position.set(x,-floorY+484,gateZ+240);this.scene.add(ic);
     }
-    this.hanging(-2740,gateZ,420,1700,220,(g,w,h)=>paintHanging(g,w,h,{ja:'中央改札',en:'Central Gate',mark:'改',markBg:'#f2c230'}));
+    this.hanging(-1840,gateZ,420,1500,220,(g,w,h)=>paintHanging(g,w,h,{ja:'中央改札',en:'Central Gate',mark:'改',markBg:'#f2c230'}));
     // The yellow exit signs wrap the concourse pillars on either side of the bank, as on the top-down map.
-    for(const [{x,z},west] of [[exitPillars[0],true],[exitPillars[1],false]] as const){
+    for(const [{x,z},west] of [[this.exitPillars[0],true],[this.exitPillars[1],false]] as const){
       const sign=this.material(this.texture(80,64,(g,w,h)=>{box(g,0,0,w,h,'#f2c230');box(g,0,h-3,w,3,'#c9a020');box(g,west?38:10,4,30,30,'#1d2622');pixelText(g,'出',west?53:25,19,24,'#f2c230','center',true);pixelText(g,west?'←':'→',west?20:62,19,24,'#1d2622','center',true);pixelText(g,west?'西口':'東口',w/2,44,14,'#1d2622','center',true);pixelText(g,west?'West Exit':'East Exit',w/2,57,9,'#1d2622','center',true)})),steel=this.material(C.steel);
       const band=new THREE.Mesh(new THREE.BoxGeometry(320,256,320),[sign,sign,steel,steel,sign,sign]);band.position.set(x,-880,z);this.scene.add(band);
     }
-    this.hanging(5300,300,560,1300,200,(g,w,h)=>paintHanging(g,w,h,{ja:'みどりの窓口',en:'JR Ticket Office',mark:'み',markBg:'#2c8a4a',markInk:'#fff',arrow:'→'}));
-    // Over the Shinkansen transfer gates past the ticket office (the far right of the top-down concourse).
-    this.hanging(8260,gateZ,420,1100,200,(g,w,h)=>paintHanging(g,w,h,{ja:'新幹線のりかえ',en:'Shinkansen Transfer',mark:'新',markBg:'#2a5ea8',markInk:'#fff'}));
+    this.hanging(-3600,300,560,1300,200,(g,w,h)=>paintHanging(g,w,h,{ja:'みどりの窓口',en:'JR Ticket Office',mark:'み',markBg:'#2c8a4a',markInk:'#fff',arrow:'←'}));
+    // Over the Shinkansen transfer gates past the right pillar (the far right of the top-down concourse); a station without them has the NewDays there.
+    if(this.shinkansen)this.hanging(5720,gateZ,420,1100,200,(g,w,h)=>paintHanging(g,w,h,{ja:'新幹線のりかえ',en:'Shinkansen Transfer',mark:'新',markBg:'#2a5ea8',markInk:'#fff'}));
+    else this.plane(shopR-shopL,floorY-300,this.material(this.texture((shopR-shopL)/6,(floorY-300)/6,(g,w,h)=>paintShop(g,w,h,(shopDoor-shopL)/6)))).position.set((shopL+shopR)/2,-(300+floorY)/2,officeZ+2);
     // Over the bank, high enough to clear the fare map from every standing distance.
     this.hanging(1900,900,200,1500,200,(g,w,h)=>paintHanging(g,w,h,{ja:'きっぷうりば',en:'Tickets',mark:'券',markBg:'#fff'}));
-    const office=this.plane(2700,floorY-300,this.material(this.texture(450,(floorY-300)/6,paintOffice)));office.position.set(6350,-(300+floorY)/2,officeZ+2);
+    this.plane(centralL-officeL,floorY-300,this.material(this.texture((centralL-officeL)/6,(floorY-300)/6,(g,w,h)=>paintOffice(g,w,h,0)))).position.set((officeL+centralL)/2,-(300+floorY)/2,officeZ+2);
     // Commuters: the concourse's own, shown by render() where the top-down simulation has them.
     this.crowd=looks.map(look=>{
       const map=this.texture(160,48,(g)=>{g.clearRect(0,0,160,48);paintPerson(g,look)},[.125,1]).clone(),height=look.height??1;map.repeat.set(.125,1);
@@ -282,24 +310,29 @@ export class HallScene {
     });
   }
   private buildBoard(){
-    const left=1238,top=120,w=1387,h=780,border=18;
-    const frame=new THREE.Mesh(new THREE.BoxGeometry(w+border*2,h+border*2,14),this.material(C.frame));frame.position.set(left+w/2+border,-(top+h/2+border),7);this.scene.add(frame);
+    // Drawn at 1387 × 780 and scaled down on the wall to leave room above it for the station's name, as on the top-down map.
+    const cx=1950,top=220,w=1387,h=780,scale=.877,bw=w*scale,bh=h*scale,border=18,cy=-(top+border+bh/2);
+    const frame=new THREE.Mesh(new THREE.BoxGeometry(bw+border*2,bh+border*2,14),this.material(C.frame));frame.position.set(cx,cy,7);this.scene.add(frame);
+    const nameW=860,nameH=140;
+    const station=stations[this.hub];
+    this.plane(nameW,nameH,this.material(this.texture(nameW/texel,nameH/texel,(g,cw,ch)=>{box(g,0,0,cw,ch,C.ink);box(g,0,ch-3,cw,3,station.accent);pixelText(g,`${station.ja}  ${station.en.toUpperCase()}`,cw/2,(ch-3)/2,22,'#fffef2','center',true)}))).position.set(cx,-(50+nameH/2),2);
     // Only the Tokyo map opens in detail, so only it can be highlighted and clicked.
     if(this.hub==='tokyo'){this.boardFrame=frame;frame.userData.device='map';this.boardMeshes.push(frame)}
     if(this.hub==='tokyo'){
       // The fare map is the vector SVG itself, kept sharp to be readable; the WebGL plane only clears its pixels to transparent.
       const holder=document.createElement('div');holder.className='hall-board';holder.style.width=w+'px';holder.style.height=h+'px';
       const svg=renderWallFareMap();svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));holder.append(svg);
-      const board=new CSS3DObject(holder);board.position.set(left+border+w/2,-(top+border+h/2),14.5);this.cssScene.add(board);
-      const hole=this.plane(w,h,this.hole);hole.position.copy(board.position);hole.userData.device='map';this.boardMeshes.push(hole);
+      const board=new CSS3DObject(holder);board.scale.setScalar(scale);board.position.set(cx,cy,14.5);this.cssScene.add(board);
+      const hole=this.plane(bw,bh,this.hole);hole.position.copy(board.position);hole.userData.device='map';this.boardMeshes.push(hole);
     }else{
       const texture=this.texture(w/texel,h/texel,(g,cw,ch)=>{
-        box(g,0,0,cw,ch,'#fffef2');pixelText(g,'京都駅 · のりば案内',cw-12,14,14,'#2d563e','right',true);
-        const row=(y:number,line:string,color:string,destination:string)=>{g.fillStyle=color;g.fillRect(70,y,cw-180,4);box(g,58,y-4,12,12,'#fff',C.ink);box(g,cw-110,y-4,12,12,'#fff',C.ink);pixelText(g,'京都',40,y+2,13,C.ink);pixelText(g,line,(cw-40)/2,y-12,12,color,'center',true);pixelText(g,destination,cw-92,y+2,13,C.ink,'left')};
-        row(70,'新幹線 SHINKANSEN','#2a6fb3','東京');row(130,'嵯峨野線 SAGANO','#b45843','嵐山 ¥240');
-        pixelText(g,'Detailed Kyoto fare map coming soon.',12,ch-14,12,'#65735a','left');
+        // One line per route from the station, which is marked in red at their left end.
+        box(g,0,0,cw,ch,'#fffef2');pixelText(g,station.ja+'駅 · のりば案内',cw-12,14,14,'#2d563e','right',true);
+        const row=(y:number,line:string,color:string,destination:string)=>{g.fillStyle=color;g.fillRect(70,y,cw-180,4);box(g,58,y-4,12,12,'#d6402e','#fff');box(g,cw-110,y-4,12,12,'#fff',C.ink);pixelText(g,station.ja,40,y+2,13,'#d6402e','center',true);pixelText(g,line,(cw-40)/2,y-12,12,color,'center',true);pixelText(g,destination,cw-92,y+2,13,C.ink,'left')};
+        routes.filter(route=>route.from===this.hub).forEach((route,i)=>row(70+i*60,`${route.ja} ${route.line.replace(/ Line$/,'').toUpperCase()}`,route.color,route.name.split(' / ')[1]+(route.service==='local'?' ¥'+route.fare.toLocaleString('en-US'):'')));
+        pixelText(g,`Detailed ${station.en} fare map coming soon.`,12,ch-14,12,'#65735a','left');
       });
-      const board=this.plane(w,h,this.material(texture));board.position.set(left+border+w/2,-(top+border+h/2),14.5);
+      const board=this.plane(bw,bh,this.material(texture));board.position.set(cx,cy,14.5);
     }
   }
   /** The machine bank: a pale facade standing out from the wall, a lit sign over each machine, the machines set back in their recesses, a steel ledge and a plain cabinet below. */
@@ -385,7 +418,7 @@ export class HallScene {
     // Each commuter where the concourse has them, fading through the gates as they do there, and out as they come within a few steps of the eye (the top-down map is denser than the hall).
     for(const sprite of this.crowd)sprite.visible=false;
     for(const f of this.figures()){
-      const sprite=this.crowd[f.look],{x:fx,z}=fromConcourse(f.x,f.y),opacity=f.alpha*Math.min(1,(this.camera.position.z-z-450)/450);if(!sprite||opacity<.05)continue;
+      const sprite=this.crowd[f.look],{x:fx,z}=fromConcourse(this.xAnchors,f.x,f.y),opacity=f.alpha*Math.min(1,(this.camera.position.z-z-450)/450);if(!sprite||opacity<.05)continue;
       sprite.visible=true;sprite.position.set(fx,-floorY,z);sprite.material.opacity=opacity;
       (sprite.material.map as THREE.Texture).offset.x=({down:0,up:2,left:4,right:6}[f.face]+(f.moving?Math.floor(t*4+f.look)%2:0))*.125;
     }
