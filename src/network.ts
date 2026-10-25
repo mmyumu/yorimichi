@@ -1,9 +1,15 @@
 export type Hub='tokyo'|'kyoto'|'kamakura';
-export type Place=Hub|'kamakura-trail'|'arashiyama'|'jr-stop';
+export type Place=Hub|'kamakura-trail'|'arashiyama'|'jr-stop'|'town';
+export type Side='west'|'east';
+/** The konbini chains: the shop by a station's street is the same for all, only its sign differs (see makeTown). */
+export type Konbini='seven'|'family'|'lawson';
+export const konbinis:Record<Konbini,[string,string]>={seven:['セブン-イレブン','7-Eleven'],family:['ファミリーマート','FamilyMart'],lawson:['ローソン','Lawson']};
+/** Each station's konbini (hubs and the Tokyo fare map's stations, by id), picked once and for all from the id. */
+export const konbiniFor=(id:string)=>(['seven','family','lawson'] as const)[[...id].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7)%3];
 export type Service='shinkansen'|'local';
 /** A route bookable at a hub's machines; `ja` and `color` draw it on the station's board, `train` and `decoy` are the two departures shown at the gates. */
 export interface Route {id:string;from:Hub;to:Place;service:Service;name:string;line:string;ja:string;color:string;fare:number;platform:string;train:string;decoy:string}
-export const places:Record<Place,string>={tokyo:'Tokyo · Main station',kyoto:'Kyoto · Main station',kamakura:'Kamakura · JR station','kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path','jr-stop':'JR station'};
+export const places:Record<Place,string>={tokyo:'Tokyo · Main station',kyoto:'Kyoto · Main station',kamakura:'Kamakura · JR station','kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path','jr-stop':'JR station',town:'Outside the station'};
 export const routes:Route[]=[
 {id:'tokyo-kyoto',from:'tokyo',to:'kyoto',service:'shinkansen',name:'KYOTO / 京都',line:'Tokaido Shinkansen',ja:'新幹線',color:'#2a6fb3',fare:14000,platform:'TRACK 19',train:'のぞみ / NOZOMI → KYOTO',decoy:'回送 / NOT IN SERVICE'},
 {id:'kyoto-tokyo',from:'kyoto',to:'tokyo',service:'shinkansen',name:'TOKYO / 東京',line:'Tokaido Shinkansen',ja:'新幹線',color:'#2a6fb3',fare:14000,platform:'TRACK 11',train:'のぞみ / NOZOMI → TOKYO',decoy:'回送 / NOT IN SERVICE'},
@@ -15,12 +21,12 @@ export const returnHub=(place:Place):Hub=>place==='arashiyama'?'kyoto':place==='
 
 /** The hub stations, all laid out alike (see art.ts and hall-scene.ts): what tells them apart is their name, accent colour, exits,
  * and the far right of the concourse, the Shinkansen transfer gates where the station has a Shinkansen platform, a NewDays shop otherwise.
- * An exit with `walk` leads somewhere playable. */
-export interface Station {ja:string;en:string;accent:string;west:[string,string];east:[string,string];walk?:{east:Place;label:string}}
+ * An exit listed in `maps` leads to that place's own map; every other one to the generic street outside the station (`town`). */
+export interface Station {ja:string;en:string;accent:string;west:[string,string];east:[string,string];maps?:Partial<Record<Side,Place>>}
 export const stations:Record<Hub,Station>={
   tokyo:{ja:'東京',en:'Tokyo',accent:'#b66c51',west:['Marunouchi / Bus','Marunouchi and the buses'],east:['Yaesu / Taxi','Yaesu and the taxis']},
   kyoto:{ja:'京都',en:'Kyoto',accent:'#608776',west:['Hachijo / Bus','Hachijo and the buses'],east:['Karasuma / Taxi','Karasuma and the taxis']},
-  kamakura:{ja:'鎌倉',en:'Kamakura',accent:'#3f6f9e',west:['Onari / Enoden','Onari-dori and the Enoden line'],east:['Komachi / Temples','Komachi-dori and the temples'],walk:{east:'kamakura-trail',label:'Walk to the temple trail'}},
+  kamakura:{ja:'鎌倉',en:'Kamakura',accent:'#3f6f9e',west:['Onari / Enoden','Onari-dori and the Enoden line'],east:['Komachi / Temples','Komachi-dori and the temples'],maps:{east:'kamakura-trail'}},
 };
 
 // Fictional platform assignments kept stable so signs, tickets and staff agree.

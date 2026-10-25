@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { hasShinkansen, machineKinds, platformFor, routes, stations, type Hub } from './network';
+import { hasShinkansen, machineKinds, platformFor, routes, stations, type Hub, type Konbini } from './network';
 import { looks } from './people';
 
 // Original pixel tiles painted on a 480 × 320 canvas, displayed at integer 2× scale.
@@ -262,7 +262,73 @@ function makeJrStop(scene:Phaser.Scene){
   for(const x of[15,439]){r(x,129,8,126,'#8b9d86');r(x-3,252,14,5,'#617b68')}
   for(const x of[165,270]){r(x,235,52,4,'#9e8259');r(x,242,52,4,'#b99d6c');r(x+4,246,4,12,'#68745b');r(x+44,246,4,12,'#68745b')}
   r(53,168,97,23,'#385d4c');t(59,174,'← TOKYO 東京','#e9dbaf',true);r(66,191,4,22,'#7d896b');r(133,191,4,22,'#7d896b');
-  r(356,161,58,46,'#dde0c4');r(360,165,50,25,'#57776b');for(let x=365;x<405;x+=10)r(x,170,6,12,'#b9c9a6');r(360,194,50,4,'#aab48d');t(363,199,'JR','#456b54');
+  r(356,161,58,46,'#dde0c4');r(392,151,20,9,'#f2c230');t(397,153,'出口','#1d2622');r(360,165,50,25,'#57776b');for(let x=365;x<405;x+=10)r(x,170,6,12,'#b9c9a6');r(360,194,50,4,'#aab48d');t(363,199,'JR','#456b54');
   r(0,280,480,40,'#587b58');for(let x=0;x<480;x+=16){r(x,277,14,12,'#799762');r(x+2,275,8,5,'#a9b97b')}
   t(202,262,'JR / LOCAL','#6e7e63',true);texture.refresh();
+}
+
+/** The street outside a station, shared by every exit without a map of its own: the station front with its entrance under the sign (`title` over `subtitle`, underlined in `accent`),
+ * a konbini beside it (the same shop for every chain, under the sign of `konbini`), a plaza with vending machines, planters, the area map and a bus stop, the road and its crossing, and the shops across it. Drawn once per station and exit, when first needed.
+ * In art px: front 0–112 (entrance 196–284; konbini 334–480, sign 58–80, door 338–364), area map 118–152 × 114–144, planters at 76 and 376 (150–160), vending machines 20–64, konbini bins 410–430 × 112–122,
+ * bus stop at 455, road 199–247, shops from 262. main.ts (solids, hotspots) relies on these. */
+export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:string,accent:string,konbini:Konbini){
+  const texture=mapCanvas(scene,key,480,320);const g=texture.context;
+  const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  const t=(x:number,y:number,text:string,c:string,big=false)=>letter(g,x,y,text,c,big);
+  let seed=91;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+  // The station front: two rows of windows, the canopy over the glazed entrance, and the sign above it.
+  r(0,35,480,77,'#cfc8ad');r(0,35,480,4,'#5d6a62');r(0,39,480,2,'#e6e3cc');
+  for(const y of [46,66])for(let x=4;x<320;x+=24)if(y===46||x<150||x>320){r(x,y,16,12,'#476e79');r(x+2,y+2,12,3,'#9ebcb4');r(x,y+12,16,2,'#aeab94')}
+  r(166,64,148,26,'#aeab94');r(168,66,144,22,'#283e40');r(168,87,144,1,accent);r(172,69,16,16,'#2c8a4a');t(175,72,'JR','#ffffff',true);
+  g.textAlign='center';t(250,68,title,'#fffef2',true);t(250,80,subtitle,'#d8d8cc');g.textAlign='left';
+  r(190,96,100,16,'#9fc3c2');for(let x=190;x<=290;x+=25)r(x,96,1,16,'#8f9e8b');r(238,96,4,16,'#8f9e8b');r(190,110,100,2,'#3b4541');
+  r(176,90,128,6,'#5d6a62');r(176,96,128,1,'#3b4541');for(let x=180;x<304;x+=20)r(x,91,10,1,'#fffbe0');
+  // The konbini beside the station: its own lower front, the chain's sign band, then the glazing with the automatic door, the magazine rack along the window, shelves, the till and its clerk.
+  r(332,35,148,77,'#e8e6dc');r(332,35,148,4,'#5d6a62');r(332,35,2,77,'#aeab94');for(let x=340;x<480;x+=12)r(x,43,8,11,'#c9c7b2');
+  // The signs as on the real fronts (half art px allowed: the canvas is at twice the art's density; lettering drawn twice half an art px apart is bold).
+  if(konbini==='seven'){
+    // White fascia with the thick orange, green and red stripes, broken in the middle by the logo on white: the orange bar and red stem of the 7, ELEVEn in green across it.
+    r(334,58,146,22,'#fbfbf6');for(const [y,c] of [[60,'#f58220'],[65,'#008061'],[70,'#ee2526']] as const){r(334,y,54,4,c);r(416,y,64,4,c)}
+    r(395,60,15,3,'#f58220');for(let k=0;k<15;k++)r(407-k*.5,63+k,3,1,'#ee2526');r(394.5,68.5,16,5,'#fbfbf6');t(395,68.5,'ELEVEn','#008061');
+  }else if(konbini==='family'){
+    // White fascia between the green band on top and the blue rule below, the logo square (green over blue) before FamilyMart in blue.
+    r(334,58,146,22,'#fbfbf6');r(334,58,146,5,'#00a040');r(334,76,146,2,'#0068b7');
+    r(378,65,9,4,'#00a040');r(378,70,9,5,'#0068b7');for(const dx of [0,.5])t(390+dx,65,'FamilyMart','#0068b7',true);
+  }else{
+    // A white light box in three panels: the blue band with LAWSON in white, and the blue and red rules under it.
+    r(334,58,146,22,'#fbfbf6');r(334,60,146,13,'#1f5fbf');r(334,75,146,.5,'#1f5fbf');r(334,75.5,146,1,'#d0313c');
+    for(const x of [382,432])r(x,58,1.5,22,'#c9ccd0');for(const dx of [0,.5])t(392.5+dx,61.5,'LAWSON','#ffffff',true);
+  }
+  r(334,80,146,30,'#9fc3c2');for(let d=0;d<12;d++)r(372+d*2,108-d*2,2,1,'#c3dddb');
+  r(338,80,26,30,'#4c5f5c');r(338,80,26,2,'#8f9e8b');r(350,80,2,30,'#8f9e8b');r(340,84,9,24,'#5b706c');r(353,84,9,24,'#5b706c');
+  r(368,100,40,8,'#d9d3bf');for(let k=0;k<13;k++)r(369+k*3,96,2,5,['#d2402e','#e8c440','#3a78c2','#e9a6ad','#3c9a5c'][k%5]);
+  for(let k=0;k<3;k++){r(370,84+k*5,36,1,'#7d8a84');for(let b=0;b<9;b++)r(371+b*4,81+k*5,3,3,['#f4f4ee','#e8853a','#86a367','#c3dddb','#b66c51'][(b+k)%5])}
+  r(412,82,24,20,'#dfe9ec');for(let k=0;k<3;k++){r(412,82+k*7+6,24,1,'#9aa29a');for(let b=0;b<6;b++)r(413+b*4,83+k*7,2,5,['#d2402e','#3c9a5c','#e8c440','#3a78c2','#f4f4ee','#e8853a'][(b+k)%6])}
+  r(442,98,30,10,'#d9d3bf');r(442,98,30,2,'#efe9d4');r(452,90,7,8,'#3a78c2');r(453,85,5,5,'#e9c4a0');r(453,85,5,2,'#2b2420');r(462,94,6,4,'#283e40');
+  for(const x of [364,410,438,479])r(x,80,1,30,'#8f9e8b');r(334,110,146,2,'#3b4541');r(338,110,26,2,'#55625b');
+  // On the glass: the 7-Eleven stripes across a door pane, the Lawson blue band low along the window.
+  if(konbini==='seven')for(const [y,c] of [[97,'#f58220'],[100,'#008061'],[103,'#ee2526']] as const)r(353,y,9,2,c);
+  if(konbini==='lawson')r(364,104,115,2,'#1f5fbf');
+  // The plaza, its tiles, and the tactile strip from the doors to the crossing.
+  r(0,112,480,87,'#c9c2a4');for(let y=112;y<199;y+=12){r(0,y,480,1,'#b5ae90');for(let x=(y/12%2)*12;x<480;x+=24)r(x,y,1,12,'#b5ae90')}
+  r(237,112,6,87,'#e8c440');for(let y=113;y<199;y+=4)r(238+(y%8<4?0:2),y,2,1,'#cfa72c');
+  // Two vending machines against the front, on the left.
+  for(const [x,c] of [[20,'#d24a3a'],[44,'#3a78c2']] as const){r(x,112,20,24,c);r(x+2,114,16,10,'#e8eef0');for(let k=0;k<8;k++)r(x+3+(k%4)*4,115+Math.floor(k/4)*5,2,4,['#d2402e','#3c9a5c','#e8c440','#f4f4ee'][k%4]);r(x+13,127,4,5,'#283e40');r(x+3,132,10,2,'#283e40');r(x+1,136,20,2,'#74855e')}
+  // The area map, the current spot in red.
+  r(124,134,2,10,'#4c6156');r(144,134,2,10,'#4c6156');r(118,114,34,22,'#4c6156');r(120,116,30,18,'#e8e4cc');
+  r(120,124,30,2,'#aeab94');r(132,116,2,18,'#aeab94');r(122,117,8,5,'#9ebc8a');r(136,127,12,5,'#9fc3c2');r(136,117,10,5,'#e2c9a0');r(122,128,8,4,'#e2c9a0');r(134,121,3,3,'#d6402e');
+  // The konbini's bins by its window.
+  for(const [x,c] of [[410,'#3a78c2'],[421,'#2c8a4a']] as const){r(x,112,9,10,'#aeb4b0');r(x+1,112,7,2,c);r(x+3,115,3,1,'#283e40');r(x,122,9,1,'#8e9476')}
+  // Planters with trees, and the bus stop on the right.
+  for(const x of [76,376]){r(x+2,160,28,3,'#8e9476');r(x,150,28,10,'#8b7d63');r(x,150,28,2,'#ab9b78');r(x+12,138,4,12,'#69533f');for(const [dx,dy,w,h,c] of [[-2,122,32,18,'#345d48'],[2,118,24,24,'#487951'],[6,120,12,10,'#63905b'],[16,126,8,6,'#86a367']] as const)r(x+dx,dy,w,h,c)}
+  r(455,142,2,42,'#4c6156');r(448,132,16,12,'#3a78c2');r(450,134,12,8,'#fffef2');r(454,136,4,4,'#3a78c2');r(451,184,10,3,'#5b6558');
+  // The kerb, the road with its centre line and the crossing straight ahead, the far pavement.
+  r(0,196,480,3,'#e0dccb');r(0,199,480,48,'#5d625c');for(let i=0;i<300;i++)r(Math.floor(rand()*480),199+Math.floor(rand()*48),1,1,'#6b706a');
+  for(let x=0;x<480;x+=32)if(x<196||x>276)r(x,222,16,2,'#e6e3cc');for(let x=206;x<274;x+=8)r(x,202,5,42,'#e6e3cc');
+  r(0,247,480,3,'#e0dccb');r(0,250,480,12,'#bdb59a');for(let x=0;x<480;x+=16)r(x,250,1,12,'#a9a187');
+  // The shops across the road, seen from above: roofs, awnings and a lit sign each.
+  let x=0;for(const [w,roof,awning] of [[70,'#7a6a5c','#b45843'],[56,'#5d6a62','#3a78c2'],[84,'#8a7f6a','#2c8a4a'],[62,'#6e5a52','#e8c440'],[90,'#5f6e6a','#d24a3a'],[64,'#7d7262','#6c78b8'],[54,'#66705f','#e8853a']] as const){
+    r(x,262,w,58,roof);for(let y=270;y<320;y+=6)r(x,y,w,1,'#00000022');r(x,262,w,5,awning);for(let k=x;k<x+w;k+=8)r(k,262,4,5,'#fffef2aa');r(x+w-1,262,1,58,'#3b4541');r(x+8,268,w-16,4,'#fffbe0');x+=w;
+  }
+  texture.refresh();
 }
