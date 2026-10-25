@@ -1,16 +1,28 @@
 import Phaser from 'phaser';
 import { platformFor, type Hub } from './network';
+import { looks } from './people';
 
 // Original pixel tiles painted on a 480 × 320 canvas, displayed at integer 2× scale.
+/** A map canvas at twice the art's density, drawn in art coordinates: the art keeps its 2-px blocks while the lettering gets one screen pixel per dot. */
+function mapCanvas(scene:Phaser.Scene,key:string,w:number,h:number){const texture=scene.textures.createCanvas(key,w*2,h*2)!;texture.context.scale(2,2);return texture}
+/** Lettering at the canvas's full density with its anti-aliasing thresholded away, so it stays crisp once shown at 2×. Honours `g.textAlign`. */
+function letter(g:CanvasRenderingContext2D,x:number,y:number,text:string,size:number,color:string){
+  const font=`bold ${size*2}px monospace`,scratch=document.createElement('canvas'),c=scratch.getContext('2d')!;c.font=font;
+  const w=Math.ceil(c.measureText(text).width)+2,base=Math.ceil(size*2.4),h=Math.ceil(size*3.2);scratch.width=w;scratch.height=h;
+  c.font=font;c.fillStyle=color;c.fillText(text,1,base);
+  const data=c.getImageData(0,0,w,h);for(let i=3;i<data.data.length;i+=4)data.data[i]=data.data[i]>110?255:0;c.putImageData(data,0,0);
+  g.save();g.setTransform(1,0,0,1,0,0);g.drawImage(scratch,Math.round(x*2-(g.textAlign==='center'?w/2:g.textAlign==='right'?w:0)),Math.round(y*2-base));g.restore();
+}
 const C={grass:'#92ad70',dark:'#344c42',leaf:'#497452',light:'#86a466',cream:'#efdbac',wood:'#806049',shadow:'#657756'};
 export function makeArt(scene:Phaser.Scene){
   makeHubs(scene);
+  makeCommuters(scene);
   makeJrStop(scene);
   for(const place of ['kamakura','arashiyama']){
-    const texture=scene.textures.createCanvas('map-'+place,480,320)!;
+    const texture=mapCanvas(scene,'map-'+place,480,320);
     const g=texture.context;
     const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)};
-    const text=(x:number,y:number,t:string,c='#f4e4b8',size=7)=>{g.fillStyle=c;g.font=`bold ${size}px monospace`;g.fillText(t,x,y)};
+    const text=(x:number,y:number,t:string,c='#f4e4b8',size=7)=>letter(g,x,y,t,size,c);
     let seed=173;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
     const shadow=(x:number,y:number,w:number)=>{r(x+3,y,w,5,'#74855e');r(x+7,y+5,w-8,2,'#74855e')};
     const paving=(x:number,y:number,w:number,h:number)=>{
@@ -74,78 +86,155 @@ export function makeArt(scene:Phaser.Scene){
   }
 }
 
+/** The concourse seen from above, laid out like the first-person ticket hall: the tiled wall with the fare map and the five machines at the back,
+ * the central gates (local lines) set back on the left, the ticket office and the Shinkansen transfer gates on the right. */
+/** A tiled concourse pillar cut by the ceiling, with the yellow 出口 sign of a Japanese station on its face; origin at its foot. */
+function exitPillar(scene:Phaser.Scene,hub:Hub,side:'west'|'east'){
+  const texture=mapCanvas(scene,`exit-pillar-${hub}-${side}`,30,64);const g=texture.context;
+  const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  const t=(x:number,y:number,text:string,size:number,c:string)=>{g.textAlign='center';letter(g,x,y,text,size,c)};
+  r(0,0,30,64,'#e6e3cc');for(let y=7;y<64;y+=8)r(0,y,30,1,'#c9c4a6');for(let x=7;x<30;x+=8)r(x,0,1,64,'#c9c4a6');r(0,0,1,64,'#aeab94');r(29,0,1,64,'#aeab94');
+  r(0,0,30,3,'#4c5852');r(0,58,30,6,'#aeb4b0');r(0,63,30,1,'#8b918d');
+  const west=side==='west';r(1,10,28,30,'#f2c230');r(1,39,28,1,'#c9a020');
+  r(west?14:5,12,11,11,'#1d2622');t(west?19.5:10.5,21,'出',9,'#f2c230');t(west?7:24,21,west?'←':'→',9,'#1d2622');
+  t(15,31,west?'西口':'東口',7,'#1d2622');t(15,37,west?'West Exit':'East Exit',5,'#1d2622');
+  texture.refresh();
+}
 function makeHubs(scene:Phaser.Scene){
   for(const hub of ['tokyo','kyoto'] as Hub[]){
-    const texture=scene.textures.createCanvas('map-'+hub,480,320)!;const g=texture.context;
+    const texture=mapCanvas(scene,'map-'+hub,480,320);const g=texture.context;
     const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))};
-    const t=(x:number,y:number,text:string,size=7,c='#e9dfbb')=>{g.fillStyle=c;g.font=`bold ${size}px monospace`;g.fillText(text,x,y)};
-    const accent=hub==='tokyo'?'#b66c51':'#608776',floor=hub==='tokyo'?'#c9b79b':'#b6bcb0';
-    r(0,35,480,250,floor);
-    // Concourse floor: square stone tiles with small inlaid diamonds.
-    for(let y=127;y<285;y+=12)for(let x=0;x<480;x+=16){r(x,y,15,11,(x/16+y)%3===0?'#c7c2ad':floor);r(x,y,15,1,'#d8cfb5');if(x%64===0&&y%24===7)r(x+7,y+5,2,2,'#9c9e89')}
-    // Overhead structure and two tracks.
-    r(0,35,480,24,'#4e6462');for(let x=0;x<480;x+=32){r(x,37,2,20,'#83958b');r(x,43,30,2,'#6c817a')}r(0,56,480,4,'#293f43');
-    r(0,63,480,35,'#616e6d');for(let x=0;x<480;x+=10){r(x,68,4,27,'#46534f');r(x,70,4,2,'#899386')}for(const y of [70,90]){r(0,y,480,2,'#adb3a2');r(0,y+2,480,2,'#354746')}
-    // Local commuter train to the left.
-    r(5,67,205,27,'#d5d8c6');r(10,63,195,4,'#879c96');r(5,84,205,5,hub==='tokyo'?'#507f9a':'#698a67');r(5,92,205,3,'#5c706c');
-    for(let x=13;x<205;x+=23){r(x,70,16,12,'#355965');r(x+1,71,14,3,'#93b5b5');r(x+10,74,2,6,'#628b99')}
-    for(const x of [52,121,181]){r(x,67,2,26,'#83988d');r(x+3,72,7,14,'#90a5a0')}
-    t(76,88,hub==='tokyo'?'YOKOSUKA':'SAGANO',5);for(const x of [20,69,139,185])r(x,95,9,3,'#314849');
-    // White/blue Shinkansen, with a stepped aerodynamic nose.
-    r(272,67,204,25,'#eee9d4');r(280,63,196,4,'#f7f0d9');r(266,71,10,20,'#e6e3cc');r(258,77,12,13,'#e6e3cc');r(250,84,12,6,'#d4dbc9');
-    r(267,84,209,4,'#447ca0');r(257,88,219,3,'#a5bebd');for(let x=297;x<467;x+=19){r(x,70,12,8,'#34586b');r(x+1,71,10,2,'#96b7be')}
-    r(275,70,13,7,'#35586b');r(283,64,2,6,'#34586b');t(375,87,'SHINKANSEN',5,'#e3eddf');
-    // Platform edges and tactile paving.
-    r(0,101,480,20,'#b0b39e');r(0,101,480,2,'#e6dec2');r(0,108,480,4,'#d8ba65');for(let x=0;x<480;x+=5)r(x,109,2,1,'#8c8755');r(0,120,480,4,'#7d8c80');
-    for(const x of [28,148,328,450]){r(x+2,51,6,70,'#344b4c');r(x,51,7,68,'#96a798');r(x,99,7,4,accent);r(x+1,54,1,41,'#d0d1b5');r(x-3,116,14,5,'#677c72')}
-    // Hanging destination displays.
-    for(const [x,title,line] of [[45,(hub==='tokyo'?'3':'33')+'  在来線 / Local',hub==='tokyo'?'横須賀線・中央線':'嵯峨野線 / SAGANO'],[295,(hub==='tokyo'?'19':'11')+'  新幹線',hub==='tokyo'?'のぞみ 京都方面':'のぞみ 東京方面']] as const){
-      r(x+8,49,1,10,'#283e40');r(x+110,49,1,10,'#283e40');r(x,58,129,27,'#233c3e');r(x+2,60,125,23,'#2e4845');r(x+3,62,123,1,accent);t(x+7,71,title,7,'#f4d58c');t(x+7,80,line,5,'#b6d9aa');
-    }
-    // Ticket gate lanes; entry is handled from the front of each lane.
-    for(const x of [63,107,336,380]){r(x,133,14,28,'#607f76');r(x+1,131,12,23,'#a9b8a7');r(x+3,133,8,7,'#294e52');r(x+4,134,6,3,'#7cbaaa');r(x,155,14,4,hub==='tokyo'?'#6089a1':'#758e64');r(x+2,160,12,3,'#7c8a78')}
-    r(72,129,50,4,'#678695');r(345,129,48,4,'#597e9a');t(79,144,'↑',10,'#5f7d58');t(352,144,'↑',10,'#5f7d58');
-    t(70,176,platformFor(hub,'local')+' / 在来線',7,'#435e55');t(325,176,platformFor(hub,'shinkansen')+' / 新幹線',7,'#435e55');
-    // Central information and ticket office: departure board + staffed counter.
-    r(177,121,125,36,'#6e7f70');r(175,124,130,7,accent);r(181,133,118,17,'#263e3d');t(185,140,'DEPARTS / 発車案内',5,'#e7cd86');t(185,147,hub==='tokyo'?'19 京都 14:20 / 3 品川 14:25':'11 東京 14:20 / 33 園部 14:25',5,'#9bc29a');
-    r(193,152,94,4,'#a9b29a');r(198,155,5,3,'#506e65');r(279,155,5,3,'#506e65');
-    // Ticket machine island.
-    r(223,219,38,5,'#a1a38a');r(227,187,26,31,'#835e4d');r(228,187,23,29,'#bb7054');r(230,190,19,4,'#e9d4a4');t(231,193,'きっぷ',4,'#77553e');r(231,197,16,10,'#294d51');r(233,199,12,5,'#9fbd9e');r(231,210,9,2,'#f1d88c');r(244,210,3,4,'#554e40');r(234,215,10,2,'#3e5047');
-    t(207,235,'TICKETS / きっぷ',7,'#465e51');
-    // Side kiosks, seating, lockers and vending machines.
-    r(6,184,48,42,'#7b7762');r(7,184,46,7,accent);t(11,189,'EKIBEN',6);r(11,195,37,19,'#3f5e58');for(let x=14;x<45;x+=9){r(x,198,6,5,'#c3ad73');r(x,207,6,4,'#d5996c')}r(8,215,44,4,'#a99775');
-    r(428,184,44,45,'#8a9a88');for(let y=188;y<225;y+=12)for(let x=432;x<469;x+=12){r(x,y,10,10,'#c3c7ab');r(x+7,y+4,1,3,'#586e60')}t(432,181,'LOCKERS',5,'#476156');
-    for(const x of [150,298]){r(x,247,40,3,'#b19c70');r(x,252,40,3,'#c5ac7b');r(x+3,255,3,7,'#526b60');r(x+34,255,3,7,'#526b60')}
-    for(const [x,y] of [[26,251],[414,251]]){r(x,y+9,14,13,'#8f7153');r(x-3,y,20,12,'#4f7959');r(x+1,y-5,12,11,'#7f9a69');r(x+4,y-4,5,4,'#acb579')}
-    // Floor guidance stripes and station-name inlay.
-    r(93,168,3,97,'#d1b86f');r(372,168,3,97,'#d1b86f');r(93,263,282,3,'#d1b86f');
-    r(185,269,110,12,accent);t(195,278,hub==='tokyo'?'東京  TOKYO STATION':'京都  KYOTO STATION',7);
-    // Small travellers with luggage.
-    for(const [x,y,c] of [[132,199,'#748b99'],[337,221,'#a47660'],[399,149,'#8e9161']] as const){r(x,y+8,8,2,'#87967d');r(x+1,y,6,7,c);r(x+1,y-5,6,5,'#d8b88b');r(x,y-7,8,3,'#555747');r(x+1,y+7,2,4,'#445b57');r(x+5,y+7,2,4,'#445b57');r(x+10,y+1,6,8,'#77654f');r(x+12,y-2,2,4,'#4b5a50')}
-    // Overlapping wayfinding systems: exits, transfers, operators and numbered gates.
-    const sign=(x:number,y:number,w:number,top:string,bottom:string,yellow=false)=>{
-      r(x+5,y-7,1,7,'#3e5651');r(x+w-6,y-7,1,7,'#3e5651');r(x,y,w,23,yellow?'#d7ba70':'#304b49');
-      t(x+4,y+9,top,7,yellow?'#3d4d43':'#e4e1be');t(x+4,y+19,bottom,5,yellow?'#5c6048':'#b1c0a3');
+    const t=(x:number,y:number,text:string,size=7,c='#e9dfbb')=>letter(g,x,y,text,size,c);
+    const dither=(x:number,y:number,w:number,h:number,c:string)=>{for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)r(x+i,y+j,1,1,c)};
+    const tiles=(x:number,y:number,w:number,h:number,shade=false)=>{r(x,y,w,h,shade?'#c9c7b2':'#e6e3cc');for(let yy=y+7;yy<y+h;yy+=8)r(x,yy,w,1,shade?'#aeab94':'#c9c4a6');for(let xx=x+11;xx<x+w;xx+=12)r(xx,y,1,h,shade?'#aeab94':'#c9c4a6')};
+    const accent=hub==='tokyo'?'#b66c51':'#608776';
+    // Floor: the hall's olive checkerboard, and the ceiling edge with its fluorescent lights.
+    r(0,35,480,285,'#74855e');for(let y=35;y<320;y+=16)for(let x=0;x<480;x+=16){r(x,y,8,8,'#6e7d5a');r(x+8,y+8,8,8,'#6e7d5a');r(x,y,16,1,'#66734f');r(x,y,1,16,'#66734f')}
+    // Past the gates (left, and the Shinkansen ones far right): the paid side's corridor running on towards the platforms, fading into the distance.
+    const paid=(x:number,w:number)=>{
+      tiles(x,23,w,23,true);r(x,44,w,26,'#74855e');for(let y=44;y<70;y+=8)for(let xx=x;xx<x+w;xx+=16)r(xx+(y/8%2?8:0),y,8,8,'#6e7d5a');
+      for(let k=0;k<5;k++)dither(x,44+k*2,w,2,['#1d2622','#2b3431','#3d4846','#55625b','#68745b'][k]);r(x,44,w,3,'#1d2622');
     };
-    sign(10,230,75,'← 西口 Exit',hub==='tokyo'?'Marunouchi / Bus':'Hachijo / Bus',true);
-    sign(392,230,78,'東口 Exit →',hub==='tokyo'?'Yaesu / Taxi':'Karasuma / Taxi',true);
-    sign(119,186,67,'↓ 地下鉄 Metro','丸ノ内 / M',false);
-    sign(291,191,70,'↑ のりかえ','Transfer / JR',false);
-    sign(178,174,121,'← 在来線   新幹線 →','Local                 Shinkansen',false);
-    // Information agent with peaked cap, beside the central departures counter.
-    r(236,166,9,2,'#8a947d');r(238,157,6,9,'#55727a');r(237,152,8,5,'#d2b58a');r(236,150,10,3,'#304c58');r(239,149,4,1,'#d1bd79');r(238,165,2,3,'#314c51');r(242,165,2,3,'#314c51');
-    t(251,164,'? 駅員',6,'#425b51');
-    // Distinctive architecture hints: Tokyo brick cornice; Kyoto steel lattice.
-    if(hub==='tokyo'){for(let x=0;x<480;x+=12){r(x,36,11,5,'#a57055');r(x+5,42,11,5,'#926048')}r(0,48,480,2,'#d3bb8c')}
-    else{for(let x=0;x<480;x+=24){r(x,36,2,17,'#a3b3a6');for(let k=0;k<15;k++)r(x+k,36+k,2,1,'#7e978e')}r(0,53,480,2,'#c0c6b0')}
+    paid(0,130);
+    // Automatic gates: grey cabinets with a blue stripe, a blue IC reader and the green arrow at the end facing the hall.
+    for(let i=0;i<5;i++){
+      const x=10+i*26;r(x+1,112,8,3,'#4f5a48');r(x,70,8,42,'#d5d8d0');r(x,70,8,3,'#3d4846');r(x+7,73,1,39,'#9aa29a');r(x,86,8,2,'#3a78c2');r(x+1,100,6,4,'#5aa9d8');r(x,106,8,6,'#9aa29a');r(x+2,107,4,3,'#1d2622');r(x+3,108,2,1,'#57c26a');
+    }
+    // Hung high over the gates, clear of the stairs: the central gate and its local platform.
+    r(12,32,106,17,'#2f3638');r(12,48,106,1,'#77817c');r(15,35,10,10,'#f2c230');t(16,43,'改',8,'#1d2622');
+    t(28,41,'中央改札 '+platformFor(hub,'local').replace('TRACK ','')+'番',7,'#ffffff');t(28,47,'Central Gate · Local',5,'#d8d8cc');
+    // The machine wall between two tiled pillars.
+    tiles(130,23,232,101);
+    for(const x of [130,350]){tiles(x,23,12,101);r(x,23,1,101,'#aeab94');r(x+11,23,1,101,'#aeab94');r(x-1,118,14,6,'#aeb4b0')}
+    r(0,23,480,9,'#5d6a62');dither(0,30,480,2,'#4c5852');for(let x=10;x<480;x+=40)r(x,26,22,2,'#fffbe0');
+    // The station's name on the wall over the fare board.
+    r(196,33,88,11,'#283e40');r(196,42,88,2,accent);g.textAlign='center';t(240,41,hub==='tokyo'?'東京  TOKYO':'京都  KYOTO',8,'#fffef2');g.textAlign='left';
+    // Light-box posters of the game's destinations, as on the hall's wall: Kamakura on the left, Nikko on the right.
+    const poster=(x:number,place:'kamakura'|'nikko',y=56)=>{
+      r(x-1,y-1,22,32,'#aeb4b0');r(x,y,20,22,place==='kamakura'?'#f7ead2':place==='nikko'?'#dfe8e0':'#6fa863');r(x,y+22,20,8,'#fbfbf6');r(x,y+22,20,1,'#c9c4a6');
+      if(place==='kamakura'){r(x,y+16,20,6,'#7c9a6a');r(x+5,y+8,10,2,'#4a4a52');r(x+6,y+10,8,6,'#b8503e');for(const [dx,dy] of [[1,2],[14,1],[3,6],[16,7],[0,10]])r(x+dx,y+dy,3,3,'#f2a7c0')}
+      else{for(const dx of [1,16])r(x+dx,y+3,3,17,'#2f5a3c');r(x+5,y+6,10,2,'#2f3a36');r(x+6,y+8,8,9,'#f4f0e4');r(x+9,y+11,2,6,'#2a2a2e');r(x+6,y+8,8,1,'#d8b04a');r(x+4,y+17,12,3,'#a29d90')}
+      t(x+2,y+29,place==='kamakura'?'鎌倉':'日光',6,'#283e40');
+    };
+    poster(146,'kamakura');poster(326,'nikko');
+    // Fare board above the machines, with the station the player stands in marked in red.
+    r(176,45,128,30,'#8f9e8b');r(178,47,124,26,'#fffef2');
+    if(hub==='tokyo'){
+      r(217,52,26,16,'#7ab648');r(219,54,22,12,'#fffef2');r(184,60,33,1,'#e8853a');r(243,59,50,1,'#e8853a');r(232,66,1,6,'#3a78c2');r(241,55,40,1,'#d24a3a');r(281,55,1,14,'#d24a3a');r(192,52,25,1,'#e8c440');
+      for(const [x,y] of [[186,60],[198,60],[210,60],[250,59],[262,59],[274,59],[290,59],[232,70],[265,55],[281,62],[281,68],[200,52]])r(x-1,y-1,3,3,'#283e40');
+      r(239,57,5,5,'#d6402e');r(244,58,6,2,'#d6402e');
+    }else{
+      r(196,55,96,2,'#2a6fb3');r(196,65,96,2,'#b45843');for(const x of [196,290])for(const y of [55,65])r(x-1,y-1,4,4,'#283e40');r(194,58,6,6,'#d6402e');
+    }
+    t(180,52,hub==='tokyo'?'運賃表':'のりば',5,'#2d563e');
+    // Five machines in a pale facade, each under its lit sign: local tickets, IC charge, local tickets, IC charge, Shinkansen.
+    r(170,76,140,44,'#e4e6df');dither(170,117,140,3,'#d4d7ce');
+    (['local','charge','local','charge','shinkansen'] as const).forEach((kind,i)=>{
+      const x=172+i*28,sign={local:'#2c754e',charge:'#c5487e',shinkansen:'#6c78b8'}[kind];
+      r(x,77,24,7,sign);r(x,77,24,1,'#ffffff55');r(x+5,79,14,1,'#ffffff');r(x+8,81,8,1,'#ffffffaa');
+      r(x,85,24,27,'#9ea69c');r(x+1,85,22,27,kind==='shinkansen'?'#3d9a4c':'#d9dcd6');
+      r(x+3,86,18,10,'#86967e');
+      if(kind==='local'){r(x+4,87,16,8,'#0960bc');dither(x+4,87,16,4,'#4dcae3');for(let k=0;k<6;k++)r(x+5+(k%3)*5,90+Math.floor(k/3)*3,4,2,'#deedf0')}
+      else if(kind==='charge'){r(x+4,87,16,8,'#faf9eb');r(x+10,88,4,3,'#7dba71');r(x+7,93,10,1,'#526c5a')}
+      else{r(x+4,87,16,8,'#eef0e0');for(let k=0;k<4;k++)r(x+5+(k%2)*7,89+Math.floor(k/2)*3,6,2,'#697268')}
+      r(x+2,97,20,14,'#e9eae2');r(x+3,99,7,3,'#e2c234');r(x+4,100,5,1,'#1d2622');r(x+12,99,5,3,'#e2c234');r(x+13,100,3,1,'#1d2622');
+      if(kind==='charge'){r(x+18,98,3,9,'#f6f6f0');r(x+4,103,5,5,'#7dba71');r(x+5,104,3,3,'#e7f1e4')}else{r(x+18,98,3,4,'#e2c234');r(x+19,99,1,2,'#1d2622');r(x+3,104,7,2,'#f6f6f0');r(x+12,104,5,2,'#f6f6f0');r(x+18,103,3,3,'#e2c234')}
+      r(x+3,108,15,3,'#262f2c');
+    });
+    r(166,112,148,3,'#aeb4b0');r(166,115,148,1,'#8b918d');
+    // きっぷうりば on the wall beside the station's name, clear of the fare board.
+    r(291,34,52,9,'#2f3638');r(293,35,7,7,'#ffffff');t(294,41,'券',6,'#1d2622');t(303,41,'きっぷうりば',6,'#ffffff');
+    r(130,122,232,3,'#5a6650');
+    // Tactile paving along the machines.
+    r(150,128,190,5,'#e8c440');for(let x=151;x<339;x+=4)r(x,129+(x%8<4?0:2),2,1,'#cfa72c');
+    // Right: the ticket office, set back less than the gates: green sign band, glazed counters with clerks, a door.
+    tiles(362,23,78,35,true);
+    r(362,58,78,9,'#2c8a4a');r(362,59,78,1,'#7fc495');t(366,65,'みどりの窓口',7,'#ffffff');
+    for(let i=0;i<4;i++){
+      const x=362+i*19;
+      if(i===3){r(x,67,21,33,'#4c5f5c');dither(x,67,21,33,'#5b706c');continue}
+      r(x,67,19,26,'#9fc3c2');for(let d=0;d<10;d++)r(x+2+d,77-d,1,1,'#c3dddb');
+      r(x+6,84,7,6,'#2f4f7a');r(x+7,79,5,5,'#e9c4a0');r(x+7,79,5,2,'#2b2420');r(x+14,84,4,4,'#283e40');
+      r(x,90,19,4,'#d9d3bf');r(x,94,19,6,'#c3c8b8');r(x,67,1,33,'#8f9e8b');t(x+8,99,String(i+1),5,'#283e40');
+    }
+    r(362,100,78,6,'#3b4541');r(362,106,78,2,'#5a6650');
+    // Far right: the Shinkansen transfer gates, under a blue sign.
+    paid(440,40);
+    for(let i=0;i<2;i++){const x=446+i*18;r(x+1,112,8,3,'#4f5a48');r(x,70,8,42,'#d5d8d0');r(x,70,8,3,'#3d4846');r(x+7,73,1,39,'#9aa29a');r(x,86,8,2,'#2a6fb3');r(x+1,100,6,4,'#5aa9d8');r(x,106,8,6,'#9aa29a');r(x+2,107,4,3,'#1d2622');r(x+3,108,2,1,'#57c26a')}
+    r(441,32,38,17,'#2a5ea8');r(441,48,38,1,'#77817c');t(444,41,platformFor(hub,'shinkansen').replace('TRACK ','')+' 新幹線',6,'#ffffff');t(444,47,'Shinkansen',5,'#d8e4f4');
+    // Floor markings: platforms on each side, yellow guidance lines to the exits.
+    t(18,134,platformFor(hub,'local')+' / 在来線',7,'#e6e3cc');t(396,134,platformFor(hub,'shinkansen'),7,'#e6e3cc');t(400,143,'新幹線',7,'#e6e3cc');
+    r(0,226,480,3,'#d1b86f');
+    // Exits painted on the floor; the yellow 出口 signs are on the concourse pillars (exitPillar, placed by main.ts).
+    t(12,242,'← 西口 EXIT',7,'#e6e3cc');t(12,251,hub==='tokyo'?'Marunouchi / Bus':'Hachijo / Bus',5,'#cfd3b8');
+    t(394,242,'東口 EXIT →',7,'#e6e3cc');t(394,251,hub==='tokyo'?'Yaesu / Taxi':'Karasuma / Taxi',5,'#cfd3b8');
     texture.refresh();
+    exitPillar(scene,hub,'west');exitPillar(scene,hub,'east');
   }
 }
 
+/** The hall's commuters seen from above: the same outfits as in the first-person hall, in the traveller's 20 × 28 frames. */
+function makeCommuters(scene:Phaser.Scene){
+  looks.forEach((look,index)=>{
+    const skin=look.skin??'#e9c4a0',hair=look.hair,ink='#283e40';
+    for(const face of ['down','up','left','right'])for(let frame=0;frame<3;frame++){
+      const texture=scene.textures.createCanvas(`commuter-${index}-${face}-${frame}`,20,28)!;const g=texture.context;
+      const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+      const bob=frame===1?1:0,side=face==='left'||face==='right',back=face==='up',flip=(x:number,w=1)=>face==='left'?20-x-w:x;
+      r(4,25,12,2,'#4f5a48');
+      // Legs and shoes; a kimono covers them down to the feet.
+      if(look.length==='robe'){r(6,20+bob,9,5-bob,look.coat);r(6,24,4,2,'#f4f4ee');r(11,24,4,2,'#f4f4ee')}
+      else if(side){const a=frame===1?2:frame===2?-2:0;r(8+a,20+bob,3,5-bob,look.legs);r(10-a,20+bob,3,5-bob,look.legs);r(flip(8+a,4),24,4,2,'#2a2a2a');r(flip(10-a,4),24,4,2,'#2a2a2a')}
+      else{r(6,20+bob,3,5-(frame===1?1:0),look.legs);r(12,20+bob,3,5-(frame===2?1:0),look.legs);r(5,24,4,2,'#2a2a2a');r(12,24,4,2,'#2a2a2a')}
+      if(look.backpack&&!back&&side)r(flip(3,3),13+bob,3,7,look.bag!);
+      // Coat, arms and hands, then what hangs below the waist.
+      if(side){r(7,12+bob,7,9,look.coat);r(flip(9,3),13+bob,3,6,look.coat);r(flip(9,3),19+bob,3,1,skin)}
+      else{r(5,12+bob,11,9,look.coat);r(4,13+bob,2,6,look.coat);r(15,13+bob,2,6,look.coat);r(4,19+bob,2,1,skin);r(15,19+bob,2,1,skin)}
+      if(look.skirt){r(side?6:4,19+bob,side?9:13,2,look.skirt);r(side?5:3,21+bob,side?11:15,2,look.skirt)}
+      if(look.length==='knee')r(side?7:5,20+bob,side?7:11,3,look.coat);
+      if(look.length==='robe'){r(side?7:5,16+bob,side?7:11,2,look.sash??look.coat);if(face==='down')r(9,12+bob,3,2,'#f4f4ee')}
+      else if(face==='down'&&look.tie){r(9,12+bob,3,1,'#f4f4ee');r(10,13+bob,1,4,'#6c3b3b')}
+      if(look.backpack){if(back){r(6,13+bob,9,7,look.bag!);r(7,14+bob,7,1,'#ffffff33')}else if(!side){r(6,12+bob,1,6,look.bag!);r(14,12+bob,1,6,look.bag!)}}
+      else if(look.bag){if(side)r(flip(12,3),16+bob,3,4,look.bag);else r(back?2:16,16+bob,3,4,look.bag)}
+      if(look.cane&&!back)r(side?flip(14):17,15+bob,1,10,'#6b4a2e');
+      // Head and hair.
+      r(7,5+bob,8,8,skin);
+      if(back)r(6,3+bob,10,9,hair);else if(side){r(6,3+bob,10,4,hair);r(flip(6,4),5+bob,4,5,hair)}else{r(6,3+bob,10,4,hair);r(6,5+bob,1,3,hair);r(15,5+bob,1,3,hair)}
+      if(look.style==='bob'){if(back)r(6,3+bob,10,10,hair);else if(side)r(flip(6,5),5+bob,5,7,hair);else{r(6,5+bob,2,7,hair);r(14,5+bob,2,7,hair)}}
+      else if(look.style==='long'){if(back)r(6,3+bob,10,14,hair);else if(side)r(flip(5,5),5+bob,5,11,hair);else{r(5,5+bob,2,11,hair);r(15,5+bob,2,11,hair)}}
+      else if(look.style==='bun')r(side?flip(5,4):9,side?3+bob:1+bob,4,3,hair);
+      else if(look.style==='ponytail'){if(back)r(10,11+bob,2,6,hair);else if(side)r(flip(4,2),7+bob,2,7,hair)}
+      if(face==='down'){r(9,9+bob,1,1,ink);r(12,9+bob,1,1,ink);if(look.mask)r(8,10+bob,6,3,'#f4f4ee')}
+      else if(side){r(flip(13),9+bob,1,1,ink);if(look.mask)r(flip(10,5),10+bob,5,3,'#f4f4ee')}
+      texture.refresh();
+    }
+  });
+}
+
 function makeJrStop(scene:Phaser.Scene){
-  const texture=scene.textures.createCanvas('map-jr-stop',480,320)!;const g=texture.context;
+  const texture=mapCanvas(scene,'map-jr-stop',480,320);const g=texture.context;
   const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
-  const t=(x:number,y:number,text:string,size=8,c='#e9dbaf')=>{g.fillStyle=c;g.font=`bold ${size}px monospace`;g.fillText(text,x,y)};
+  const t=(x:number,y:number,text:string,size=8,c='#e9dbaf')=>letter(g,x,y,text,size,c);
   r(0,35,480,285,'#9dae8b');
   for(let x=0;x<480;x+=24){r(x,45,20,24,'#748a78');r(x+2,48,5,4,'#b7c4a4');r(x+10,55,6,5,'#b7c4a4')}
   r(0,70,480,42,'#64736c');for(let x=0;x<480;x+=14)r(x,72,4,37,'#40534c');for(const y of[77,100]){r(0,y,480,3,'#acb6a1');r(0,y+3,480,2,'#354e47')}

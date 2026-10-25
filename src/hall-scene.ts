@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { renderWallFareMap } from './tokyo-fares';
 import type { Hub } from './network';
+import { looks, type Figure, type Look } from './people';
 
 /** Machines as the hall knows them; x is the left edge in wall pixels. */
 export interface HallDevice {id:string;kind:string;x:number}
@@ -13,6 +14,16 @@ const eyeY=-1120,machineW=500,floorY=1760;
 const facadeTop=950,recessTop=1110,recessBottom=1500,facadeD=110,recessD=50,signW=400,signH=134;
 // Concourse around the bank: the machine wall runs between two pillars, the ticket gates open to the left and the ticket office to the right; haze hides where the station ends.
 const wallL=-900,wallR=4700,gateZ=-1100,backZ=-2800,officeZ=-700,westX=-8000,eastX=10000,frontZ=4500;
+// The opening behind the ticket office where the Shinkansen transfer gates stand, set back like the central gates.
+const transferL=7700,transferR=8800;
+// The top-down concourse (main.ts, art.ts, in scene pixels) laid onto the hall: x by the landmarks both show (the lanes between the central gates, the bank's pillars and machines,
+// the office counters, the Shinkansen gate lanes), y to z by the gates, the machine wall and the spot before a machine. Keep these in step with either layout.
+const xAnchors=[[28,-4180],[236,-1300],[272,-900],[368,700],[592,3100],[712,4700],[743,5225],[819,6125],[912,8080],[940,8440]],zAnchors=[[182,gateZ],[244,0],[262,250],[600,2700]];
+const piecewise=(anchors:number[][],v:number)=>{let i=1;while(i<anchors.length-1&&v>anchors[i][0])i++;const [[a,p],[b,q]]=[anchors[i-1],anchors[i]];return p+(v-a)*(q-p)/(b-a)};
+/** A point of the top-down concourse in hall units, on the floor. */
+const fromConcourse=(x:number,y:number)=>({x:piecewise(xAnchors,x),z:piecewise(zAnchors,y)});
+// The two pillars with the yellow exit signs, where main.ts stands them on the top-down map.
+const exitPillars=[fromConcourse(254,380),fromConcourse(690,380)];
 // One texel covers ~4 world px, about one pixel of the low-resolution render at the default distance.
 const texel=4;
 // Muted palette shared with art.ts so the hall reads as the same game.
@@ -121,27 +132,7 @@ function paintOffice(g:CanvasRenderingContext2D,w:number,h:number){
   for(let x=0;x<w;x+=bay)box(g,x,glassTop,3,plinth-glassTop,'#8f9e8b');
   box(g,0,plinth,w,h-plinth,'#3b4541');
 }
-/** A commuter's outfit. `legs` is trousers, or tights under a skirt; `length` lets the coat reach the knees or, as a kimono, the feet. */
-interface Look {coat:string;legs:string;hair:string;style:'short'|'bob'|'long'|'bun'|'ponytail';skin?:string;skirt?:string;length?:'knee'|'robe';sash?:string;tie?:boolean;mask?:boolean;bag?:string;backpack?:boolean;cane?:boolean;height?:number;pace?:number}
-// Every figure in the hall gets its own look, so no one is seen twice.
-const looks:Look[]=[
-  {coat:'#2d3a4a',legs:'#262f3a',hair:'#1f1c1a',style:'short',tie:true,bag:'#3b2f28'},
-  {coat:'#c9b38a',legs:'#3a3f48',hair:'#4a3426',style:'long',length:'knee',bag:'#8a3b3b',height:.95},
-  {coat:'#27324f',legs:'#27324f',hair:'#141414',style:'short',height:.96},
-  {coat:'#c25b4a',legs:'#5a6b86',hair:'#2b2420',style:'short',bag:'#d9c06a',backpack:true},
-  {coat:'#7c8580',legs:'#3d4441',hair:'#b5b5ae',style:'short',cane:true,height:.95,pace:.7},
-  {coat:'#283e5a',legs:'#3a3436',hair:'#151515',style:'bob',skirt:'#5b6470',bag:'#c9b38a',height:.94},
-  {coat:'#2b3550',legs:'#e0b896',hair:'#1a1614',style:'ponytail',skirt:'#4f5f86',bag:'#5a3b2a',height:.92},
-  {coat:'#d98fa0',legs:'#2d2d33',hair:'#7a5236',style:'long',length:'knee',mask:true,bag:'#f4f1e4',height:.95},
-  {coat:'#6f8a5a',legs:'#4a5a78',hair:'#3a2a20',style:'ponytail',bag:'#7c8580',backpack:true,height:.96},
-  {coat:'#8d8f94',legs:'#2e3440',hair:'#24201c',style:'short',mask:true,bag:'#2e3440',backpack:true},
-  {coat:'#e8c440',legs:'#2b3550',hair:'#1a1614',style:'short',bag:'#b8503e',backpack:true,height:.62,pace:1.1},
-  {coat:'#b8503e',legs:'#f4f4ee',hair:'#141414',style:'bun',length:'robe',sash:'#e2c234',height:.93,pace:.8},
-  {coat:'#e8e2cf',legs:'#6b5a44',hair:'#1a1614',style:'short',skin:'#9c6b4a',bag:'#3a78c2',backpack:true,height:1.04},
-  {coat:'#3d4441',legs:'#3d4441',hair:'#141414',style:'long',mask:true,bag:'#283e40',height:.96},
-  {coat:'#7d6a8f',legs:'#8c7f76',hair:'#c9c9c2',style:'bun',skirt:'#5a5048',bag:'#4a3f3a',height:.9,pace:.75},
-];
-/** A commuter in four 20 × 48 frames: front step A/B, back step A/B. */
+/** A commuter in eight 20 × 48 frames: front step A/B, back step A/B, left step A/B, right step A/B. */
 function paintPerson(g:CanvasRenderingContext2D,look:Look){
   const skin=look.skin??'#e9c4a0',hair=look.hair;
   for(let f=0;f<4;f++){
@@ -163,6 +154,22 @@ function paintPerson(g:CanvasRenderingContext2D,look:Look){
     else if(look.style==='long'){if(back)box(g,o+5,3,10,16,hair);else{box(g,o+5,4,2,13,hair);box(g,o+13,4,2,13,hair)}}
     else{if(!back){box(g,o+6,4,1,4,hair);box(g,o+13,4,1,4,hair)}if(look.style==='bun')box(g,o+8,0,4,3,hair);if(look.style==='ponytail'&&back)box(g,o+9,10,2,9,hair)}
     if(!back){box(g,o+8,8,1,1,'#283e40');box(g,o+11,8,1,1,'#283e40');if(look.mask)box(g,o+8,10,4,3,'#f4f4ee')}
+  }
+  // In profile, drawn facing right and mirrored for the left: legs together or in stride, one arm, the hair falling at the back.
+  for(let f=4;f<8;f++){
+    const o=f*20,left=f<6,step=f%2===1,at=(x:number,w=1)=>o+(left?20-x-w:x),r=(x:number,y:number,w:number,h:number,c:string)=>box(g,at(x,w),y,w,h,c);
+    if(step){r(5,30,3,15,look.legs);r(4,44,4,2,'#2a2a2a');r(11,30,3,16,look.legs);r(11,46,5,2,'#2a2a2a')}else{r(8,30,4,16,look.legs);r(8,46,5,2,'#2a2a2a')}
+    if(look.backpack)r(3,15,4,12,look.bag!);
+    r(7,14,7,17,look.coat);
+    if(look.skirt)for(let y=30;y<38;y++){const k=Math.floor((y-30)/4);r(7-k,y,7+2*k,1,look.skirt)}
+    if(look.length==='knee')r(7,30,7,8,look.coat);
+    if(look.length==='robe'){r(7,30,7,15,look.coat);r(7,24,7,4,look.sash??look.coat);r(11,14,2,3,'#f4f4ee')}
+    if(look.bag&&!look.backpack)r(7,22,4,7,look.bag);
+    r(9,15,3,12,look.coat);r(9,27,3,2,skin);
+    if(look.cane)r(16,28,1,19,'#6b4a2e');
+    r(9,13,3,2,skin);r(8,4,6,9,skin);r(14,8,1,1,skin);r(7,3,7,3,hair);r(7,3,3,7,hair);
+    if(look.style==='bob')r(6,3,4,10,hair);else if(look.style==='long')r(5,3,4,16,hair);else if(look.style==='bun')r(5,2,3,3,hair);else if(look.style==='ponytail')r(5,7,2,9,hair);
+    r(12,8,1,1,'#283e40');if(look.mask)r(11,10,3,3,'#f4f4ee');
   }
 }
 
@@ -187,9 +194,9 @@ export class HallScene {
   private boardFrame:THREE.Mesh<THREE.BoxGeometry,THREE.MeshBasicMaterial>|null=null;
   private boardMeshes:THREE.Mesh[]=[];
   private near:string|null=null;
-  // Commuters crossing the concourse along z; each sprite has its own texture to step through the frames.
-  private walkers:{sprite:THREE.Sprite;x:number;from:number;to:number;speed:number;phase:number;dir:number}[]=[];
-  constructor(private host:HTMLElement,private hub:Hub,devices:HallDevice[]){
+  // One sprite per look, each with its own texture to step through the frames, placed every frame where the top-down concourse has that commuter.
+  private crowd:THREE.Sprite[]=[];
+  constructor(private host:HTMLElement,private hub:Hub,devices:HallDevice[],private figures:()=>Figure[]=()=>[]){
     try{this.renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'low-power'})}
     catch{const message=document.createElement('p');message.className='hall-no-webgl';message.textContent='WebGL is unavailable: use the buttons below to choose a machine.';host.append(message);return}
     this.css.domElement.className='hall-css3d';host.append(this.css.domElement);
@@ -216,7 +223,9 @@ export class HallScene {
     const wall=this.plane(wallR-wallL,floorY,tiled(wallR-wallL));wall.position.set((wallL+wallR)/2,-floorY/2,0);
     // Set-back walls behind the gates and behind the ticket office, a little darker.
     this.plane(wallL-westX,floorY,tiled(wallL-westX,.8)).position.set((westX+wallL)/2,-floorY/2,backZ);
-    this.plane(eastX-wallR,floorY,tiled(eastX-wallR,.85)).position.set((wallR+eastX)/2,-floorY/2,officeZ);
+    const east=(x0:number,x1:number,z:number)=>this.plane(x1-x0,floorY,tiled(x1-x0,.85)).position.set((x0+x1)/2,-floorY/2,z);
+    east(wallR,transferL,officeZ);east(transferR,eastX,officeZ);east(transferL,transferR,backZ);
+    for(const x of [transferL,transferR]){const side=this.plane(officeZ-backZ,floorY,tiled(officeZ-backZ,.75));side.rotation.y=x===transferL?Math.PI/2:-Math.PI/2;side.position.set(x,-floorY/2,(officeZ+backZ)/2)}
     const floorW=eastX-westX,floorD=frontZ-backZ;
     const floorTexture=this.texture(30,30,(g,w,h)=>{box(g,0,0,w,h,C.floorA);box(g,0,0,w/2,h/2,C.floorB);box(g,w/2,h/2,w/2,h/2,C.floorB);g.fillStyle=C.floorLine;g.fillRect(0,0,w,1);g.fillRect(0,0,1,h)},[floorW/240,floorD/240]);
     const floor=this.plane(floorW,floorD,this.material(floorTexture));floor.rotation.x=-Math.PI/2;floor.position.set((westX+eastX)/2,-floorY,(backZ+frontZ)/2);
@@ -227,9 +236,9 @@ export class HallScene {
     paving.rotation.x=-Math.PI/2;paving.position.set((wallL+wallR)/2,-floorY+1,560);
     const ceiling=this.plane(floorW,floorD,this.material(this.texture(162,40,(g,w,h)=>{box(g,0,0,w,h,C.ceiling);dither(g,0,0,w,4,C.ceilingSeam);box(g,20,18,110,4,C.light);g.fillStyle=C.ceilingSeam;g.fillRect(w-1,0,1,h)},[floorW/650,floorD/160])));
     ceiling.rotation.x=Math.PI/2;ceiling.position.set((westX+eastX)/2,0,(backZ+frontZ)/2);
-    // Square tiled pillars: at both ends of the machine wall, out in the concourse and behind the gates.
+    // Square tiled pillars: at both ends of the machine wall, out in the concourse (the exit pillars among them) and behind the gates.
     const pillarTiles=tiled(300),base=this.material(C.steel);
-    for(const [x,z] of [[wallL,0],[wallR,0],[-2300,700],[-5100,700],[6100,700],[8900,700],[-2900,-2000],[-5700,-2000]]){
+    for(const [x,z] of [[wallL,0],[wallR,0],...exitPillars.map(p=>[p.x,p.z]),[-5100,exitPillars[0].z],[8900,exitPillars[0].z],[-2900,-2000],[-5700,-2000]]){
       const pillar=new THREE.Mesh(new THREE.BoxGeometry(300,floorY,300),pillarTiles);pillar.position.set(x,-floorY/2,z);this.scene.add(pillar);
       const skirt=new THREE.Mesh(new THREE.BoxGeometry(316,110,316),base);skirt.position.set(x,-floorY+55,z);this.scene.add(skirt);
     }
@@ -245,34 +254,32 @@ export class HallScene {
       const frame=new THREE.Mesh(new THREE.BoxGeometry(600,840,24),this.material(C.steel));frame.position.set(x,-1010,z+12);this.scene.add(frame);
       this.plane(560,800,this.material(this.texture(140,200,(g,w,h)=>paintPoster(g,w,h,place)))).position.set(x,-1010,z+25);
     };
-    poster(-280,0,'kamakura');poster(4080,0,'nikko');poster(8000,officeZ,'arashiyama');
-    // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow.
+    poster(-280,0,'kamakura');poster(4080,0,'nikko');poster(9300,officeZ,'arashiyama');
+    // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow; nine central gates on the left, three Shinkansen transfer gates on the right.
     const gateFront=this.material(this.texture(28,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);box(g,0,0,w,10,C.gateTop);box(g,4,14,w-8,12,'#1d2622');pixelText(g,'↑',w/2,20,10,'#57c26a','center',true);box(g,0,h-10,w,10,'#9aa29a')}));
     const gateSide=this.material(this.texture(175,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);dither(g,0,h-14,w,4,C.bodyShade);box(g,0,0,w,10,C.gateTop);box(g,0,26,w,3,'#3a78c2');box(g,0,h-10,w,10,'#9aa29a');box(g,w/2-14,40,28,30,'#c9cdc4',C.bodyEdge)}));
     const gateTop=this.material(C.gateTop),reader=this.material('#5aa9d8');
-    for(let i=0;i<9;i++){
-      const x=-1300-i*360,gate=new THREE.Mesh(new THREE.BoxGeometry(110,480,700),[gateSide,gateSide,gateTop,gateTop,gateFront,gateFront]);gate.position.set(x,-floorY+240,gateZ);this.scene.add(gate);
+    for(const x of [...Array.from({length:9},(_,i)=>-1300-i*360),7900,8260,8620]){
+      const gate=new THREE.Mesh(new THREE.BoxGeometry(110,480,700),[gateSide,gateSide,gateTop,gateTop,gateFront,gateFront]);gate.position.set(x,-floorY+240,gateZ);this.scene.add(gate);
       const ic=new THREE.Mesh(new THREE.BoxGeometry(80,8,110),reader);ic.position.set(x,-floorY+484,gateZ+240);this.scene.add(ic);
     }
     this.hanging(-2740,gateZ,420,1700,220,(g,w,h)=>paintHanging(g,w,h,{ja:'中央改札',en:'Central Gate',mark:'改',markBg:'#f2c230'}));
-    // Past the gates, the yellow exit sign on the far wall.
-    this.plane(1500,220,this.material(this.texture(1500/texel,220/texel,(g,w,h)=>paintHanging(g,w,h,{ja:'出口 · のりば',en:'Exit · Platforms',mark:'出',markBg:'#1d2622',markInk:'#f2c230',arrow:'←',bg:'#f2c230',ink:'#1d2622'})))).position.set(-4300,-610,backZ+2);
+    // The yellow exit signs wrap the concourse pillars on either side of the bank, as on the top-down map.
+    for(const [{x,z},west] of [[exitPillars[0],true],[exitPillars[1],false]] as const){
+      const sign=this.material(this.texture(80,64,(g,w,h)=>{box(g,0,0,w,h,'#f2c230');box(g,0,h-3,w,3,'#c9a020');box(g,west?38:10,4,30,30,'#1d2622');pixelText(g,'出',west?53:25,19,24,'#f2c230','center',true);pixelText(g,west?'←':'→',west?20:62,19,24,'#1d2622','center',true);pixelText(g,west?'西口':'東口',w/2,44,14,'#1d2622','center',true);pixelText(g,west?'West Exit':'East Exit',w/2,57,9,'#1d2622','center',true)})),steel=this.material(C.steel);
+      const band=new THREE.Mesh(new THREE.BoxGeometry(320,256,320),[sign,sign,steel,steel,sign,sign]);band.position.set(x,-880,z);this.scene.add(band);
+    }
     this.hanging(5300,300,560,1300,200,(g,w,h)=>paintHanging(g,w,h,{ja:'みどりの窓口',en:'JR Ticket Office',mark:'み',markBg:'#2c8a4a',markInk:'#fff',arrow:'→'}));
+    // Over the Shinkansen transfer gates past the ticket office (the far right of the top-down concourse).
+    this.hanging(8260,gateZ,420,1100,200,(g,w,h)=>paintHanging(g,w,h,{ja:'新幹線のりかえ',en:'Shinkansen Transfer',mark:'新',markBg:'#2a5ea8',markInk:'#fff'}));
     // Over the bank, high enough to clear the fare map from every standing distance.
     this.hanging(1900,900,200,1500,200,(g,w,h)=>paintHanging(g,w,h,{ja:'きっぷうりば',en:'Tickets',mark:'券',markBg:'#fff'}));
     const office=this.plane(2700,floorY-300,this.material(this.texture(450,(floorY-300)/6,paintOffice)));office.position.set(6350,-(300+floorY)/2,officeZ+2);
-    // Commuters: through the gates on the left, to and from the ticket office on the right; two stand still reading.
-    const frames=looks.map(look=>this.texture(80,48,(g)=>{g.clearRect(0,0,80,48);paintPerson(g,look)},[.25,1]));
-    const person=(look:number,x:number,z:number)=>{
-      const map=frames[look].clone(),height=looks[look].height??1;map.repeat.set(.25,1);
-      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map,alphaTest:.5}));sprite.center.set(.5,0);sprite.scale.set(320*height,768*height,1);sprite.position.set(x,-floorY,z);this.scene.add(sprite);return sprite;
-    };
-    // The two standing figures take the last looks; the walkers share out the rest, one each.
-    const standing=[[looks.length-2,-330,300],[looks.length-1,6200,officeZ+220]];
-    const lanes=[[-1480,1,backZ+300,0],[-1840,-1,backZ+300,1900],[-2560,1,backZ+300,3800],[-3280,1,backZ+300,5700],[-3640,-1,backZ+300,1200],[-4000,1,backZ+300,4600],[-1480,-1,backZ+300,3500],[-2560,-1,backZ+300,200],
-      [5500,-1,officeZ+60,700],[6600,1,officeZ+60,3000],[7400,-1,officeZ+60,5300],[8200,1,officeZ+60,1500],[6600,-1,officeZ+60,4100]];
-    lanes.slice(0,standing[0][0]).forEach(([x,dir,from,phase],i)=>this.walkers.push({sprite:person(i,x,0),x,from,to:frontZ,speed:(480+(i*53)%160)*(looks[i].pace??1),phase,dir}));
-    for(const [look,x,z] of standing)(person(look,x,z).material.map as THREE.Texture).offset.x=.5;
+    // Commuters: the concourse's own, shown by render() where the top-down simulation has them.
+    this.crowd=looks.map(look=>{
+      const map=this.texture(160,48,(g)=>{g.clearRect(0,0,160,48);paintPerson(g,look)},[.125,1]).clone(),height=look.height??1;map.repeat.set(.125,1);
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map,alphaTest:.05,transparent:true}));sprite.center.set(.5,0);sprite.scale.set(320*height,768*height,1);sprite.visible=false;this.scene.add(sprite);return sprite;
+    });
   }
   private buildBoard(){
     const left=1238,top=120,w=1387,h=780,border=18;
@@ -375,7 +382,13 @@ export class HallScene {
     this.camera.rotation.set(pitch*Math.PI/180,-yaw*Math.PI/180,0);
     this.camera.position.set(x,eyeY,distance+1000);
     const t=performance.now()/1000;
-    for(const w of this.walkers){const span=w.to-w.from,p=(t*w.speed+w.phase)%span;w.sprite.position.z=w.dir>0?w.from+p:w.to-p;(w.sprite.material.map as THREE.Texture).offset.x=((w.dir>0?0:2)+Math.floor(t*4+w.phase)%2)*.25}
+    // Each commuter where the concourse has them, fading through the gates as they do there, and out as they come within a few steps of the eye (the top-down map is denser than the hall).
+    for(const sprite of this.crowd)sprite.visible=false;
+    for(const f of this.figures()){
+      const sprite=this.crowd[f.look],{x:fx,z}=fromConcourse(f.x,f.y),opacity=f.alpha*Math.min(1,(this.camera.position.z-z-450)/450);if(!sprite||opacity<.05)continue;
+      sprite.visible=true;sprite.position.set(fx,-floorY,z);sprite.material.opacity=opacity;
+      (sprite.material.map as THREE.Texture).offset.x=({down:0,up:2,left:4,right:6}[f.face]+(f.moving?Math.floor(t*4+f.look)%2:0))*.125;
+    }
     this.renderer.render(this.scene,this.camera);this.css.render(this.cssScene,this.camera);
   }
   /** The machine under a viewport point, from the same camera as the last frame. */
@@ -389,7 +402,7 @@ export class HallScene {
   dispose(){
     this.resize.disconnect();
     this.scene.traverse(object=>{const mesh=object as THREE.Mesh;mesh.geometry?.dispose();for(const m of [mesh.material??[]].flat())(m as THREE.Material).dispose()});
-    for(const {texture} of this.painted)texture.dispose();for(const {sprite} of this.walkers)sprite.material.map?.dispose();
+    for(const {texture} of this.painted)texture.dispose();for(const sprite of this.crowd)sprite.material.map?.dispose();
     this.renderer?.dispose();this.renderer?.domElement.remove();this.css.domElement.remove();
   }
 }

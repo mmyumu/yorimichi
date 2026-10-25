@@ -240,7 +240,6 @@ export class TicketMachine {
       this.element(button,'span','¥'+value.toLocaleString('en-US'),'piece-value');this.element(button,'span','×'+count,'piece-count');
       this.grab(button,value);
     }
-    this.element(this.design,'p','GAME SIMULATION · Adapted destinations and fares · No real payment','machine-disclaimer');
     this.notice=null;this.flash='';
     // Focus stays on the same piece or outlet (taking change keeps you on the change), then the other outlet, then the wallet.
     const keep=focusKey&&(this.design.querySelector<HTMLButtonElement>(`[data-key="${focusKey}"]:not(:disabled)`)??(focusKey.startsWith('tray')?this.design.querySelector<HTMLButtonElement>('.tray-item'):null)??this.design.querySelector<HTMLButtonElement>('.wallet-piece:not(:disabled)'));

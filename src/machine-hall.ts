@@ -2,6 +2,7 @@ import { fareMapHeight, fareMapWidth, renderTokyoFareMap } from './tokyo-fares';
 import { HallScene } from './hall-scene';
 import { leftInTray, trayKey } from './ticket-machine';
 import type { Hub, Service } from './network';
+import type { Figure } from './people';
 
 type DeviceKind=Service|'charge';
 interface Device {id:string;kind:DeviceKind;x:number;label:string}
@@ -13,7 +14,7 @@ const devices:Device[]=[
   {id:'express-05',kind:'shinkansen',x:2850,label:'05 · 新幹線 / Shinkansen'},
 ];
 // How close to and far from the machines the player can stand: near enough to read the payment faces, never so far that the hall's edges show.
-const minDistance=250,maxDistance=1000;
+const minDistance=250,maxDistance=1000,backOut=.6;
 const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,value));
 // By physical key (KeyboardEvent.code), so WASD on QWERTY is ZQSD on AZERTY and the same keys on JIS.
 const moveKeys:Record<string,string>={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',KeyR:'lookUp',PageUp:'lookUp',KeyF:'lookDown',PageDown:'lookDown'};
@@ -40,18 +41,24 @@ export class MachineHall {
   private yaw=0;
   private pitch=0;
   private distance=760;
+  // Seconds spent still stepping back once as far back as the hall allows: past backOut, the player turns back to the concourse.
+  private backing=0;
   private drag:{id:number;x:number;y:number;startX:number;startY:number;moved:boolean;device?:string}|null=null;
   // Starts with the buttons already held, so the A press that opened the hall does not also use a machine.
   private lastPadButtons:boolean[]=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];
   private previousFocus=document.activeElement as HTMLElement|null;
-  constructor(private hub:Hub,initial:Service,private open:(service:Service,id:string)=>void,private exit:()=>void){
+  // The machine the player stands at (index in devices), told to the concourse so its commuters leave it free.
+  private standing=-1;
+  constructor(private hub:Hub,initial:Service,private open:(service:Service,id:string)=>void,private exit:()=>void,private crowd?:{figures:()=>Figure[];standAt:(machine:number)=>void;busy:(machine:number)=>boolean;start?:number}){
     if(initial==='shinkansen')this.x=this.targetX=3100;
+    // Facing the machine the player walked up to on the map.
+    if(crowd?.start!==undefined&&crowd.start>=0)this.x=this.targetX=devices[crowd.start].x+250;
     this.overlay.className='machine-hall';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','In front of the ticket machines');
     const header=this.el(this.overlay,'header','','hall-header');
     this.el(header,'div',`${hub==='tokyo'?'東京 TOKYO':'京都 KYOTO'} / きっぷうりば`,'hall-heading');
     this.button(header,'Back to the hall',()=>this.close(),'hall-exit');
     this.viewport.className='hall-viewport';this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label','Drag to look around. Left and right arrows to move sideways, up and down to step closer or back.');
-    this.overlay.append(this.viewport);this.scene=new HallScene(this.viewport,hub,devices);
+    this.overlay.append(this.viewport);this.scene=new HallScene(this.viewport,hub,devices,crowd?.figures);
     const bottom=this.el(this.overlay,'div','','hall-bottom');bottom.append(this.position,this.status);
     this.el(this.overlay,'p','Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
     this.overlay.addEventListener('keydown',this.keydown);this.overlay.addEventListener('keyup',this.keyup);
@@ -78,6 +85,8 @@ export class MachineHall {
     if(this.facingMap()){this.openMapDetail();return;}
     if(!this.facingMachines()){this.lookAtMachines();return;}
     const device=this.nearest();this.x=this.targetX=device.x+250;
+    // Someone is using it: wait for them to finish (the status line says so) or take another.
+    if(this.crowd?.busy(devices.indexOf(device)))return;
     if(device.kind==='charge'){this.chargeNotice();return;}
     this.pause();this.open(device.kind,device.id);
   }
@@ -185,7 +194,7 @@ export class MachineHall {
     const device=devices.find(d=>d.id===id);if(!device)return;
     if(this.nearest().id===id)this.focusDevice(device);else{this.targetX=device.x+250;this.yaw=0;this.pitch=-5}
   }
-  private wheel=(event:WheelEvent)=>{event.preventDefault();if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))this.targetX=clamp(this.targetX+(event.deltaX||event.deltaY)*1.4,650,3250);else this.distance=clamp(this.distance+event.deltaY*.6,minDistance,maxDistance)};
+  private wheel=(event:WheelEvent)=>{event.preventDefault();if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))this.targetX=clamp(this.targetX+(event.deltaX||event.deltaY)*1.4,650,3250);else{if(event.deltaY>0&&this.distance>=maxDistance&&!this.notice&&!this.mapDetail&&!this.paused)this.backing+=Math.min(.2,event.deltaY/500);this.distance=clamp(this.distance+event.deltaY*.6,minDistance,maxDistance)}};
   private tick=(time:number)=>{
     if(this.disposed)return;
     const dt=Math.min((time-this.previousTime)/1000||0,.04);this.previousTime=time;
@@ -210,12 +219,16 @@ export class MachineHall {
       }
       if(!this.notice&&!this.mapDetail){this.targetX=clamp(this.targetX+strafe*1200*dt,650,3250);this.distance=clamp(this.distance-vertical*1000*dt,minDistance,maxDistance);this.pitch=clamp(this.pitch+((this.keys.has('lookUp')?1:0)-(this.keys.has('lookDown')?1:0))*55*dt,-20,30)}
       this.x+=(this.targetX-this.x)*Math.min(1,dt*14);
+      // Keeping on stepping back from the farthest spot leaves the machines, like the Back button; letting go slowly forgets it.
+      this.backing=vertical<0&&this.distance>=maxDistance&&!this.notice&&!this.mapDetail?this.backing+dt:Math.max(0,this.backing-dt*.5);
+      if(this.backing>=backOut){this.close();return;}
       // The camera rotates; translation remains the player's body position along the wall.
       const nearest=this.nearest();
+      if(devices.indexOf(nearest)!==this.standing){this.standing=devices.indexOf(nearest);this.crowd?.standAt(this.standing)}
       const free=!this.notice&&!this.mapDetail;
       this.scene.render(this.x,this.yaw,this.pitch,this.distance,free&&this.facingMap()?'map':free&&this.facingMachines()?nearest.id:null);
       this.position.textContent=nearest.label;
-      this.status.textContent=this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?'Wall map · move sideways to follow the lines':nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':'Click the machine or E / A: use · drag to look around';
+      this.status.textContent=this.distance>=maxDistance&&this.backing>0?'Keep stepping back to return to the hall':this.crowd?.busy(devices.indexOf(nearest))&&!this.facingMap()&&this.pitch<=10?'Someone is using this machine · wait for them or take another':this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?'Wall map · move sideways to follow the lines':nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':'Click the machine or E / A: use · drag to look around';
       this.overlay.dataset.machine=nearest.id;this.overlay.dataset.x=this.x.toFixed(1);this.overlay.dataset.pitch=this.pitch.toFixed(1);this.overlay.dataset.yaw=this.yaw.toFixed(1);
       this.overlay.dataset.mapDetail=String(this.pitch>10&&this.distance<=700);
     }
