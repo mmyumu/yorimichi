@@ -9,32 +9,33 @@ export interface HallDevice {id:string;kind:string;x:number}
 type Painter=(g:CanvasRenderingContext2D,w:number,h:number)=>void;
 
 // World units are the old CSS wall pixels: x to the right, y up (CSS y negated), z out of the wall towards the player.
-const eyeY=-1120,machineW=500,floorY=1760;
+const eyeY=-1120;
+export const machineW=500,floorY=1760;
 // Machine bank, in CSS-style y down from the ceiling: facade under the fare map, sign band, recesses down to the ledge, cabinet below.
-const facadeTop=950,recessTop=1110,recessBottom=1500,facadeD=110,recessD=50,signW=400,signH=134;
+export const facadeTop=950,recessTop=1110,recessBottom=1500,facadeD=110,recessD=50,signW=400,signH=134;
 // Concourse around the bank: the machine wall runs between two pillars; on the left the central gates stand set back in an opening (centralL to the wall), the ticket office past them;
 // on the right the Shinkansen transfer gates in their own opening (the wall to transferR), or a NewDays front where the station has no Shinkansen. Haze hides where the station ends.
-const wallL=-900,wallR=4700,gateZ=-1100,backZ=-2800,officeZ=-700,westX=-8000,eastX=10000,frontZ=4500,centralL=-2700,transferR=6700;
+export const wallL=-900,wallR=4700,gateZ=-1100,backZ=-2800,officeZ=-700,westX=-8000,eastX=10000,frontZ=4500,centralL=-2700,transferR=6700;
 // Gates 360 apart, from the machine wall outwards; the office's door bay and three counters (450 each) end at the central opening; the shop front starts at the right pillar.
-const centralGates=[-1300,-1660,-2020,-2380],transferGates=[5000,5360,5720,6080,6440],officeL=-4500,shopL=4850,shopR=7400,shopDoor=6800;
+export const centralGates=[-1300,-1660,-2020,-2380],transferGates=[5000,5360,5720,6080,6440],officeL=-4500,shopL=4850,shopR=7400,shopDoor=6800;
 // The top-down concourse (main.ts, art.ts, in scene pixels) laid onto the hall: x by the landmarks both show (the office counters, the lanes between the central gates,
 // the bank's pillars and machines, then the transfer gate lanes or the shop door), y to z by the gates, the machine wall and the spot before a machine. Keep these in step with either layout.
-const anchors=(shinkansen:boolean)=>[[22,-3825],[102,-2925],[158,-2200],[246,-1480],[272,-900],[368,700],[592,3100],[712,4700],...(shinkansen?[[770,5180],[902,6260]]:[[906,shopDoor]])];
+export const anchors=(shinkansen:boolean)=>[[22,-3825],[102,-2925],[158,-2200],[246,-1480],[272,-900],[368,700],[592,3100],[712,4700],...(shinkansen?[[770,5180],[902,6260]]:[[906,shopDoor]])];
 const zAnchors=[[182,gateZ],[244,0],[262,250],[600,2700]];
 const piecewise=(anchors:number[][],v:number)=>{let i=1;while(i<anchors.length-1&&v>anchors[i][0])i++;const [[a,p],[b,q]]=[anchors[i-1],anchors[i]];return p+(v-a)*(q-p)/(b-a)};
 /** A point of the top-down concourse in hall units, on the floor. */
-const fromConcourse=(xAnchors:number[][],x:number,y:number)=>({x:piecewise(xAnchors,x),z:piecewise(zAnchors,y)});
+export const fromConcourse=(xAnchors:number[][],x:number,y:number)=>({x:piecewise(xAnchors,x),z:piecewise(zAnchors,y)});
 // One texel covers ~4 world px, about one pixel of the low-resolution render at the default distance.
 const texel=4;
 // Muted palette shared with art.ts so the hall reads as the same game.
-const C={ink:'#283e40',dark:'#314c51',tile:'#e6e3cc',grout:'#c9c4a6',tileShade:'#d8d3b8',floorA:'#74855e',floorB:'#68745b',floorLine:'#5a6650',ceiling:'#5d6a62',ceilingSeam:'#4c5852',haze:'#55625b',signBoard:'#2f3638',gate:'#d5d8d0',gateTop:'#3d4846',light:'#fffbe0',body:'#dfe1d6',bodyShade:'#c3c8b8',bodyEdge:'#9aa69a',side:'#9aa69a',sideDark:'#7d897e',plinth:'#3b4541',bezel:'#86967e',panel:'#b7c4a4',tray:'#2d4133',frame:'#8f9e8b',facade:'#e4e6df',facadeShade:'#d4d7ce',facadeSeam:'#b9bdb3',reveal:'#9ea69c',steel:'#aeb4b0'};
-const accents:Record<string,string>={local:'#2c754e',charge:'#c5487e',shinkansen:'#6c78b8'};
-const housings:Record<string,string>={local:'#d9dcd6',charge:'#d9dcd6',shinkansen:'#3d9a4c'};
+export const C={ink:'#283e40',dark:'#314c51',tile:'#e6e3cc',grout:'#c9c4a6',tileShade:'#d8d3b8',floorA:'#74855e',floorB:'#68745b',floorLine:'#5a6650',ceiling:'#5d6a62',ceilingSeam:'#4c5852',haze:'#55625b',signBoard:'#2f3638',gate:'#d5d8d0',gateTop:'#3d4846',light:'#fffbe0',body:'#dfe1d6',bodyShade:'#c3c8b8',bodyEdge:'#9aa69a',side:'#9aa69a',sideDark:'#7d897e',plinth:'#3b4541',bezel:'#86967e',panel:'#b7c4a4',tray:'#2d4133',frame:'#8f9e8b',facade:'#e4e6df',facadeShade:'#d4d7ce',facadeSeam:'#b9bdb3',reveal:'#9ea69c',steel:'#aeb4b0'};
+export const accents:Record<string,string>={local:'#2c754e',charge:'#c5487e',shinkansen:'#6c78b8'};
+export const housings:Record<string,string>={local:'#d9dcd6',charge:'#d9dcd6',shinkansen:'#3d9a4c'};
 // Signs as at JR East stations: Japanese over English.
 const titles:Record<string,[string,string]>={local:['きっぷ','Tickets'],charge:['チャージ専用','IC Charge'],shinkansen:['新幹線・特急','Shinkansen & Limited Express']};
 
 /** Canvas text snapped to whole texels: anti-aliasing is thresholded away so glyphs read as pixel art. */
-function pixelText(g:CanvasRenderingContext2D,text:string,x:number,y:number,size:number,color:string,align:'left'|'center'|'right'='center',bold=false){
+export function pixelText(g:CanvasRenderingContext2D,text:string,x:number,y:number,size:number,color:string,align:'left'|'center'|'right'='center',bold=false){
   const scratch=document.createElement('canvas'),c=scratch.getContext('2d')!,font=`${bold?'bold ':''}${size}px "Yorimichi JP", sans-serif`;
   c.font=font;const w=Math.ceil(c.measureText(text).width)+2,h=Math.ceil(size*1.5);scratch.width=w;scratch.height=h;
   c.font=font;c.fillStyle=color;c.textBaseline='middle';c.fillText(text,1,h/2);
@@ -42,8 +43,8 @@ function pixelText(g:CanvasRenderingContext2D,text:string,x:number,y:number,size
   g.drawImage(scratch,Math.round(align==='center'?x-w/2:align==='right'?x-w:x),Math.round(y-h/2));
 }
 /** 50% checkerboard, the pixel-art way to shade without gradients. */
-function dither(g:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,color:string){g.fillStyle=color;for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)g.fillRect(x+i,y+j,1,1)}
-function box(g:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,fill:string,line?:string){g.fillStyle=fill;g.fillRect(x,y,w,h);if(line){g.fillStyle=line;g.fillRect(x,y,w,1);g.fillRect(x,y+h-1,w,1);g.fillRect(x,y,1,h);g.fillRect(x+w-1,y,1,h)}}
+export function dither(g:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,color:string){g.fillStyle=color;for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)g.fillRect(x+i,y+j,1,1)}
+export function box(g:CanvasRenderingContext2D,x:number,y:number,w:number,h:number,fill:string,line?:string){g.fillStyle=fill;g.fillRect(x,y,w,h);if(line){g.fillStyle=line;g.fillRect(x,y,w,1);g.fillRect(x,y+h-1,w,1);g.fillRect(x,y,1,h);g.fillRect(x+w-1,y,1,h)}}
 /** Payment face after the Tokyo Station machines, in 2-px texels (244 × 111): labels, yellow-rimmed slots, coin funnel, keypad, QR reader, tray. The outer 3 texels sit under the hole's edge. */
 function paintPayment(g:CanvasRenderingContext2D,w:number,h:number,kind:string){
   const Y='#e2c234',D='#1d2622',unit='#f6f6f0',edge='#b9bdb3',ink='#3f4a48',c1=6,c1w=76,c2=86,c2w=60,c3=150,c3w=w-6-c3,r2=22,r3=54,rh=28;
@@ -81,7 +82,7 @@ function paintHanging(g:CanvasRenderingContext2D,w:number,h:number,o:{ja:string;
   if(o.arrow==='→')pixelText(g,'→',w-8-s/2,h/2,s,ink,'center',true);
 }
 /** Light-box travel posters for the game's own destinations. */
-function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakura'|'nikko'|'arashiyama'){
+export function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakura'|'nikko'|'arashiyama'){
   let seed=place.length*977;const rand=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
   const ih=h-36;
   if(place==='kamakura'){
@@ -153,7 +154,7 @@ function paintShop(g:CanvasRenderingContext2D,w:number,h:number,door:number){
   pixelText(g,'自動ドア',door,top+60,9,'#e7f1e4');
 }
 /** A commuter in eight 20 × 48 frames: front step A/B, back step A/B, left step A/B, right step A/B. */
-function paintPerson(g:CanvasRenderingContext2D,look:Look){
+export function paintPerson(g:CanvasRenderingContext2D,look:Look){
   const skin=look.skin??'#e9c4a0',hair=look.hair;
   for(let f=0;f<4;f++){
     const o=f*20,back=f>1,step=f%2===1;
@@ -166,7 +167,7 @@ function paintPerson(g:CanvasRenderingContext2D,look:Look){
     else if(!back&&look.tie){box(g,o+8,14,4,4,'#f4f4ee');box(g,o+9,15,2,5,'#6c3b3b')}else if(!back)box(g,o+8,14,4,2,skin);
     if(look.backpack){if(back){box(g,o+5,15,10,12,look.bag!);box(g,o+6,16,8,1,'#ffffff33')}else{box(g,o+6,14,1,9,look.bag!);box(g,o+13,14,1,9,look.bag!)}}
     else if(look.bag)box(g,back?o+1:o+16,22,4,7,look.bag);
-    if(look.cane)box(g,back?o+2:o+17,28,1,19,'#6b4a2e');
+    if(look.cane){box(g,back?o+2:o+17,28,1,19,'#6b4a2e');box(g,back?o:o+17,28,3,1,'#6b4a2e')}
     // Head and hair.
     box(g,o+7,4,6,9,skin);
     if(back)box(g,o+7,3,6,9,hair);else box(g,o+7,3,6,3,hair);
@@ -178,7 +179,8 @@ function paintPerson(g:CanvasRenderingContext2D,look:Look){
   // In profile, drawn facing right and mirrored for the left: legs together or in stride, one arm, the hair falling at the back.
   for(let f=4;f<8;f++){
     const o=f*20,left=f<6,step=f%2===1,at=(x:number,w=1)=>o+(left?20-x-w:x),r=(x:number,y:number,w:number,h:number,c:string)=>box(g,at(x,w),y,w,h,c);
-    if(step){r(5,30,3,15,look.legs);r(4,44,4,2,'#2a2a2a');r(11,30,3,16,look.legs);r(11,46,5,2,'#2a2a2a')}else{r(8,30,4,16,look.legs);r(8,46,5,2,'#2a2a2a')}
+    // In stride both legs leave the hip under the coat and slant out to the feet, the back heel lifted.
+    if(step){for(let y=30;y<44;y++)r(8-Math.round((y-30)/13*2),y,3,1,look.legs);r(6,44,4,2,'#2a2a2a');for(let y=30;y<46;y++)r(9+Math.round((y-30)/15*2),y,3,1,look.legs);r(11,46,5,2,'#2a2a2a')}else{r(8,30,4,16,look.legs);r(8,46,5,2,'#2a2a2a')}
     if(look.backpack)r(3,15,4,12,look.bag!);
     r(7,14,7,17,look.coat);
     if(look.skirt)for(let y=30;y<38;y++){const k=Math.floor((y-30)/4);r(7-k,y,7+2*k,1,look.skirt)}
@@ -186,7 +188,8 @@ function paintPerson(g:CanvasRenderingContext2D,look:Look){
     if(look.length==='robe'){r(7,30,7,15,look.coat);r(7,24,7,4,look.sash??look.coat);r(11,14,2,3,'#f4f4ee')}
     if(look.bag&&!look.backpack)r(7,22,4,7,look.bag);
     r(9,15,3,12,look.coat);r(9,27,3,2,skin);
-    if(look.cane)r(16,28,1,19,'#6b4a2e');
+    // The cane in the hand at the side, down past the legs, its crook turned forward.
+    if(look.cane){r(10,28,1,19,'#6b4a2e');r(10,28,3,1,'#6b4a2e')}
     r(9,13,3,2,skin);r(8,4,6,9,skin);r(14,8,1,1,skin);r(7,3,7,3,hair);r(7,3,3,7,hair);
     if(look.style==='bob')r(6,3,4,10,hair);else if(look.style==='long')r(5,3,4,16,hair);else if(look.style==='bun')r(5,2,3,3,hair);else if(look.style==='ponytail')r(5,7,2,9,hair);
     r(12,8,1,1,'#283e40');if(look.mask)r(11,10,3,3,'#f4f4ee');
@@ -215,7 +218,7 @@ export class HallScene {
   private boardMeshes:THREE.Mesh[]=[];
   private near:string|null=null;
   // One sprite per look, each with its own texture to step through the frames, placed every frame where the top-down concourse has that commuter.
-  private crowd:THREE.Sprite[]=[];
+  private crowd:THREE.Mesh<THREE.PlaneGeometry,THREE.MeshBasicMaterial>[]=[];
   // The far right of this station: Shinkansen transfer gates, or a shop. It sets the walls, what stands there and how the top-down concourse maps onto the hall.
   private shinkansen:boolean;
   private xAnchors:number[][];
@@ -303,10 +306,10 @@ export class HallScene {
     // Over the bank, high enough to clear the fare map from every standing distance.
     this.hanging(1900,900,200,1500,200,(g,w,h)=>paintHanging(g,w,h,{ja:'きっぷうりば',en:'Tickets',mark:'券',markBg:'#fff'}));
     this.plane(centralL-officeL,floorY-300,this.material(this.texture((centralL-officeL)/6,(floorY-300)/6,(g,w,h)=>paintOffice(g,w,h,0)))).position.set((officeL+centralL)/2,-(300+floorY)/2,officeZ+2);
-    // Commuters: the concourse's own, shown by render() where the top-down simulation has them.
+    // Commuters: the concourse's own, shown by render() where the top-down simulation has them; upright planes that only turn with the yaw, so looking down does not tip their heads back into the wall.
     this.crowd=looks.map(look=>{
       const map=this.texture(160,48,(g)=>{g.clearRect(0,0,160,48);paintPerson(g,look)},[.125,1]).clone(),height=look.height??1;map.repeat.set(.125,1);
-      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map,alphaTest:.05,transparent:true}));sprite.center.set(.5,0);sprite.scale.set(320*height,768*height,1);sprite.visible=false;this.scene.add(sprite);return sprite;
+      const sprite=new THREE.Mesh(new THREE.PlaneGeometry(320*height,768*height).translate(0,384*height,0),new THREE.MeshBasicMaterial({map,alphaTest:.05,transparent:true}));sprite.visible=false;this.scene.add(sprite);return sprite;
     });
   }
   private buildBoard(){
@@ -419,7 +422,7 @@ export class HallScene {
     for(const sprite of this.crowd)sprite.visible=false;
     for(const f of this.figures()){
       const sprite=this.crowd[f.look],{x:fx,z}=fromConcourse(this.xAnchors,f.x,f.y),opacity=f.alpha*Math.min(1,(this.camera.position.z-z-450)/450);if(!sprite||opacity<.05)continue;
-      sprite.visible=true;sprite.position.set(fx,-floorY,z);sprite.material.opacity=opacity;
+      sprite.visible=true;sprite.position.set(fx,-floorY,z);sprite.rotation.y=-yaw*Math.PI/180;sprite.material.opacity=opacity;
       (sprite.material.map as THREE.Texture).offset.x=({down:0,up:2,left:4,right:6}[f.face]+(f.moving?Math.floor(t*4+f.look)%2:0))*.125;
     }
     this.renderer.render(this.scene,this.camera);this.css.render(this.cssScene,this.camera);

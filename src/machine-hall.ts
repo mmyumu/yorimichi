@@ -1,10 +1,12 @@
 import { fareMapHeight, fareMapWidth, renderTokyoFareMap } from './tokyo-fares';
 import { HallScene } from './hall-scene';
-import { leftInTray, trayKey } from './ticket-machine';
+import { HallPicture } from './hall-picture';
+import { HallVoxels } from './hall-voxels';
+import { leftInTray, trayKey, type MachineKind } from './ticket-machine';
 import { machineKinds, stations, type Hub, type Service } from './network';
 import type { Figure } from './people';
 
-type DeviceKind=Service|'charge';
+type DeviceKind=MachineKind;
 interface Device {id:string;kind:DeviceKind;x:number;label:string}
 const names:Record<DeviceKind,[string,string]>={local:['tickets','きっぷ / Local tickets'],charge:['charge','チャージ専用 / IC charge'],shinkansen:['express','新幹線 / Shinkansen']};
 /** The station's machine bank (machineKinds), 600 px apart along the wall. */
@@ -15,11 +17,13 @@ const clamp=(value:number,min:number,max:number)=>Math.max(min,Math.min(max,valu
 // By physical key (KeyboardEvent.code), so WASD on QWERTY is ZQSD on AZERTY and the same keys on JIS.
 const moveKeys:Record<string,string>={ArrowLeft:'left',KeyA:'left',ArrowRight:'right',KeyD:'right',ArrowUp:'up',KeyW:'up',ArrowDown:'down',KeyS:'down',KeyR:'lookUp',PageUp:'lookUp',KeyF:'lookDown',PageDown:'lookDown'};
 
-/** A first-person station alcove: lateral body movement and head rotation are independent; HallScene draws it. */
+/** A first-person station alcove: lateral body movement and head rotation are independent; HallScene draws it.
+ * The `voxel` view builds the same hall of lit voxels (HallVoxels), with the same controls. With `pixel`, HallPicture draws it instead as one still pixel-art picture: the arrows step from machine to machine (up to the Tokyo fare map) rather than walk and look. */
 export class MachineHall {
   private overlay=document.createElement('div');
   private viewport=document.createElement('div');
-  private scene:HallScene;
+  private scene:HallScene|HallPicture|HallVoxels;
+  private pixel:boolean;
   private position=document.createElement('span');
   private status=document.createElement('span');
   private keys=new Set<string>();
@@ -27,7 +31,6 @@ export class MachineHall {
   private previousTime=0;
   private paused=false;
   private disposed=false;
-  private notice:HTMLElement|null=null;
   private mapDetail:HTMLElement|null=null;
   // The machine whose screen opened the enlarged map, so closing it goes back to that screen.
   private mapFrom:Device|null=null;
@@ -37,8 +40,9 @@ export class MachineHall {
   private yaw=0;
   private pitch=0;
   private distance=760;
-  // Seconds spent still stepping back once as far back as the hall allows: past backOut, the player turns back to the concourse.
+  // Seconds spent still stepping back once as far back as the hall allows, or sideways past the end of the bank: past backOut, the player turns back to the concourse.
   private backing=0;
+  private sideways=false;
   private drag:{id:number;x:number;y:number;startX:number;startY:number;moved:boolean;device?:string}|null=null;
   // Starts with the buttons already held, so the A press that opened the hall does not also use a machine.
   private lastPadButtons:boolean[]=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];
@@ -46,7 +50,10 @@ export class MachineHall {
   // The machine the player stands at (index in devices), told to the concourse so its commuters leave it free.
   private standing=-1;
   private devices:Device[];
-  constructor(private hub:Hub,initial:Service,private open:(service:Service,id:string)=>void,private exit:()=>void,private crowd?:{figures:()=>Figure[];standAt:(machine:number)=>void;busy:(machine:number)=>boolean;start?:number}){
+  // Pixel view: the stick and D-pad as last read (sideways, up / down), so each push steps once.
+  private lastStep=[0,0];
+  constructor(private hub:Hub,initial:Service,private open:(kind:MachineKind,id:string)=>void,private exit:()=>void,private crowd?:{figures:()=>Figure[];standAt:(machine:number)=>void;busy:(machine:number)=>boolean;start?:number},view:'3d'|'pixel'|'voxel'='3d'){
+    const pixel=this.pixel=view==='pixel';
     const devices=this.devices=bank(hub);
     if(initial==='shinkansen')this.x=this.targetX=3100;
     // Facing the machine the player walked up to on the map.
@@ -55,10 +62,10 @@ export class MachineHall {
     const header=this.el(this.overlay,'header','','hall-header');
     this.el(header,'div',`${stations[hub].ja} ${stations[hub].en.toUpperCase()} / きっぷうりば`,'hall-heading');
     this.button(header,'Back to the hall',()=>this.close(),'hall-exit');
-    this.viewport.className='hall-viewport';this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label','Drag to look around. Left and right arrows to move sideways, up and down to step closer or back.');
-    this.overlay.append(this.viewport);this.scene=new HallScene(this.viewport,hub,devices,crowd?.figures);
+    this.viewport.className='hall-viewport'+(pixel?' is-pixel':'');this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label',pixel?'Left and right arrows to walk from machine to machine, up to look at the board.':'Drag to look around. Left and right arrows to move sideways, up and down to step closer or back.');
+    this.overlay.append(this.viewport);this.scene=pixel?new HallPicture(this.viewport,hub,devices,crowd?.figures):view==='voxel'?new HallVoxels(this.viewport,hub,devices,crowd?.figures):new HallScene(this.viewport,hub,devices,crowd?.figures);
     const bottom=this.el(this.overlay,'div','','hall-bottom');bottom.append(this.position,this.status);
-    this.el(this.overlay,'p','Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
+    this.el(this.overlay,'p',pixel?`Click a machine${hub==='tokyo'?' or the map':''} · ← / → or D-pad: walk from machine to machine · ↑ / ↓: ${hub==='tokyo'?'wall map':'station board'} · E or A: use · B / Esc: back`:'Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
     this.overlay.addEventListener('keydown',this.keydown);this.overlay.addEventListener('keyup',this.keyup);
     this.overlay.addEventListener('focusout',()=>this.keys.clear());
     window.addEventListener('blur',this.blur);
@@ -79,26 +86,14 @@ export class MachineHall {
   /** Whether the head is raised to the Tokyo fare map: it is highlighted and A / E / a click reads it. */
   private facingMap(){return this.hub==='tokyo'&&this.pitch>10&&Math.abs(this.yaw)<=25}
   private activate(){
-    if(this.paused||this.notice)return;
+    if(this.paused)return;
     if(this.facingMap()){this.openMapDetail();return;}
     if(!this.facingMachines()){this.lookAtMachines();return;}
     const device=this.nearest();this.x=this.targetX=device.x+250;
     // Someone is using it: wait for them to finish (the status line says so) or take another.
     if(this.crowd?.busy(this.devices.indexOf(device)))return;
-    if(device.kind==='charge'){this.chargeNotice();return;}
     this.pause();this.open(device.kind,device.id);
   }
-  private chargeNotice(){
-    this.keys.clear();
-    this.notice=this.el(this.overlay,'section','','charge-notice');this.notice.setAttribute('role','alertdialog');this.notice.setAttribute('aria-label','IC card charge');
-    this.el(this.notice,'span','チャージ専用 / IC CARD CHARGE','charge-eyebrow');
-    this.el(this.notice,'h2','カードを入れてください');this.el(this.notice,'p','Insert your IC card to charge it.');
-    this.el(this.notice,'div','IC','charge-card-illustration');
-    this.el(this.notice,'p','You have no IC card. This machine does not sell cards, so charging is unavailable.');
-    this.button(this.notice,'Buy a card · coming later',()=>{}).disabled=true;
-    this.button(this.notice,'Back to the machines',()=>this.closeNotice(),'charge-back').focus();
-  }
-  private closeNotice(){this.notice?.remove();this.notice=null;this.viewport.focus();}
   private openMapDetail(){
     if(this.mapDetail||this.hub!=='tokyo')return;
     this.keys.clear();
@@ -149,6 +144,12 @@ export class MachineHall {
   }
   lookAtMap(){this.pitch=16;this.yaw=0;}
   private lookAtMachines(){this.pitch=-5;this.yaw=0;}
+  /** Pixel view: walks on to the next machine along the bank (from the one being walked to), or back down from the board. */
+  private step(direction:number){if(this.pitch>10){this.lookAtMachines();return}const to=this.devices.reduce((a,b)=>Math.abs(a.x+250-this.targetX)<Math.abs(b.x+250-this.targetX)?a:b),next=this.devices[clamp(this.devices.indexOf(to)+direction,0,this.devices.length-1)];this.targetX=next.x+250;}
+  /** Pixel view: up to the board over the machines (the Tokyo fare map can then be read), down back to the machines. */
+  private lift(direction:number){if(direction>0)this.lookAtMap();else this.lookAtMachines();}
+  /** Pixel view: arrived in front of the machine walked to, so a held key or stick walks on. */
+  private arrived(){return Math.abs(this.x-this.targetX)<30}
   pause(){this.paused=true;this.overlay.hidden=true;this.keys.clear();this.drag=null;}
   resume(map=false){if(this.disposed)return;this.paused=false;this.overlay.hidden=false;this.lastPadButtons=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];if(map){this.lookAtMap();this.viewport.focus();this.openMapDetail();if(this.mapDetail)this.mapFrom=this.nearest();}else{this.lookAtMachines();this.viewport.focus();}}
   destroy(){if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.frame);this.scene.dispose();window.removeEventListener('blur',this.blur);this.overlay.remove();this.previousFocus?.focus();}
@@ -157,13 +158,13 @@ export class MachineHall {
   private keydown=(event:KeyboardEvent)=>{
     event.stopPropagation();
     if(event.key==='Tab'){
-      const selector=this.mapDetail?'.hall-map-detail button:not(:disabled), .hall-map-canvas':this.notice?'.charge-notice button:not(:disabled)':'button:not(:disabled), .hall-viewport';
+      const selector=this.mapDetail?'.hall-map-detail button:not(:disabled), .hall-map-canvas':'button:not(:disabled), .hall-viewport';
       const all=Array.from(this.overlay.querySelectorAll<HTMLElement>(selector));
       if(event.shiftKey&&document.activeElement===all[0]){event.preventDefault();all.at(-1)?.focus()}else if(!event.shiftKey&&document.activeElement===all.at(-1)){event.preventDefault();all[0]?.focus()}return;
     }
-    if(event.key==='Escape'){event.preventDefault();if(this.mapDetail)this.closeMapDetail();else if(this.notice)this.closeNotice();else this.close();return;}
-    if(this.notice||this.mapDetail)return;
-    const move=moveKeys[event.code];if(move){event.preventDefault();this.keys.add(move)}
+    if(event.key==='Escape'){event.preventDefault();if(this.mapDetail)this.closeMapDetail();else this.close();return;}
+    if(this.mapDetail)return;
+    const move=moveKeys[event.code];if(move){event.preventDefault();if(!this.pixel)this.keys.add(move);else if(move==='left'||move==='right'){if(!event.repeat||this.arrived())this.step(move==='left'?-1:1)}else if(!event.repeat)this.lift(move==='up'||move==='lookUp'?1:-1)}
     if((event.code==='KeyE'||event.code==='Space')&&event.target===this.viewport){event.preventDefault();if(!event.repeat)this.activate()}
   };
   private keyup=(event:KeyboardEvent)=>{event.stopPropagation();const move=moveKeys[event.code];if(move)this.keys.delete(move)};
@@ -173,7 +174,7 @@ export class MachineHall {
     this.viewport.setPointerCapture(event.pointerId);this.viewport.focus();this.drag={id:event.pointerId,x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,moved:false,device};
   };
   private pointerMove=(event:PointerEvent)=>{
-    const drag=this.drag;if(!drag){this.hover(this.scene.pick(event.clientX,event.clientY));return}
+    const drag=this.drag;if(!drag||this.pixel){this.hover(this.scene.pick(event.clientX,event.clientY));return}
     if(event.pointerId!==drag.id)return;
     const sensitivity=55/Math.max(500,this.viewport.clientWidth);
     this.yaw=clamp(this.yaw+(event.clientX-drag.x)*sensitivity,-35,35);this.pitch=clamp(this.pitch-(event.clientY-drag.y)*sensitivity,-20,30);
@@ -187,12 +188,12 @@ export class MachineHall {
   private hover(id:string|null){this.scene.setHover(id);this.viewport.style.cursor=id?'pointer':''}
   /** A click on a machine uses it when standing in front of it, otherwise it walks there first; a click on the fare map reads it. */
   private clickDevice(id:string){
-    if(this.paused||this.notice||this.mapDetail)return;
+    if(this.paused||this.mapDetail)return;
     if(id==='map'){this.openMapDetail();return;}
     const device=this.devices.find(d=>d.id===id);if(!device)return;
-    if(this.nearest().id===id)this.focusDevice(device);else{this.targetX=device.x+250;this.yaw=0;this.pitch=-5}
+    if(this.nearest().id===id&&this.arrived())this.focusDevice(device);else{this.targetX=device.x+250;this.yaw=0;this.pitch=-5}
   }
-  private wheel=(event:WheelEvent)=>{event.preventDefault();if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY))this.targetX=clamp(this.targetX+(event.deltaX||event.deltaY)*1.4,650,3250);else{if(event.deltaY>0&&this.distance>=maxDistance&&!this.notice&&!this.mapDetail&&!this.paused)this.backing+=Math.min(.2,event.deltaY/500);this.distance=clamp(this.distance+event.deltaY*.6,minDistance,maxDistance)}};
+  private wheel=(event:WheelEvent)=>{event.preventDefault();if(this.pixel)return;if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY)){const delta=event.deltaX||event.deltaY;if((delta<0&&this.targetX<=650||delta>0&&this.targetX>=3250)&&!this.mapDetail&&!this.paused){this.backing+=Math.min(.2,Math.abs(delta)/500);this.sideways=true}this.targetX=clamp(this.targetX+delta*1.4,650,3250)}else{if(event.deltaY>0&&this.distance>=maxDistance&&!this.mapDetail&&!this.paused)this.backing+=Math.min(.2,event.deltaY/500);this.distance=clamp(this.distance+event.deltaY*.6,minDistance,maxDistance)}};
   private tick=(time:number)=>{
     if(this.disposed)return;
     const dt=Math.min((time-this.previousTime)/1000||0,.04);this.previousTime=time;
@@ -202,31 +203,38 @@ export class MachineHall {
       const pad=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected);
       if(pad){
         const dead=(v:number)=>Math.abs(v)>.18?v:0;
-        if(!this.notice&&!this.mapDetail){strafe+=dead(pad.axes[0]??0);vertical-=dead(pad.axes[1]??0);this.yaw=clamp(this.yaw+dead(pad.axes[2]??0)*65*dt,-35,35);this.pitch=clamp(this.pitch-dead(pad.axes[3]??0)*55*dt,-20,30)}
+        if(!this.mapDetail){strafe+=dead(pad.axes[0]??0);vertical-=dead(pad.axes[1]??0);if(!this.pixel)this.yaw=clamp(this.yaw+dead(pad.axes[2]??0)*65*dt,-35,35);this.pitch=clamp(this.pitch-dead(pad.axes[3]??0)*55*dt,-20,30)}
         const pressed=pad.buttons.map(b=>b.pressed);
-        if(pressed[0]&&!this.lastPadButtons[0]){if(this.notice)this.closeNotice();else if(!this.mapDetail)this.activate()}
-        if(pressed[1]&&!this.lastPadButtons[1]){if(this.mapDetail)this.closeMapDetail();else if(this.notice)this.closeNotice();else this.close()}
+        if(pressed[0]&&!this.lastPadButtons[0]&&!this.mapDetail)this.activate()
+        if(pressed[1]&&!this.lastPadButtons[1]){if(this.mapDetail)this.closeMapDetail();else this.close()}
         // On the enlarged map, the triggers zoom (LT out, RT in) and either stick pans.
         if(this.mapDetail&&this.mapZoom){
           const zoomIn=(pad.buttons[7]?.value??0)-(pad.buttons[6]?.value??0);if(Math.abs(zoomIn)>.05)this.mapZoom(Math.exp(zoomIn*1.6*dt));
           const canvas=this.mapDetail.querySelector<HTMLElement>('.hall-map-canvas')!;
           canvas.scrollLeft+=(dead(pad.axes[0]??0)+dead(pad.axes[2]??0))*900*dt;canvas.scrollTop+=(dead(pad.axes[1]??0)+dead(pad.axes[3]??0))*900*dt;
         }
-        if(!this.notice&&!this.mapDetail){if(pressed[14])strafe-=1;if(pressed[15])strafe+=1;if(pressed[12])vertical+=1;if(pressed[13])vertical-=1}
+        if(!this.mapDetail){if(pressed[14])strafe-=1;if(pressed[15])strafe+=1;if(pressed[12])vertical+=1;if(pressed[13])vertical-=1}
         this.lastPadButtons=pressed;
       }
-      if(!this.notice&&!this.mapDetail){this.targetX=clamp(this.targetX+strafe*1200*dt,650,3250);this.distance=clamp(this.distance-vertical*1000*dt,minDistance,maxDistance);this.pitch=clamp(this.pitch+((this.keys.has('lookUp')?1:0)-(this.keys.has('lookDown')?1:0))*55*dt,-20,30)}
-      this.x+=(this.targetX-this.x)*Math.min(1,dt*14);
+      if(this.pixel){
+        const side=Math.abs(strafe)>.5?Math.sign(strafe):0,lift=Math.abs(vertical)>.5?Math.sign(vertical):0;
+        if(!this.mapDetail){if(side&&(side!==this.lastStep[0]||this.arrived()))this.step(side);if(lift&&lift!==this.lastStep[1])this.lift(lift)}
+        this.lastStep=[side,lift];strafe=vertical=0;
+      }else if(!this.mapDetail){this.targetX=clamp(this.targetX+strafe*1200*dt,650,3250);this.distance=clamp(this.distance-vertical*1000*dt,minDistance,maxDistance);this.pitch=clamp(this.pitch+((this.keys.has('lookUp')?1:0)-(this.keys.has('lookDown')?1:0))*55*dt,-20,30)}
+      // The pixel view walks from machine to machine at a stroll.
+      this.x+=(this.targetX-this.x)*Math.min(1,dt*(this.pixel?6:14));
       // Keeping on stepping back from the farthest spot leaves the machines, like the Back button; letting go slowly forgets it.
-      this.backing=vertical<0&&this.distance>=maxDistance&&!this.notice&&!this.mapDetail?this.backing+dt:Math.max(0,this.backing-dt*.5);
+      const back=vertical<0&&this.distance>=maxDistance,side=strafe<0&&this.targetX<=650||strafe>0&&this.targetX>=3250;
+      if(back||side)this.sideways=side&&!back;
+      this.backing=(back||side)&&!this.mapDetail?this.backing+dt:Math.max(0,this.backing-dt*.5);
       if(this.backing>=backOut){this.close();return;}
       // The camera rotates; translation remains the player's body position along the wall.
       const nearest=this.nearest();
       if(this.devices.indexOf(nearest)!==this.standing){this.standing=this.devices.indexOf(nearest);this.crowd?.standAt(this.standing)}
-      const free=!this.notice&&!this.mapDetail;
+      const free=!this.mapDetail;
       this.scene.render(this.x,this.yaw,this.pitch,this.distance,free&&this.facingMap()?'map':free&&this.facingMachines()?nearest.id:null);
       this.position.textContent=nearest.label;
-      this.status.textContent=this.distance>=maxDistance&&this.backing>0?'Keep stepping back to return to the hall':this.crowd?.busy(this.devices.indexOf(nearest))&&!this.facingMap()&&this.pitch<=10?'Someone is using this machine · wait for them or take another':this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?'Wall map · move sideways to follow the lines':nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':'Click the machine or E / A: use · drag to look around';
+      this.status.textContent=this.backing>0&&this.sideways?'Keep going sideways to return to the hall':this.distance>=maxDistance&&this.backing>0?'Keep stepping back to return to the hall':this.crowd?.busy(this.devices.indexOf(nearest))&&!this.facingMap()&&this.pitch<=10?'Someone is using this machine · wait for them or take another':this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?(this.pixel?'Station board · ↓: back to the machines':'Wall map · move sideways to follow the lines'):nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':this.pixel?`Click a machine or E / A: use · ← / →: walk along · ↑: ${this.hub==='tokyo'?'wall map':'station board'}`:'Click the machine or E / A: use · drag to look around';
       this.overlay.dataset.machine=nearest.id;this.overlay.dataset.x=this.x.toFixed(1);this.overlay.dataset.pitch=this.pitch.toFixed(1);this.overlay.dataset.yaw=this.yaw.toFixed(1);
       this.overlay.dataset.mapDetail=String(this.pitch>10&&this.distance<=700);
     }

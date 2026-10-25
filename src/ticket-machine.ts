@@ -1,10 +1,14 @@
 import { routes, stations, type Hub, type Route, type Service } from './network';
+import { paintTicket } from './ticket-gate';
 import { tokyoFareAmounts, renderTokyoFareMap } from './tokyo-fares';
 import { accepted, coinCount, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
 
-export interface RouteTicket extends Route { kind:'route'; reservation?: { day:string; train:string; seat:string } }
-export interface FareTicket {kind:'fare';from:'tokyo';service:'local';fare:number}
+// `punched` once a gate has let it through: the gate's punch leaves a hole in it.
+export interface RouteTicket extends Route { kind:'route'; reservation?: { day:string; train:string; seat:string }; punched?:boolean }
+export interface FareTicket {kind:'fare';from:'tokyo';service:'local';fare:number;punched?:boolean}
 export type TravelTicket=RouteTicket|FareTicket;
+/** What a machine of the bank sells: tickets, Shinkansen tickets, or nothing but IC card charges. */
+export type MachineKind=Service|'charge';
 type Step='home'|'method'|'fares'|'map'|'destination'|'date'|'passengers'|'train'|'seat'|'review'|'payment'|'issued';
 type Lang='ja'|'en';
 interface MachineOptions {fixedService?:boolean;lookAtWall?:()=>void;wallet?:Wallet;onWallet?:()=>void;trayKey?:string}
@@ -28,7 +32,7 @@ export class TicketMachine {
   private panel=document.createElement('div');
   private design=document.createElement('div');
   private observer:ResizeObserver;
-  private service:Service;
+  private service:MachineKind;
   private step:Step='home';
   private history:Step[]=[];
   private lang:Lang='ja';
@@ -53,7 +57,7 @@ export class TicketMachine {
   private padPrevious:boolean[]=[];
   private lastNavigation=0;
   private previousFocus=document.activeElement as HTMLElement|null;
-  constructor(private hub:Hub,service:Service,private issue:(ticket:TravelTicket)=>void,private dismiss:()=>void,private uiOptions:MachineOptions={}){
+  constructor(private hub:Hub,service:MachineKind,private issue:(ticket:TravelTicket)=>void,private dismiss:()=>void,private uiOptions:MachineOptions={}){
     this.service=service;this.wallet=uiOptions.wallet??loadWallet();this.tray=uiOptions.trayKey?trays[uiOptions.trayKey]??=[]:[];
     this.overlay.className='machine-overlay';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','Ticket machine');
     this.panel.className='machine-viewport';this.design.className='machine-design';this.panel.append(this.design);this.overlay.append(this.panel);document.body.append(this.overlay);
@@ -89,13 +93,17 @@ export class TicketMachine {
     const active=document.activeElement as HTMLButtonElement;
     if(!buttons.includes(active)){buttons[0]?.focus();return;}
     const rect=active.getBoundingClientRect(),x=rect.x+rect.width/2,y=rect.y+rect.height/2;
+    // Up and down stay in the column: the screen and its payment block, or the wallet beside them, which left and right reach.
+    const column=(button:Element)=>!!button.closest('.machine-wallet'),vertical=Math.abs(dy)>Math.abs(dx);
     let best:HTMLButtonElement|undefined,score=Infinity;
     for(const button of buttons){
-      if(button===active)continue;
+      if(button===active||(vertical&&column(button)!==column(active)))continue;
       const next=button.getBoundingClientRect(),nx=next.x+next.width/2-x,ny=next.y+next.height/2-y;
       const primary=Math.abs(dx)>=Math.abs(dy)?nx*Math.sign(dx):ny*Math.sign(dy);
       const across=Math.abs(dx)>=Math.abs(dy)?Math.abs(ny):Math.abs(nx);
-      if(primary>2&&primary+across*2<score){best=button;score=primary+across*2;}
+      // Buttons in line with this one come first (same row going sideways, same column going up or down); sideways past the last one in line, on to the other column.
+      const inLine=vertical?next.left<rect.right&&next.right>rect.left:next.top<rect.bottom&&next.bottom>rect.top,total=primary+across*2+(inLine||(!vertical&&column(button)!==column(active))?0:10000);
+      if(primary>2&&total<score){best=button;score=total;}
     }
     best?.focus();
   }
@@ -188,8 +196,8 @@ export class TicketMachine {
     this.design.className='machine-design '+this.service;this.design.replaceChildren();
     const outer=this.element(this.design,'div','','machine-shell');
     const heading=this.element(outer,'div','','machine-brand');
-    this.element(heading,'strong',this.service==='local'?'きっぷ・ICカード':'新幹線・特急 指定席券売機');
-    this.element(heading,'span',this.service==='local'?'Tickets / IC cards':'Shinkansen / Limited Express Tickets');
+    this.element(heading,'strong',{local:'きっぷ・ICカード',charge:'チャージ専用',shinkansen:'新幹線・特急 指定席券売機'}[this.service]);
+    this.element(heading,'span',{local:'Tickets / IC cards',charge:'IC card charge only',shinkansen:'Shinkansen / Limited Express Tickets'}[this.service]);
     const switcher=this.element(this.design,'div','','machine-switcher');
     if(this.uiOptions.fixedService){
       if(this.uiOptions.lookAtWall)this.element(this.button(switcher,'↑ Look at the wall map ',()=>this.uiOptions.lookAtWall!()),'kbd','Y','pad-hint').title='Gamepad Y';
@@ -200,8 +208,8 @@ export class TicketMachine {
     const screen=this.element(outer,'div','','machine-screen');screen.setAttribute('lang',this.lang);
     const top=this.element(screen,'div','','machine-top');
     const titles:Record<Step,[string,string]>={home:['きっぷの種類をお選びください','Select ticket type'],method:['お支払い方法をお選びください','Please select the desired payment method'],fares:['ご希望のボタンをお選びください','Make your selection below.'],map:['東京駅からの運賃表','JR fare map from Tokyo'],destination:['降車駅をお選びください','Select station where you will get off'],date:['ご乗車日をお選びください','Select the boarding date'],passengers:['ご利用人数をお選びください','Select the number of passengers'],train:['ご希望の列車をお選びください','Select the train you wish to take'],seat:['お座席をお選びください','Select your desired seat'],review:['内容をご確認ください','If OK, press Confirm'],payment:['現金をお入れください','Please insert cash.'],issued:['きっぷをお取りください','Please take your ticket(s).']};
-    this.element(top,'h2',this.tr(...titles[this.step]));
-    this.button(top,this.lang==='ja'?'English':'日本語',()=>{this.lang=this.lang==='ja'?'en':'ja';this.render()},'language');
+    this.element(top,'h2',this.tr(...(this.service==='charge'&&this.step==='home'?['ICカードをお入れください','Insert your IC card'] as [string,string]:titles[this.step])));
+    this.button(top,this.lang==='ja'?'English':'日本語',()=>{this.lang=this.lang==='ja'?'en':'ja';this.render()},'language').dataset.key='language';
     const body=this.element(screen,'div','','machine-body step-'+this.step);
     this.content(body);
     const bottom=this.element(screen,'div','','machine-bottom');
@@ -221,7 +229,12 @@ export class TicketMachine {
       this.tray.forEach((item,index)=>{
         if((item.value==='ticket')!==ticket)return;
         const button=this.button(items,'',()=>this.take(index),'tray-item'+(item.fresh?' fresh':'')+(item.value==='ticket'?' tray-ticket':isCoin(item.value)?' coin':' note'));button.dataset.key='tray-'+name;
-        if(item.value==='ticket'){button.textContent=this.tr('きっぷ','TICKET');button.title=this.tr('きっぷを取る','Take the ticket');}
+        if(item.value==='ticket'){
+          // The real card, as the gates and the bag draw it, painted again once the Japanese font is in.
+          const image=this.element(button,'img') as HTMLImageElement,ticket=item.ticket;image.draggable=false;image.alt=button.title=this.tr('きっぷを取る','Take the ticket');
+          const paint=()=>{if(!ticket)return;const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;paintTicket(canvas.getContext('2d')!,128,64,ticket);image.src=canvas.toDataURL()};
+          paint();document.fonts?.load('16px "Yorimichi JP"').then(paint).catch(()=>{});
+        }
         else{const image=this.element(button,'img') as HTMLImageElement;image.src=pieceArt(item.value);image.alt='¥'+item.value;image.draggable=false;button.title=this.tr('取る','Take')+' ¥'+item.value.toLocaleString('en-US');}
         item.fresh=false;
       });
@@ -243,7 +256,8 @@ export class TicketMachine {
     this.notice=null;this.flash='';
     // Focus stays on the same piece or outlet (taking change keeps you on the change), then the other outlet, then the wallet.
     const keep=focusKey&&(this.design.querySelector<HTMLButtonElement>(`[data-key="${focusKey}"]:not(:disabled)`)??(focusKey.startsWith('tray')?this.design.querySelector<HTMLButtonElement>('.tray-item'):null)??this.design.querySelector<HTMLButtonElement>('.wallet-piece:not(:disabled)'));
-    (keep||this.design.querySelector<HTMLButtonElement>('.language'))?.focus({preventScroll:true});
+    // Otherwise the screen's main button (Confirm, else its first live button), then what waits in the outlets, then the wallet.
+    (keep||['.machine-body .confirm:not(:disabled)','.machine-body button:not(:disabled)','.tray-item','.wallet-piece:not(:disabled)','.language'].map(q=>this.design.querySelector<HTMLButtonElement>(q)).find(Boolean))?.focus({preventScroll:true});
   }
   private changeMachine(service:Service){
     if(this.step==='issued'){this.close();return;}
@@ -259,6 +273,12 @@ export class TicketMachine {
         this.button(grid,tr('きっぷ購入','Purchase Ticket')+'  ▰',()=>this.go('method'),'purchase-local');
         this.button(grid,tr('ポイント利用登録','Registration of point usage'),()=>{},'registration',true);
         this.button(grid,tr('入場券','Platform Ticket'),()=>{},'platform-ticket',true);
+      }else if(this.service==='charge'){
+        // A charge-only machine reads the card first: without one, every button stays off and the slots refuse everything.
+        const prompt=this.element(body,'div','','charge-prompt');body.insertBefore(prompt,grid);this.element(prompt,'span','IC','charge-card');
+        this.element(prompt,'p',tr('Suica・PASMOなどのICカードを\n下のカード挿入口にお入れください。','Insert a Suica, PASMO or other IC card\ninto the card slot below.'));
+        this.button(grid,tr('チャージ','Charge'),()=>{},'',true);this.button(grid,tr('履歴表示','Check history'),()=>{},'',true);
+        this.element(body,'p',tr('ICカードをお持ちでないため、ご利用になれません。この機械ではICカードを販売していません。','You have no IC card, so this machine cannot be used. It does not sell cards.'),'origin-note');
       }else{
         this.button(grid,tr('新幹線の指定席を購入','Purchase Shinkansen reserved seat'),()=>this.go('destination'),'purchase-express');
         this.button(grid,tr('予約したきっぷのお受取り','Receive reserved ticket(s)'),()=>{},'',true);

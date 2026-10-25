@@ -143,7 +143,6 @@ function makeHubs(scene:Phaser.Scene){
     if(hasShinkansen(hub)){
       paid(362,118);gates(370,5,'#2a6fb3');
       sign(372,96,'新','#ffffff','#2a5ea8','新幹線のりかえ','Shinkansen · '+platformFor(hub,'shinkansen').replace('TRACK ','Track '),'#2a5ea8');
-      t(396,127,platformFor(hub,'shinkansen'),'#e6e3cc',true);t(400,139,'新幹線','#e6e3cc',true);
     }else{
       // The shop front: white sign band, then the glazing with a drinks fridge, shelves, the till and its clerk, and the automatic door on the right.
       tiles(362,23,118,29,true);
@@ -202,8 +201,7 @@ function makeHubs(scene:Phaser.Scene){
     r(130,122,232,3,'#5a6650');
     // Tactile paving along the machines.
     r(150,128,190,5,'#e8c440');for(let x=151;x<339;x+=4)r(x,129+(x%8<4?0:2),2,1,'#cfa72c');
-    // Floor markings: the local platform past the central gates, yellow guidance lines to the exits.
-    t(8,127,platformFor(hub,'local')+' / 在来線','#e6e3cc',true);
+    // Floor markings: yellow guidance lines to the exits.
     r(0,226,480,3,'#d1b86f');
     // Exits painted on the floor; the yellow 出口 signs are on the concourse pillars (exitPillar, placed by main.ts).
     t(12,234,'← 西口 EXIT','#e6e3cc',true);t(12,246,station.west[0],'#cfd3b8');
@@ -236,7 +234,7 @@ function makeCommuters(scene:Phaser.Scene){
       else if(face==='down'&&look.tie){r(9,12+bob,3,1,'#f4f4ee');r(10,13+bob,1,4,'#6c3b3b')}
       if(look.backpack){if(back){r(6,13+bob,9,7,look.bag!);r(7,14+bob,7,1,'#ffffff33')}else if(!side){r(6,12+bob,1,6,look.bag!);r(14,12+bob,1,6,look.bag!)}}
       else if(look.bag){if(side)r(flip(12,3),16+bob,3,4,look.bag);else r(back?2:16,16+bob,3,4,look.bag)}
-      if(look.cane&&!back)r(side?flip(14):17,15+bob,1,10,'#6b4a2e');
+      if(look.cane&&!back){if(side){r(flip(10),19+bob,1,7-bob,'#6b4a2e');r(flip(10,2),19+bob,2,1,'#6b4a2e')}else{r(17,15+bob,1,10,'#6b4a2e');r(17,15+bob,2,1,'#6b4a2e')}}
       // Head and hair.
       r(7,5+bob,8,8,skin);
       if(back)r(6,3+bob,10,9,hair);else if(side){r(6,3+bob,10,4,hair);r(flip(6,4),5+bob,4,5,hair)}else{r(6,3+bob,10,4,hair);r(6,5+bob,1,3,hair);r(15,5+bob,1,3,hair)}

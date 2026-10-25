@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import './style.css';
 import { makeArt } from './art';
 import { MachineHall } from './machine-hall';
-import { TicketMachine, trayKey, type TravelTicket, type FareTicket } from './ticket-machine';
+import { TicketGate } from './ticket-gate';
+import { openInventory } from './inventory';
+import { TicketMachine, trayKey, type TravelTicket, type FareTicket, type RouteTicket } from './ticket-machine';
 import { openTokyoDepartures, type FareStation } from './tokyo-fares';
 import { coinCount, coins, loadWallet, notes, saveWallet, walkFactor, walletTotal } from './wallet';
 
@@ -10,6 +12,8 @@ import { looks, type Figure } from './people';
 import { places, isHub, returnHub, platformFor, hasShinkansen, routes, stations, type Hub, type Place, type Service } from './network';
 // Highlight frames around the hotspots of nearby(), in scene pixels (art × 2), shown while the player is in range.
 const hotspotFrames:Record<string,[number,number,number,number]>={staff:[0,130,124,92],ticket:[336,150,288,94],local:[124,132,136,100],shinkansen:[724,132,236,100],shop:[724,130,236,92],westExit:[14,444,162,64],eastExit:[778,444,168,64],photo:[682,376,56,58],return:[96,336,116,58],'return-jr-stop':[100,330,206,94]};
+// The ticket hall in pixel art (HallPicture); ?hall=3d brings back the first-person three.js hall (HallScene), ?hall=voxel the same hall built of voxels (HallVoxels).
+const hallParam=new URLSearchParams(location.search).get('hall'),hallView=hallParam==='3d'||hallParam==='voxel'?hallParam:'pixel';
 type Step={x:number;y:number;alpha?:number}|{wait:number;face:string;spot?:string};
 type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:number;face?:string;bump?:number};
 const pick=<T,>(items:readonly T[])=>items[Math.floor(Math.random()*items.length)],between=(a:number,b:number)=>a+Math.random()*(b-a);
@@ -26,10 +30,13 @@ class Journey extends Phaser.Scene {
   // Hotspot clicked from afar: used as soon as the walk brings the player in range.
   private pending='';
   private place:Place='tokyo';
-  private ticket:TravelTicket|null=null;
+  // The tickets the traveller carries, bought one at a time; boarding uses up the one that went through the gate.
+  private tickets:TravelTicket[]=[];
   private currentStation:FareStation|null=null;
   private departures:{destroy:()=>void}|null=null;
+  private bag:{destroy:()=>void;close:()=>void}|null=null;
   private hall:MachineHall|null=null;
+  private gate:TicketGate|null=null;
   private machineId:string|null=null;
   private machine:TicketMachine|null=null;
   private modal:Phaser.GameObjects.Container|null=null;
@@ -80,7 +87,7 @@ class Journey extends Phaser.Scene {
   private rect(x:number,y:number,w:number,h:number,color:number,container=this.world){const r=this.add.rectangle(x,y,w,h,color).setOrigin(0);container.add(r);return r}
   private label(x:number,y:number,text:string,size=16,color='#283d3c',container=this.world){const t=this.add.text(x,y,text,{fontFamily:'monospace',fontSize:size,color,lineSpacing:5});container.add(t);return t}
   private loadPlace(place:Place){
-    this.machine?.destroy();this.machine=null;this.hall?.destroy();this.hall=null;this.machineId=null;this.departures?.destroy();this.departures=null;
+    this.machine?.destroy();this.machine=null;this.hall?.destroy();this.hall=null;this.gate?.destroy();this.gate=null;this.bag?.destroy();this.bag=null;this.machineId=null;this.departures?.destroy();this.departures=null;
     if(place!=='jr-stop')this.currentStation=null;
     this.modal?.destroy();this.modal=null;this.world?.destroy(true);this.hud?.destroy(true);
     this.place=place;this.commuters=[];this.spots.clear();this.playerSpot=this.hallSpot='';this.bump=1;this.path=[];this.solids=[];this.direction={x:0,y:0};
@@ -110,7 +117,7 @@ class Journey extends Phaser.Scene {
     if(place==='jr-stop'&&this.currentStation){this.label(348,176,this.currentStation.ja,24,'#f1e5ba');this.label(348,210,this.currentStation.en.toUpperCase(),13,'#cbd6b1');}
     this.label(24,32,this.currentStation?this.currentStation.en+' · JR station':places[place],18,'#f3dfb1',this.hud);
     this.purse=this.label(404,14,'',12,'#e6ce98',this.hud).setInteractive({useHandCursor:true}).on('pointerdown',()=>this.showWallet());this.refreshPurse();
-    this.button(548,14,108,40,'Ticket',()=>this.showTicket(),this.hud);
+    this.button(548,14,108,40,'Inventory',()=>this.inventory(),this.hud);
     this.label(676,26,`${this.collected.size}/2 memories`,12,'#cfceaa',this.hud);
     this.button(833,14,104,40,'Journal',()=>this.album(),this.hud);
     // No bottom bar: the action prompt floats over the player when something is in reach (see update), the station announcements run in the top band.
@@ -144,10 +151,12 @@ class Journey extends Phaser.Scene {
   private right(hub:Hub){return hasShinkansen(hub)?'shinkansen':'shop'}
   private dialog(title:string,body:string,choices:[string,()=>void][]=[]){
     this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);const c=this.add.container(0,0).setDepth(20);this.modal=c;
-    this.rect(0,70,960,570,0x142e35,c).setAlpha(.76).setInteractive();this.rect(200,145,560,365,0xf0e6cb,c);this.rect(200,145,560,7,0xba654c,c);
-    this.label(228,173,title,22,'#294a48',c);this.label(228,220,body,16,'#475b50',c).setWordWrapWidth(500);
+    this.rect(0,70,960,570,0x142e35,c).setAlpha(.76).setInteractive();const panel=this.rect(200,145,560,365,0xf0e6cb,c);this.rect(200,145,560,7,0xba654c,c);
+    this.label(228,173,title,22,'#294a48',c);const text=this.label(228,220,body,16,'#475b50',c).setWordWrapWidth(500);
+    // The choices start below the text, clear of the focus ring around them; the panel grows to hold them and Close.
+    const top=Math.max(320,220+text.height+22),closeY=Math.max(461,top+choices.length*54+6);panel.setSize(560,closeY+49-145);
     const close=()=>{c.destroy(true);this.modal=null;};
-    const buttons:PadChoice[]=[...choices.map(([label,fn],i):PadChoice=>[this.button(228,320+i*54,504,44,label,fn,c),fn]),[this.button(650,461,82,32,'Close',close,c),close]];
+    const buttons:PadChoice[]=[...choices.map(([label,fn],i):PadChoice=>[this.button(228,top+i*54,504,44,label,fn,c),fn]),[this.button(650,closeY,82,32,'Close',close,c),close]];
     // Gamepad focus ring: d-pad / stick to move, A to choose, B to close.
     const ring=this.add.rectangle(0,0,1,1).setOrigin(0).setStrokeStyle(3,0xf3d76b).setVisible(false);c.add(ring);c.setData({choices:buttons,ring});this.focusChoice(c,0);
   }
@@ -161,9 +170,10 @@ class Journey extends Phaser.Scene {
     const state=pad?.buttons.map(b=>b.pressed)??[],ax=dead(pad?.axes[0]),ay=dead(pad?.axes[1]);
     state[20]=!!state[12]||ay<-.5;state[21]=!!state[13]||ay>.5;
     const prev=this.padPrev,edge=(i:number)=>state[i]&&!prev[i];this.padPrev=state;
-    if(!pad||this.hall||this.machine)return {x:0,y:0};
+    if(!pad||this.hall||this.machine||this.gate)return {x:0,y:0};
     const step=edge(20)?-1:edge(21)?1:0;
-    if(this.departures){
+    if(this.bag){if(edge(0)||edge(1)||edge(2))this.bag.close()}
+    else if(this.departures){
       const overlay=document.querySelector('.jr-departure-overlay'),buttons=Array.from(overlay?.querySelectorAll('button')??[]),i=buttons.indexOf(document.activeElement as HTMLButtonElement);
       if(step)buttons[(i+step+buttons.length)%buttons.length]?.focus();
       if(edge(0))(document.activeElement as HTMLElement|null)?.click();
@@ -174,7 +184,7 @@ class Journey extends Phaser.Scene {
       if(step)this.focusChoice(c,c.getData('focus')+step);
       if(edge(0))choices[c.getData('focus')][1]();else if(edge(1))choices[choices.length-1][1]();
     }else{
-      if(edge(0))this.interact();else if(edge(2))this.showTicket();else if(edge(3))this.album();
+      if(edge(0))this.interact();else if(edge(2))this.inventory();else if(edge(3))this.album();
       return {x:state[14]?-1:state[15]?1:ax,y:state[12]?-1:state[13]?1:ay};
     }
     return {x:0,y:0};
@@ -183,28 +193,12 @@ class Journey extends Phaser.Scene {
     if(this.modal)return;
     switch(this.nearby()){
       case 'ticket':this.ticketTerminal();break;
-      case 'local':case 'shinkansen':{
-        const service=this.nearby() as Service;
-        if(service==='local'&&this.place==='tokyo'&&this.ticket?.kind==='fare'){this.tokyoDepartures(this.ticket);break;}
-        if(!this.ticket||this.ticket.from!==this.place||this.ticket.service!==service){
-          this.dialog(service==='local'?'在来線 改札 / Local gates':'新幹線 改札 / Shinkansen gates',this.ticket?this.ticket.kind==='fare'?'This ticket is only valid on Tokyo local JR lines.':`Your ticket is for ${this.ticket.platform.toLowerCase()}.\nPick the matching platform or another ticket.`:'Buy your ticket at the machines on the back wall.',[[service==='local'?'See local lines':'See the Shinkansen',()=>this.ticketTerminal(service)]]);
-        }else{
-          const ticket=this.ticket;
-          if(ticket.kind==='fare')break;
-          // From the network rather than the ticket, which may have waited in a machine's outlet since before the routes had their trains.
-          const {train:correct,decoy}=routes.find(route=>route.id===ticket.id)??ticket;
-          this.dialog(ticket.platform+' · 発車案内',`Two trains are announced.\nTicket: ${ticket.to.toUpperCase()} · ${ticket.line}\nCheck the destination before boarding.`,[
-            [decoy,()=>this.dialog('Wrong train',service==='shinkansen'?'This train is not in service.\nYour ticket is still valid.':'This departure does not serve your destination.\nYour ticket is still valid.',[['Read the board again',()=>{this.modal?.destroy(true);this.modal=null;this.interact();}]])],
-            [correct,()=>this.dialog(ticket.line,`${places[ticket.from]} → ${places[ticket.to]}\n${ticket.platform} · Departure confirmed.`,[['Board the train',()=>{this.ticket=null;this.loadPlace(ticket.to);}]])]
-          ]);
-        }
-        break;
-      }
+      case 'local':case 'shinkansen':this.ticketGate(this.nearby() as Service);break;
       case 'staff':this.stationHelp();break;
       case 'shop':this.dialog('NewDays / ニューデイズ','The station’s convenience store: onigiri, ekiben, drinks and snacks.\nShopping, and spending those ¥1 and ¥5 coins, will come in a later version.');break;
       case 'westExit':case 'eastExit':{
         const west=this.nearby()==='westExit',station=stations[this.place as Hub],walk=west?undefined:station.walk;
-        this.dialog(west?'西口 / West exit':'東口 / East exit',`This way leads to ${station[west?'west':'east'][1]}.\nIt does not lead to the trains.`,walk?[[walk.label,()=>this.loadPlace(walk.east)]]:[['Check my ticket',()=>this.showTicket()]]);break;
+        this.dialog(west?'西口 / West exit':'東口 / East exit',`This way leads to ${station[west?'west':'east'][1]}.\nIt does not lead to the trains.`,walk?[[walk.label,()=>this.loadPlace(walk.east)]]:[['Check my ticket',()=>this.inventory()]]);break;
       }
       case 'return':{
         const hub=returnHub(this.place);
@@ -214,15 +208,36 @@ class Journey extends Phaser.Scene {
       default:this.dialog('Welcome to Japan','Tap the map to move, or tap a spot to walk there.\nKeyboard: arrows or WASD (ZQSD on AZERTY), E or Space to interact.\nGamepad: stick or D-pad, A to interact.\n\nTicket machines on the back wall.\nFollow the signs or ask at the ticket office.');
     }
   }
-  private showTicket(){
-    if(!this.ticket){this.dialog('Your ticket wallet','No ticket.\nLook for the きっぷ machines on the back wall.\nThe staff at the みどりの窓口 counter can help.');return;}
-    const ticket=this.ticket;
-    if(ticket.kind==='fare'){this.dialog('普通乗車券 / Fare ticket',`TOKYO → ¥${ticket.fare.toLocaleString('en-US')}\nJR · 1 adult · One way\nNo destination chosen at purchase.\nFind its fare on the map at the machines.`);return;}
-    this.dialog('乗車券 / Your ticket',`${ticket.from.toUpperCase()} → ${ticket.to.toUpperCase()}\n${ticket.line}\n${ticket.platform} · 1 adult · ¥${ticket.fare.toLocaleString('en-US')}\n${ticket.reservation?ticket.reservation.day+' · '+ticket.reservation.train+' · '+ticket.reservation.seat:ticket.service==='shinkansen'?'Shinkansen · one way':isHub(ticket.to)?'One way':'Return to hub included'}`);
+  /** The gates in first person: the ticket goes into the slot and is taken back at the far end, then the departures; a wrong one is handed back. */
+  private ticketGate(service:Service){
+    if(!isHub(this.place))return;
+    const hub=this.place;
+    this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);this.modal=this.add.container(0,0).setDepth(20);
+    const close=()=>{this.gate=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
+    this.gate=new TicketGate(hub,service,[...this.tickets],this.wallet,ticket=>ticket.from!==hub||ticket.service!==service?ticket.kind==='fare'?'This ticket is only valid on Tokyo local JR lines.':`Your ticket is for ${ticket.platform.toLowerCase()}.\nPick the matching platform or another ticket.`:'',{
+      pass:ticket=>{close();if(ticket.kind==='fare')this.tokyoDepartures(ticket);else this.departureBoard(ticket,service)},leave:close,
+    });
+  }
+  /** Past the gates: two trains announced, only one of them the ticket's. */
+  private departureBoard(ticket:RouteTicket,service:Service){
+    // From the network rather than the ticket, which may have waited in a machine's outlet since before the routes had their trains.
+    const {train:correct,decoy}=routes.find(route=>route.id===ticket.id)??ticket;
+    this.dialog(ticket.platform+' · 発車案内',`Two trains are announced.\nTicket: ${ticket.to.toUpperCase()} · ${ticket.line}\nCheck the destination before boarding.`,[
+      [decoy,()=>this.dialog('Wrong train',service==='shinkansen'?'This train is not in service.\nYour ticket is still valid.':'This departure does not serve your destination.\nYour ticket is still valid.',[['Read the board again',()=>this.departureBoard(ticket,service)]])],
+      [correct,()=>this.dialog(ticket.line,`${places[ticket.from]} → ${places[ticket.to]}\n${ticket.platform} · Departure confirmed.`,[['Board the train',()=>{this.useTicket(ticket);this.loadPlace(ticket.to);}]])]
+    ]);
+  }
+  private useTicket(ticket:TravelTicket){this.tickets=this.tickets.filter(t=>t!==ticket)}
+  /** The bag from the top band (or X): tickets and wallet, over the paused scene. */
+  private inventory(){
+    if(this.modal)return;
+    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
+    this.bag=openInventory(this.tickets,this.wallet,()=>{this.bag=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
   }
   private stationHelp(){
     const hub=isHub(this.place)?this.place:'tokyo';
-    const body=this.ticket?.kind==='fare'?`Your JR ticket is worth ¥${this.ticket.fare.toLocaleString('en-US')}.\nThe map at the machines shows each station’s fare.\nThen choose your trip at the local gates,\nright beside this office. A ticket that is too cheap is refused.`:this.ticket?`For ${this.ticket.to.toUpperCase()}, look for ${this.ticket.platform}.\n${this.ticket.service==='local'?'在来線 gates, right beside this office.':'新幹線 gates, on the far right.'}\nOn the board, check the line name too.\nThe 西口 and 東口 exits lead out of the station.`:`きっぷ: ticket machines on the back wall.\n在来線: local lines, ${platformFor(hub,'local')}, central gates beside this office.\n${hasShinkansen(hub)?`新幹線: Shinkansen, ${platformFor(hub,'shinkansen')}, gates on the far right.`:'No Shinkansen here: the far right is the NewDays.'}\nThe yellow signs point to the exits.`;
+    const hint=(t:TravelTicket)=>t.kind==='fare'?`¥${t.fare} ticket: read the fare map, then the local gates beside this office.`:`${t.to.toUpperCase()}: ${t.platform}, ${t.service==='local'?'在来線 gates beside this office':'新幹線 gates on the far right'}.`;
+    const body=this.tickets.length?`${this.tickets.slice(-3).map(hint).join('\n')}\nOn the board, check the line name too.\nA fare ticket that is too cheap is refused.`:`きっぷ: ticket machines on the back wall.\n在来線: local lines, ${platformFor(hub,'local')}, central gates beside this office.\n${hasShinkansen(hub)?`新幹線: Shinkansen, ${platformFor(hub,'shinkansen')}, gates on the far right.`:'No Shinkansen here: the far right is the NewDays.'}\nThe yellow signs point to the exits.`;
     const choices:[string,()=>void][]=[['Thanks, I’ll look',()=>{this.modal?.destroy(true);this.modal=null;}]];
     if(hub==='tokyo')choices.push(['Ask for a fare hint',()=>this.tokyoFareHint()]);
     this.dialog('駅員 / Station staff',body,choices);
@@ -238,9 +253,9 @@ class Journey extends Phaser.Scene {
     this.departures=openTokyoDepartures(station=>{
       close();
       if(ticket.fare<station.fare){
-        this.dialog('運賃不足 / Fare too low',`To ${station.en}: ¥${station.fare}.\nYour ticket: ¥${ticket.fare}.\nYou keep the ticket. Choose another amount.`,[['Back to the machine',()=>this.ticketTerminal('local')]]);return;
+        this.dialog('運賃不足 / Fare too low',`To ${station.en}: ¥${station.fare}.\nYour ticket: ¥${ticket.fare}.\nYou keep the ticket. Choose another amount.`);return;
       }
-      this.dialog(station.line,`TOKYO → ${station.en.toUpperCase()}\nFare: ¥${station.fare} · Ticket: ¥${ticket.fare}\n${ticket.fare>station.fare?'Ticket accepted. The overpayment is not refunded.':'The amount matches.'}`,[['Board the train',()=>{this.ticket=null;if(station.id==='kamakura'){this.loadPlace('kamakura');return;}this.currentStation=station;this.loadPlace('jr-stop');}]]);
+      this.dialog(station.line,`TOKYO → ${station.en.toUpperCase()}\nFare: ¥${station.fare} · Ticket: ¥${ticket.fare}\n${ticket.fare>station.fare?'Ticket accepted. The overpayment is not refunded.':'The amount matches.'}`,[['Board the train',()=>{this.useTicket(ticket);if(station.id==='kamakura'){this.loadPlace('kamakura');return;}this.currentStation=station;this.loadPlace('jr-stop');}]]);
     },close);
   }
   private ticketTerminal(service:Service='local'){
@@ -251,7 +266,7 @@ class Journey extends Phaser.Scene {
     this.hall=new MachineHall(hub,service,(kind,id)=>{
       if(this.machine&&this.machineId===id){this.machine.resume();return;}
       this.machine?.destroy();this.machineId=id;
-      this.machine=new TicketMachine(hub,kind,ticket=>{this.ticket=ticket},()=>{
+      this.machine=new TicketMachine(hub,kind,ticket=>{this.tickets.push(ticket)},()=>{
         this.machine=null;this.machineId=null;this.hall?.resume();this.input.keyboard?.resetKeys();
       },{fixedService:true,lookAtWall:()=>{this.machine?.suspend();this.hall?.resume(true);},wallet:this.wallet,onWallet:()=>this.refreshPurse(),trayKey:trayKey(hub,id)});
     },()=>{
@@ -260,7 +275,7 @@ class Journey extends Phaser.Scene {
       // The hall shows the concourse's own commuters, read live from their top-down sprites (the simulation keeps running under the hall).
       figures:()=>this.commuters.map(c=>({look:c.look,x:c.image.x,y:c.image.y,alpha:c.image.alpha,face:c.image.texture.key.split('-')[2] as Figure['face'],moving:!c.face&&!!c.steps.length&&!('wait' in c.steps[0])})),
       standAt:machine=>{this.hallSpot='machine'+machine},busy:machine=>this.inUse('machine'+machine),start:this.machineAhead(),
-    });
+    },hallView);
   }
   private refreshPurse(){const heavy=walkFactor(this.wallet)<1;this.purse.setText(`◉ ${coinCount(this.wallet)} coins${heavy?' · heavy':''}\n¥${walletTotal(this.wallet).toLocaleString('en-US')}`).setColor(heavy?'#ffb35a':'#e6ce98');}
   /** The purse: every coin beyond eight slows the walk. 1 and 5 yen coins are refused by ticket machines. */
@@ -397,7 +412,7 @@ class Journey extends Phaser.Scene {
       this.bump=Math.min(this.bump,.35);c.bump=Math.min(c.bump??1,.4);
       const push=(18-d)*.25/(d||1),nx=this.player.x+dx*push,ny=this.player.y+dy/1.6*push;if((x||y||this.path.length)&&d&&this.canWalk(nx,ny))this.player.setPosition(nx,ny);
     }
-    const speed=190*walkFactor(this.wallet)*this.bump*Math.min(delta,40)/1000;
+    const speed=380*walkFactor(this.wallet)*this.bump*Math.min(delta,40)/1000;
     if(this.path.length){
       let target=this.path[0];
       while(target&&Phaser.Math.Distance.Between(this.player.x,this.player.y,target.x,target.y)<=speed){
@@ -411,7 +426,7 @@ class Journey extends Phaser.Scene {
     if(this.canWalk(nx,this.player.y))this.player.x=nx;if(this.canWalk(this.player.x,ny))this.player.y=ny;
     this.moving=!!(x||y);this.walk+=delta;
     if(this.moving)this.facing=Math.abs(x)>Math.abs(y)?(x<0?'left':'right'):(y<0?'up':'down');
-    this.sprite.setTexture(`traveller-${this.facing}-${this.moving?Math.floor(this.walk/130)%3:0}`);
+    this.sprite.setTexture(`traveller-${this.facing}-${this.moving?Math.floor(this.walk/75)%3:0}`);
     const messages:Record<string,string>={ticket:'Buy a ticket',local:'在来線 改札',shinkansen:'新幹線 改札',shop:'NewDays',staff:'駅員 / Staff',westExit:'西口',eastExit:'東口',return:'Back to the station',photo:'Keep a memory'};
     const near=this.nearby(),frame=near?this.frameFor(near):null;
     if(this.pending&&near===this.pending){this.pending='';this.stopNavigation();this.interact();return}
