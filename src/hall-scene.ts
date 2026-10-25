@@ -70,23 +70,30 @@ function paintHanging(g:CanvasRenderingContext2D,w:number,h:number,o:{ja:string;
   if(o.arrow==='→')pixelText(g,'→',w-8-s/2,h/2,s,ink,'center',true);
 }
 /** Light-box travel posters for the game's own destinations. */
-function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakura'|'fuji'|'arashiyama'){
+function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakura'|'nikko'|'arashiyama'){
   let seed=place.length*977;const rand=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
   const ih=h-36;
-  if(place==='fuji'){
-    box(g,0,0,w,ih,'#a8d4e8');dither(g,0,0,w,Math.round(ih*.3),'#86bede');
-    const top=Math.round(ih*.24),base=Math.round(ih*.62),cx=Math.round(w/2);
-    for(let y=top;y<base;y++){const half=Math.round((y-top)*1.3+2);box(g,cx-half,y,half*2,1,'#56679a')}
-    for(let x=cx-26;x<cx+26;x++)box(g,x,Math.round(top+Math.abs(x-cx)/1.3),1,12+(x*13)%7,'#fbfbf6');
-    box(g,0,base-4,w,6,'#4c7a4a');box(g,0,base+2,w,ih-base-2,'#5f9cc4');
-    for(let y=base+5;y<ih;y+=4)box(g,Math.round(rand()*w*.6),y,Math.round(w*.3),1,'#9ccbe3');
-  }else if(place==='kamakura'){
+  if(place==='kamakura'){
     box(g,0,0,w,ih,'#f7ead2');dither(g,0,0,w,Math.round(ih*.35),'#f2d9c4');
     const ground=Math.round(ih*.78);box(g,0,ground-18,w,18,'#7c9a6a');box(g,0,ground,w,ih-ground,'#d9c9a3');
     // Temple hall: dark roof over red pillars.
     const cx=Math.round(w/2);for(let i=0;i<16;i++)box(g,cx-30-i,ground-60+i,60+2*i,1,'#4a4a52');
     box(g,cx-34,ground-44,68,44,'#b8503e');for(let x=cx-30;x<cx+30;x+=12)box(g,x,ground-44,3,44,'#8c3a2e');box(g,cx-38,ground-2,76,3,'#6b6258');
     for(let i=0;i<70;i++){const x=rand()<.5?rand()*w*.35:w-rand()*w*.35,y=rand()*ih*.7,r=3+rand()*6;for(let dy=-r;dy<=r;dy++){const half=Math.round(Math.sqrt(r*r-dy*dy));box(g,Math.round(x-half),Math.round(y+dy),half*2,1,rand()<.6?'#f2a7c0':'#f8c9d8')}}
+  }else if(place==='nikko'){
+    // Tōshō-gū's Yōmei-mon: a white and gold gate under green-black roofs, among tall cedars.
+    box(g,0,0,w,ih,'#dfe8e0');dither(g,0,0,w,Math.round(ih*.3),'#cddcd2');
+    for(const [x,top] of [[6,18],[24,8],[112,10],[130,22],[-4,40],[142,44]]){box(g,x-1,top+20,3,ih-top,'#5a3f2e');for(let y=top;y<ih-20;y+=3){const half=3+Math.round(((y-top)%24)/3);box(g,x-half,y,half*2+1,2,(y>>2)%2?'#2f5a3c':'#24482f')}}
+    const cx=Math.round(w/2),ground=Math.round(ih*.86);
+    for(let i=0;i<4;i++)box(g,cx-46-i*4,ground+i*5,92+i*8,5,i%2?'#b5b0a2':'#a29d90');box(g,0,ground+20,w,ih-ground-20,'#8f8a7e');
+    box(g,cx-36,ground-46,72,46,'#f4f0e4');box(g,cx-10,ground-36,20,36,'#2a2a2e');box(g,cx-12,ground-38,24,2,'#d8b04a');
+    for(const x of [cx-34,cx-22,cx+18,cx+30])box(g,x,ground-46,4,46,'#e8e1cf');
+    for(let x=cx-36;x<cx+36;x+=2)box(g,x,ground-50,2,4,['#c8463a','#3f8f6a','#3e6db0','#d8b04a'][(x>>1)%4]);
+    for(let i=0;i<8;i++)box(g,cx-44-i,ground-58+i,88+2*i,1,'#2f3a36');box(g,cx-52,ground-51,104,1,'#d8b04a');
+    box(g,cx-28,ground-82,56,24,'#f4f0e4');for(let x=cx-28;x<cx+28;x+=2)box(g,x,ground-86,2,4,['#d8b04a','#c8463a','#3f8f6a','#3e6db0'][(x>>1)%4]);
+    for(let x=cx-24;x<cx+24;x+=8)box(g,x,ground-78,4,16,'#d8b04a');
+    for(let i=0;i<12;i++)box(g,cx-30-i*2,ground-98+i,60+i*4,1,'#2f3a36');box(g,cx-54,ground-87,108,1,'#d8b04a');
+    box(g,cx-30,ground-100,60,2,'#2f3a36');box(g,cx-33,ground-102,3,4,'#d8b04a');box(g,cx+30,ground-102,3,4,'#d8b04a');
   }else{
     box(g,0,0,w,ih,'#b9d8a0');
     for(let x=0;x<w;){const sw=3+Math.round(rand()*2),color=['#4f8a4a','#6fa863','#3f6f3e'][Math.floor(rand()*3)];box(g,x,0,sw,ih,color);for(let y=Math.round(rand()*18);y<ih;y+=18)box(g,x,y,sw,1,'#a9cf8f');x+=sw+2+Math.round(rand()*5)}
@@ -94,7 +101,7 @@ function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakur
   }
   pixelText(g,'寄り道しよう。',8,12,11,'#283e40','left',true);
   box(g,0,ih,w,h-ih,'#fbfbf6');box(g,0,ih,w,2,'#c9c4a6');
-  const [ja,en]={kamakura:['鎌倉','Kamakura'],fuji:['河口湖','Kawaguchiko'],arashiyama:['嵐山','Arashiyama']}[place];
+  const [ja,en]={kamakura:['鎌倉','Kamakura'],nikko:['日光','Nikko'],arashiyama:['嵐山','Arashiyama']}[place];
   pixelText(g,ja,8,ih+13,16,C.ink,'left',true);pixelText(g,en,8,ih+28,9,'#65735a','left');pixelText(g,'JR線でどうぞ',w-6,ih+28,8,'#65735a','right');
 }
 /** The ticket office front: green sign band, glazed counters with clerks, an open door. */
@@ -114,18 +121,48 @@ function paintOffice(g:CanvasRenderingContext2D,w:number,h:number){
   for(let x=0;x<w;x+=bay)box(g,x,glassTop,3,plinth-glassTop,'#8f9e8b');
   box(g,0,plinth,w,h-plinth,'#3b4541');
 }
-interface Look {coat:string;pants:string;hair:string;bag?:string}
-const looks:Look[]=[{coat:'#2d3a4a',pants:'#262f3a',hair:'#1f1c1a',bag:'#3b2f28'},{coat:'#c9b38a',pants:'#3a3f48',hair:'#4a3426',bag:'#8a3b3b'},{coat:'#27324f',pants:'#27324f',hair:'#141414'},{coat:'#c25b4a',pants:'#5a6b86',hair:'#2b2420',bag:'#d9c06a'},{coat:'#7c8580',pants:'#3d4441',hair:'#9a9a96',bag:'#283e40'}];
+/** A commuter's outfit. `legs` is trousers, or tights under a skirt; `length` lets the coat reach the knees or, as a kimono, the feet. */
+interface Look {coat:string;legs:string;hair:string;style:'short'|'bob'|'long'|'bun'|'ponytail';skin?:string;skirt?:string;length?:'knee'|'robe';sash?:string;tie?:boolean;mask?:boolean;bag?:string;backpack?:boolean;cane?:boolean;height?:number;pace?:number}
+// Every figure in the hall gets its own look, so no one is seen twice.
+const looks:Look[]=[
+  {coat:'#2d3a4a',legs:'#262f3a',hair:'#1f1c1a',style:'short',tie:true,bag:'#3b2f28'},
+  {coat:'#c9b38a',legs:'#3a3f48',hair:'#4a3426',style:'long',length:'knee',bag:'#8a3b3b',height:.95},
+  {coat:'#27324f',legs:'#27324f',hair:'#141414',style:'short',height:.96},
+  {coat:'#c25b4a',legs:'#5a6b86',hair:'#2b2420',style:'short',bag:'#d9c06a',backpack:true},
+  {coat:'#7c8580',legs:'#3d4441',hair:'#b5b5ae',style:'short',cane:true,height:.95,pace:.7},
+  {coat:'#283e5a',legs:'#3a3436',hair:'#151515',style:'bob',skirt:'#5b6470',bag:'#c9b38a',height:.94},
+  {coat:'#2b3550',legs:'#e0b896',hair:'#1a1614',style:'ponytail',skirt:'#4f5f86',bag:'#5a3b2a',height:.92},
+  {coat:'#d98fa0',legs:'#2d2d33',hair:'#7a5236',style:'long',length:'knee',mask:true,bag:'#f4f1e4',height:.95},
+  {coat:'#6f8a5a',legs:'#4a5a78',hair:'#3a2a20',style:'ponytail',bag:'#7c8580',backpack:true,height:.96},
+  {coat:'#8d8f94',legs:'#2e3440',hair:'#24201c',style:'short',mask:true,bag:'#2e3440',backpack:true},
+  {coat:'#e8c440',legs:'#2b3550',hair:'#1a1614',style:'short',bag:'#b8503e',backpack:true,height:.62,pace:1.1},
+  {coat:'#b8503e',legs:'#f4f4ee',hair:'#141414',style:'bun',length:'robe',sash:'#e2c234',height:.93,pace:.8},
+  {coat:'#e8e2cf',legs:'#6b5a44',hair:'#1a1614',style:'short',skin:'#9c6b4a',bag:'#3a78c2',backpack:true,height:1.04},
+  {coat:'#3d4441',legs:'#3d4441',hair:'#141414',style:'long',mask:true,bag:'#283e40',height:.96},
+  {coat:'#7d6a8f',legs:'#8c7f76',hair:'#c9c9c2',style:'bun',skirt:'#5a5048',bag:'#4a3f3a',height:.9,pace:.75},
+];
 /** A commuter in four 20 × 48 frames: front step A/B, back step A/B. */
 function paintPerson(g:CanvasRenderingContext2D,look:Look){
-  const skin='#e9c4a0';
+  const skin=look.skin??'#e9c4a0',hair=look.hair;
   for(let f=0;f<4;f++){
     const o=f*20,back=f>1,step=f%2===1;
-    box(g,o+(step?6:7),30,3,step?15:16,look.pants);box(g,o+(step?11:10),30,3,16,look.pants);box(g,o+(step?5:6),45,4,2,'#2a2a2a');box(g,o+(step?11:10),46,4,2,'#2a2a2a');
+    box(g,o+(step?6:7),30,3,step?15:16,look.legs);box(g,o+(step?11:10),30,3,16,look.legs);box(g,o+(step?5:6),45,4,2,'#2a2a2a');box(g,o+(step?11:10),46,4,2,'#2a2a2a');
     box(g,o+5,14,10,17,look.coat);box(g,o+3,15,2,12,look.coat);box(g,o+15,15,2,12,look.coat);box(g,o+3,27,2,2,skin);box(g,o+15,27,2,2,skin);
-    if(!back){box(g,o+8,14,4,4,'#f4f4ee');box(g,o+9,15,2,5,'#6c3b3b')}
-    box(g,o+7,4,6,9,skin);box(g,o+7,3,6,back?9:3,look.hair);if(!back){box(g,o+6,4,1,4,look.hair);box(g,o+13,4,1,4,look.hair);box(g,o+8,8,1,1,'#283e40');box(g,o+11,8,1,1,'#283e40')}
-    if(look.bag)box(g,back?o+1:o+16,22,4,7,look.bag);
+    // Below the waist: a flared skirt, a coat down to the knees, or a kimono to the feet with its obi.
+    if(look.skirt)for(let y=30;y<38;y++){const k=Math.floor((y-30)/4);box(g,o+5-k,y,10+2*k,1,look.skirt)}
+    if(look.length==='knee')box(g,o+5,30,10,8,look.coat);
+    if(look.length==='robe'){box(g,o+5,30,10,15,look.coat);box(g,o+5,24,10,4,look.sash??look.coat);if(!back)box(g,o+8,14,4,3,'#f4f4ee')}
+    else if(!back&&look.tie){box(g,o+8,14,4,4,'#f4f4ee');box(g,o+9,15,2,5,'#6c3b3b')}else if(!back)box(g,o+8,14,4,2,skin);
+    if(look.backpack){if(back){box(g,o+5,15,10,12,look.bag!);box(g,o+6,16,8,1,'#ffffff33')}else{box(g,o+6,14,1,9,look.bag!);box(g,o+13,14,1,9,look.bag!)}}
+    else if(look.bag)box(g,back?o+1:o+16,22,4,7,look.bag);
+    if(look.cane)box(g,back?o+2:o+17,28,1,19,'#6b4a2e');
+    // Head and hair.
+    box(g,o+7,4,6,9,skin);
+    if(back)box(g,o+7,3,6,9,hair);else box(g,o+7,3,6,3,hair);
+    if(look.style==='bob'){if(back)box(g,o+6,3,8,10,hair);else{box(g,o+6,3,1,9,hair);box(g,o+13,3,1,9,hair)}}
+    else if(look.style==='long'){if(back)box(g,o+5,3,10,16,hair);else{box(g,o+5,4,2,13,hair);box(g,o+13,4,2,13,hair)}}
+    else{if(!back){box(g,o+6,4,1,4,hair);box(g,o+13,4,1,4,hair)}if(look.style==='bun')box(g,o+8,0,4,3,hair);if(look.style==='ponytail'&&back)box(g,o+9,10,2,9,hair)}
+    if(!back){box(g,o+8,8,1,1,'#283e40');box(g,o+11,8,1,1,'#283e40');if(look.mask)box(g,o+8,10,4,3,'#f4f4ee')}
   }
 }
 
@@ -154,7 +191,7 @@ export class HallScene {
   private walkers:{sprite:THREE.Sprite;x:number;from:number;to:number;speed:number;phase:number;dir:number}[]=[];
   constructor(private host:HTMLElement,private hub:Hub,devices:HallDevice[]){
     try{this.renderer=new THREE.WebGLRenderer({antialias:false,alpha:true,powerPreference:'low-power'})}
-    catch{const message=document.createElement('p');message.className='hall-no-webgl';message.textContent='WebGL est indisponible : utilisez les boutons ci-dessous pour choisir une borne.';host.append(message);return}
+    catch{const message=document.createElement('p');message.className='hall-no-webgl';message.textContent='WebGL is unavailable: use the buttons below to choose a machine.';host.append(message);return}
     this.css.domElement.className='hall-css3d';host.append(this.css.domElement);
     this.renderer.setPixelRatio(1);host.append(this.renderer.domElement);
     this.camera.rotation.order='YXZ';this.scene.background=new THREE.Color(C.haze);this.scene.fog=new THREE.Fog(C.haze,3200,8500);
@@ -204,11 +241,11 @@ export class HallScene {
   }
   /** What surrounds the bank: posters beside it, the ticket gates on the left, the ticket office on the right, overhead signs and commuters. */
   private buildConcourse(){
-    const poster=(x:number,z:number,place:'kamakura'|'fuji'|'arashiyama')=>{
+    const poster=(x:number,z:number,place:'kamakura'|'nikko'|'arashiyama')=>{
       const frame=new THREE.Mesh(new THREE.BoxGeometry(600,840,24),this.material(C.steel));frame.position.set(x,-1010,z+12);this.scene.add(frame);
       this.plane(560,800,this.material(this.texture(140,200,(g,w,h)=>paintPoster(g,w,h,place)))).position.set(x,-1010,z+25);
     };
-    poster(-280,0,'kamakura');poster(4080,0,'fuji');poster(8000,officeZ,'arashiyama');
+    poster(-280,0,'kamakura');poster(4080,0,'nikko');poster(8000,officeZ,'arashiyama');
     // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow.
     const gateFront=this.material(this.texture(28,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);box(g,0,0,w,10,C.gateTop);box(g,4,14,w-8,12,'#1d2622');pixelText(g,'↑',w/2,20,10,'#57c26a','center',true);box(g,0,h-10,w,10,'#9aa29a')}));
     const gateSide=this.material(this.texture(175,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);dither(g,0,h-14,w,4,C.bodyShade);box(g,0,0,w,10,C.gateTop);box(g,0,26,w,3,'#3a78c2');box(g,0,h-10,w,10,'#9aa29a');box(g,w/2-14,40,28,30,'#c9cdc4',C.bodyEdge)}));
@@ -227,12 +264,15 @@ export class HallScene {
     // Commuters: through the gates on the left, to and from the ticket office on the right; two stand still reading.
     const frames=looks.map(look=>this.texture(80,48,(g)=>{g.clearRect(0,0,80,48);paintPerson(g,look)},[.25,1]));
     const person=(look:number,x:number,z:number)=>{
-      const map=frames[look%frames.length].clone();map.repeat.set(.25,1);
-      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map,alphaTest:.5}));sprite.center.set(.5,0);sprite.scale.set(320,768,1);sprite.position.set(x,-floorY,z);this.scene.add(sprite);return sprite;
+      const map=frames[look].clone(),height=looks[look].height??1;map.repeat.set(.25,1);
+      const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map,alphaTest:.5}));sprite.center.set(.5,0);sprite.scale.set(320*height,768*height,1);sprite.position.set(x,-floorY,z);this.scene.add(sprite);return sprite;
     };
-    [[-1480,1],[-1840,-1],[-2560,1],[-3280,1],[-3640,-1]].forEach(([x,dir],i)=>this.walkers.push({sprite:person(i,x,0),x,from:backZ+300,to:frontZ,speed:520+i*37,phase:i*1900,dir}));
-    [[5500,-1],[6600,1],[7400,-1]].forEach(([x,dir],i)=>this.walkers.push({sprite:person(i+2,x,0),x,from:officeZ+60,to:frontZ,speed:480+i*45,phase:i*2300+700,dir}));
-    for(const [look,x,z] of [[1,-330,300],[4,6200,officeZ+220]])(person(look,x,z).material.map as THREE.Texture).offset.x=.5;
+    // The two standing figures take the last looks; the walkers share out the rest, one each.
+    const standing=[[looks.length-2,-330,300],[looks.length-1,6200,officeZ+220]];
+    const lanes=[[-1480,1,backZ+300,0],[-1840,-1,backZ+300,1900],[-2560,1,backZ+300,3800],[-3280,1,backZ+300,5700],[-3640,-1,backZ+300,1200],[-4000,1,backZ+300,4600],[-1480,-1,backZ+300,3500],[-2560,-1,backZ+300,200],
+      [5500,-1,officeZ+60,700],[6600,1,officeZ+60,3000],[7400,-1,officeZ+60,5300],[8200,1,officeZ+60,1500],[6600,-1,officeZ+60,4100]];
+    lanes.slice(0,standing[0][0]).forEach(([x,dir,from,phase],i)=>this.walkers.push({sprite:person(i,x,0),x,from,to:frontZ,speed:(480+(i*53)%160)*(looks[i].pace??1),phase,dir}));
+    for(const [look,x,z] of standing)(person(look,x,z).material.map as THREE.Texture).offset.x=.5;
   }
   private buildBoard(){
     const left=1238,top=120,w=1387,h=780,border=18;
@@ -250,7 +290,7 @@ export class HallScene {
         box(g,0,0,cw,ch,'#fffef2');pixelText(g,'京都駅 · のりば案内',cw-12,14,14,'#2d563e','right',true);
         const row=(y:number,line:string,color:string,destination:string)=>{g.fillStyle=color;g.fillRect(70,y,cw-180,4);box(g,58,y-4,12,12,'#fff',C.ink);box(g,cw-110,y-4,12,12,'#fff',C.ink);pixelText(g,'京都',40,y+2,13,C.ink);pixelText(g,line,(cw-40)/2,y-12,12,color,'center',true);pixelText(g,destination,cw-92,y+2,13,C.ink,'left')};
         row(70,'新幹線 SHINKANSEN','#2a6fb3','東京');row(130,'嵯峨野線 SAGANO','#b45843','嵐山 ¥240');
-        pixelText(g,'Plan tarifaire détaillé de Kyoto à venir.',12,ch-14,12,'#65735a','left');
+        pixelText(g,'Detailed Kyoto fare map coming soon.',12,ch-14,12,'#65735a','left');
       });
       const board=this.plane(w,h,this.material(texture));board.position.set(left+border+w/2,-(top+border+h/2),14.5);
     }
@@ -312,9 +352,10 @@ export class HallScene {
     if(!this.renderer)return;
     const w=Math.max(1,this.host.clientWidth),h=Math.max(1,this.host.clientHeight);
     // Same framing as the former CSS scene (perspective: 1000px), at about the game's 480px art width.
+    // A short viewport (phone in landscape) widens the view as if it were 560px tall, so a whole machine and the map's foot still fit.
     const scale=Math.max(1,Math.round(w/640));
     this.renderer.setSize(Math.ceil(w/scale),Math.ceil(h/scale),false);this.css.setSize(w,h);
-    this.camera.fov=2*Math.atan(h/2/1000)*180/Math.PI;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
+    this.camera.fov=2*Math.atan(Math.max(h,560)/2/1000)*180/Math.PI;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
   /** Highlights: yellow rim on the machine in front or the map looked at (A / E or a click uses it), white rim on another hovered machine. */
   setHover(id:string|null){this.hovered=id;this.refresh()}

@@ -1,14 +1,15 @@
 import { fareMapHeight, fareMapWidth, renderTokyoFareMap } from './tokyo-fares';
 import { HallScene } from './hall-scene';
+import { leftInTray, trayKey } from './ticket-machine';
 import type { Hub, Service } from './network';
 
 type DeviceKind=Service|'charge';
 interface Device {id:string;kind:DeviceKind;x:number;label:string}
 const devices:Device[]=[
-  {id:'tickets-01',kind:'local',x:450,label:'01 · きっぷ / Billets locaux'},
-  {id:'charge-02',kind:'charge',x:1050,label:'02 · チャージ専用 / Recharge IC'},
-  {id:'tickets-03',kind:'local',x:1650,label:'03 · きっぷ / Billets locaux'},
-  {id:'charge-04',kind:'charge',x:2250,label:'04 · チャージ専用 / Recharge IC'},
+  {id:'tickets-01',kind:'local',x:450,label:'01 · きっぷ / Local tickets'},
+  {id:'charge-02',kind:'charge',x:1050,label:'02 · チャージ専用 / IC charge'},
+  {id:'tickets-03',kind:'local',x:1650,label:'03 · きっぷ / Local tickets'},
+  {id:'charge-04',kind:'charge',x:2250,label:'04 · チャージ専用 / IC charge'},
   {id:'express-05',kind:'shinkansen',x:2850,label:'05 · 新幹線 / Shinkansen'},
 ];
 // How close to and far from the machines the player can stand: near enough to read the payment faces, never so far that the hall's edges show.
@@ -31,6 +32,9 @@ export class MachineHall {
   private disposed=false;
   private notice:HTMLElement|null=null;
   private mapDetail:HTMLElement|null=null;
+  // The machine whose screen opened the enlarged map, so closing it goes back to that screen.
+  private mapFrom:Device|null=null;
+  private mapZoom:((factor:number,clientX?:number,clientY?:number)=>void)|null=null;
   private x=1900;
   private targetX=1900;
   private yaw=0;
@@ -42,14 +46,14 @@ export class MachineHall {
   private previousFocus=document.activeElement as HTMLElement|null;
   constructor(private hub:Hub,initial:Service,private open:(service:Service,id:string)=>void,private exit:()=>void){
     if(initial==='shinkansen')this.x=this.targetX=3100;
-    this.overlay.className='machine-hall';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','Devant les distributeurs de billets');
+    this.overlay.className='machine-hall';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','In front of the ticket machines');
     const header=this.el(this.overlay,'header','','hall-header');
     this.el(header,'div',`${hub==='tokyo'?'東京 TOKYO':'京都 KYOTO'} / きっぷうりば`,'hall-heading');
-    this.button(header,'Retour au hall',()=>this.close(),'hall-exit');
-    this.viewport.className='hall-viewport';this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label','Regarder autour en glissant. Flèches gauche et droite pour se déplacer, haut et bas pour s’approcher ou s’éloigner.');
+    this.button(header,'Back to the hall',()=>this.close(),'hall-exit');
+    this.viewport.className='hall-viewport';this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label','Drag to look around. Left and right arrows to move sideways, up and down to step closer or back.');
     this.overlay.append(this.viewport);this.scene=new HallScene(this.viewport,hub,devices);
     const bottom=this.el(this.overlay,'div','','hall-bottom');bottom.append(this.position,this.status);
-    this.el(this.overlay,'p','Glisser ou R / F : tourner la tête · Flèches / ZQSD : se déplacer · Molette : distance · Clic, E ou A : utiliser · Manette : sticks · B / Échap : retour','hall-help');
+    this.el(this.overlay,'p','Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
     this.overlay.addEventListener('keydown',this.keydown);this.overlay.addEventListener('keyup',this.keyup);
     this.overlay.addEventListener('focusout',()=>this.keys.clear());
     window.addEventListener('blur',this.blur);
@@ -79,78 +83,74 @@ export class MachineHall {
   }
   private chargeNotice(){
     this.keys.clear();
-    this.notice=this.el(this.overlay,'section','','charge-notice');this.notice.setAttribute('role','alertdialog');this.notice.setAttribute('aria-label','Recharge de carte IC');
+    this.notice=this.el(this.overlay,'section','','charge-notice');this.notice.setAttribute('role','alertdialog');this.notice.setAttribute('aria-label','IC card charge');
     this.el(this.notice,'span','チャージ専用 / IC CARD CHARGE','charge-eyebrow');
-    this.el(this.notice,'h2','カードを入れてください');this.el(this.notice,'p','Insérez votre carte IC pour recharger.');
+    this.el(this.notice,'h2','カードを入れてください');this.el(this.notice,'p','Insert your IC card to charge it.');
     this.el(this.notice,'div','IC','charge-card-illustration');
-    this.el(this.notice,'p','Vous n’avez pas de carte IC. Cette borne ne vend pas de carte : la recharge est indisponible.');
-    this.button(this.notice,'Acheter une carte · plus tard',()=>{}).disabled=true;
-    this.button(this.notice,'Revenir devant les machines',()=>this.closeNotice(),'charge-back').focus();
+    this.el(this.notice,'p','You have no IC card. This machine does not sell cards, so charging is unavailable.');
+    this.button(this.notice,'Buy a card · coming later',()=>{}).disabled=true;
+    this.button(this.notice,'Back to the machines',()=>this.closeNotice(),'charge-back').focus();
   }
   private closeNotice(){this.notice?.remove();this.notice=null;this.viewport.focus();}
   private openMapDetail(){
     if(this.mapDetail||this.hub!=='tokyo')return;
     this.keys.clear();
     const detail=this.el(this.overlay,'section','','hall-map-detail');
-    detail.setAttribute('role','dialog');detail.setAttribute('aria-modal','true');detail.setAttribute('aria-label','Plan JR détaillé');
+    detail.setAttribute('role','dialog');detail.setAttribute('aria-modal','true');detail.setAttribute('aria-label','Detailed JR map');
     this.mapDetail=detail;
     const toolbar=this.el(detail,'div','','hall-map-detail-toolbar');
     this.el(toolbar,'strong','東京駅から · JR線近距離きっぷ運賃表');
-    const lineSelect=document.createElement('select');lineSelect.setAttribute('aria-label','Filtrer les noms par ligne');toolbar.append(lineSelect);
-    for(const [name,color] of [['Toutes les gares',''],['山手線','#77b92e'],['中央線','#f26826'],['高崎・宇都宮線','#f27a24'],['宇都宮・埼京線','#00a9ad'],['常磐線','#087abc'],['総武線','#e8c600'],['東海道線','#ef8b25'],['京葉線','#c85465']]){
-      const option=document.createElement('option');option.value=color;option.textContent=name;lineSelect.append(option);
-    }
-    const selected=this.el(toolbar,'span','Toutes les gares sont affichées. Touchez un arrêt pour lire son nom.','hall-map-selected');
+    this.el(toolbar,'span','Wheel, pinch or LT / RT: zoom · drag or sticks: move','hall-map-selected');
     const viewport=this.el(detail,'div','','hall-map-canvas');viewport.tabIndex=0;
-    viewport.setAttribute('aria-label','Plan JR à déplacer horizontalement et verticalement');
+    viewport.setAttribute('aria-label','JR map, drag horizontally and vertically');
     const diagram=renderTokyoFareMap();viewport.append(diagram);
-    lineSelect.onchange=()=>{
-      diagram.querySelectorAll<SVGTextElement>('.fare-map-detail').forEach(text=>text.style.display=!lineSelect.value||text.dataset.line===lineSelect.value?'':'none');
-      selected.textContent=lineSelect.value?'Noms de la ligne sélectionnée. Touchez un arrêt pour le lire.':'Toutes les gares sont affichées. Touchez un arrêt pour lire son nom.';
-    };
-    diagram.addEventListener('click',event=>{
-      const marker=(event.target as Element).closest<SVGElement>('[data-name]');
-      if(!marker)return;
-      const fare=marker.getAttribute('data-fare');
-      selected.textContent=marker.getAttribute('data-name')!+(fare?` · ¥${Number(fare).toLocaleString('en-US')}`:' · tarif non renseigné');
-    });
+    // Zooming out stops once the whole map fits; the point under the cursor (or the centre) stays in place.
     let zoom=1;
     const size=()=>{diagram.style.width=`${fareMapWidth*zoom}px`;diagram.style.height=`${fareMapHeight*zoom}px`};
-    const changeZoom=(factor:number)=>{
-      const old=zoom;zoom=clamp(zoom*factor,.55,2.2);
-      const centerX=viewport.scrollLeft+viewport.clientWidth/2,centerY=viewport.scrollTop+viewport.clientHeight/2;
-      size();viewport.scrollLeft=centerX*zoom/old-viewport.clientWidth/2;viewport.scrollTop=centerY*zoom/old-viewport.clientHeight/2;
+    const changeZoom=(factor:number,clientX?:number,clientY?:number)=>{
+      const view=viewport.getBoundingClientRect(),before=diagram.getBoundingClientRect();
+      const x=clientX??view.left+view.width/2,y=clientY??view.top+view.height/2;
+      const old=zoom;zoom=clamp(zoom*factor,Math.min(viewport.clientWidth/fareMapWidth,viewport.clientHeight/fareMapHeight),2.2);if(zoom===old)return;
+      size();const after=diagram.getBoundingClientRect();
+      viewport.scrollLeft+=after.left+(x-before.left)*zoom/old-x;viewport.scrollTop+=after.top+(y-before.top)*zoom/old-y;
     };
-    this.button(toolbar,'−',()=>changeZoom(.8));
-    this.button(toolbar,'+',()=>changeZoom(1.25));
-    this.button(toolbar,'Fermer',()=>this.closeMapDetail());
-    let drag:{id:number;x:number;y:number;left:number;top:number;moved:boolean}|null=null;
-    viewport.addEventListener('pointerdown',event=>{
-      if(event.pointerType!=='mouse')return;
-      drag={id:event.pointerId,x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop,moved:false};
-    });
+    this.mapZoom=changeZoom;
+    viewport.addEventListener('wheel',event=>{event.preventDefault();changeZoom(Math.exp(-event.deltaY*(event.deltaMode===1?16:1)*.0015),event.clientX,event.clientY)},{passive:false});
+    this.button(toolbar,'Close',()=>this.closeMapDetail());
+    // One finger or the mouse drags the map; two fingers pinch to zoom around their midpoint and pan with it.
+    const pointers=new Map<number,{x:number;y:number}>();let moved=false;
+    const spread=()=>{const [a,b]=[...pointers.values()];return {d:Math.hypot(a.x-b.x,a.y-b.y),x:(a.x+b.x)/2,y:(a.y+b.y)/2}};
+    viewport.addEventListener('pointerdown',event=>{pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});if(pointers.size===1)moved=false});
     viewport.addEventListener('pointermove',event=>{
-      if(!drag||event.pointerId!==drag.id)return;
-      if(!drag.moved&&Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>4){drag.moved=true;viewport.setPointerCapture(event.pointerId)}
-      if(drag.moved){viewport.scrollLeft=drag.left+drag.x-event.clientX;viewport.scrollTop=drag.top+drag.y-event.clientY}
+      const last=pointers.get(event.pointerId);if(!last)return;
+      const before=pointers.size===2?spread():null;
+      if(!moved&&Math.hypot(event.clientX-last.x,event.clientY-last.y)>4){moved=true}
+      if(!moved)return;
+      if(!viewport.hasPointerCapture(event.pointerId))viewport.setPointerCapture(event.pointerId);
+      if(!before){viewport.scrollLeft+=last.x-event.clientX;viewport.scrollTop+=last.y-event.clientY}
+      pointers.set(event.pointerId,{x:event.clientX,y:event.clientY});
+      if(before){const after=spread();if(before.d>0)changeZoom(after.d/before.d,after.x,after.y);viewport.scrollLeft+=before.x-after.x;viewport.scrollTop+=before.y-after.y}
     });
-    viewport.addEventListener('pointerup',()=>drag=null);viewport.addEventListener('pointercancel',()=>drag=null);
+    for(const type of ['pointerup','pointercancel'])viewport.addEventListener(type,event=>pointers.delete((event as PointerEvent).pointerId));
     size();
     requestAnimationFrame(()=>{viewport.scrollLeft=1185-viewport.clientWidth/2;viewport.scrollTop=610-viewport.clientHeight/2});
     toolbar.querySelector<HTMLButtonElement>('button:last-child')?.focus();
   }
-  private closeMapDetail(){this.mapDetail?.remove();this.mapDetail=null;this.viewport.focus();}
+  private closeMapDetail(){
+    this.mapDetail?.remove();this.mapDetail=null;this.mapZoom=null;this.lookAtMachines();this.viewport.focus();
+    const device=this.mapFrom;this.mapFrom=null;if(device&&device.kind!=='charge'){this.pause();this.open(device.kind,device.id);}
+  }
   lookAtMap(){this.pitch=16;this.yaw=0;}
   private lookAtMachines(){this.pitch=-5;this.yaw=0;}
   pause(){this.paused=true;this.overlay.hidden=true;this.keys.clear();this.drag=null;}
-  resume(map=false){if(this.disposed)return;this.paused=false;this.overlay.hidden=false;this.lastPadButtons=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];if(map)this.lookAtMap();else this.lookAtMachines();this.viewport.focus();}
+  resume(map=false){if(this.disposed)return;this.paused=false;this.overlay.hidden=false;this.lastPadButtons=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];if(map){this.lookAtMap();this.viewport.focus();this.openMapDetail();if(this.mapDetail)this.mapFrom=this.nearest();}else{this.lookAtMachines();this.viewport.focus();}}
   destroy(){if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.frame);this.scene.dispose();window.removeEventListener('blur',this.blur);this.overlay.remove();this.previousFocus?.focus();}
   private close(){this.destroy();this.exit();}
   private blur=()=>{this.keys.clear();this.drag=null;};
   private keydown=(event:KeyboardEvent)=>{
     event.stopPropagation();
     if(event.key==='Tab'){
-      const selector=this.mapDetail?'.hall-map-detail button:not(:disabled), .hall-map-detail select, .hall-map-canvas':this.notice?'.charge-notice button:not(:disabled)':'button:not(:disabled), .hall-viewport';
+      const selector=this.mapDetail?'.hall-map-detail button:not(:disabled), .hall-map-canvas':this.notice?'.charge-notice button:not(:disabled)':'button:not(:disabled), .hall-viewport';
       const all=Array.from(this.overlay.querySelectorAll<HTMLElement>(selector));
       if(event.shiftKey&&document.activeElement===all[0]){event.preventDefault();all.at(-1)?.focus()}else if(!event.shiftKey&&document.activeElement===all.at(-1)){event.preventDefault();all[0]?.focus()}return;
     }
@@ -199,6 +199,12 @@ export class MachineHall {
         const pressed=pad.buttons.map(b=>b.pressed);
         if(pressed[0]&&!this.lastPadButtons[0]){if(this.notice)this.closeNotice();else if(!this.mapDetail)this.activate()}
         if(pressed[1]&&!this.lastPadButtons[1]){if(this.mapDetail)this.closeMapDetail();else if(this.notice)this.closeNotice();else this.close()}
+        // On the enlarged map, the triggers zoom (LT out, RT in) and either stick pans.
+        if(this.mapDetail&&this.mapZoom){
+          const zoomIn=(pad.buttons[7]?.value??0)-(pad.buttons[6]?.value??0);if(Math.abs(zoomIn)>.05)this.mapZoom(Math.exp(zoomIn*1.6*dt));
+          const canvas=this.mapDetail.querySelector<HTMLElement>('.hall-map-canvas')!;
+          canvas.scrollLeft+=(dead(pad.axes[0]??0)+dead(pad.axes[2]??0))*900*dt;canvas.scrollTop+=(dead(pad.axes[1]??0)+dead(pad.axes[3]??0))*900*dt;
+        }
         if(!this.notice&&!this.mapDetail){if(pressed[14])strafe-=1;if(pressed[15])strafe+=1;if(pressed[12])vertical+=1;if(pressed[13])vertical-=1}
         this.lastPadButtons=pressed;
       }
@@ -209,7 +215,7 @@ export class MachineHall {
       const free=!this.notice&&!this.mapDetail;
       this.scene.render(this.x,this.yaw,this.pitch,this.distance,free&&this.facingMap()?'map':free&&this.facingMachines()?nearest.id:null);
       this.position.textContent=nearest.label;
-      this.status.textContent=this.facingMap()?'Plan au mur · clic, E ou A : lire les gares':this.pitch>10?'Plan au mur · décalez-vous pour suivre les lignes':nearest.kind==='charge'?'Carte IC nécessaire · aucune carte détenue':'Cliquer la borne ou E / A : utiliser · glisser pour regarder autour';
+      this.status.textContent=this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?'Wall map · move sideways to follow the lines':nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':'Click the machine or E / A: use · drag to look around';
       this.overlay.dataset.machine=nearest.id;this.overlay.dataset.x=this.x.toFixed(1);this.overlay.dataset.pitch=this.pitch.toFixed(1);this.overlay.dataset.yaw=this.yaw.toFixed(1);
       this.overlay.dataset.mapDetail=String(this.pitch>10&&this.distance<=700);
     }

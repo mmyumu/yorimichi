@@ -6,7 +6,7 @@ const C={grass:'#92ad70',dark:'#344c42',leaf:'#497452',light:'#86a466',cream:'#e
 export function makeArt(scene:Phaser.Scene){
   makeHubs(scene);
   makeJrStop(scene);
-  for(const place of ['kamakura','kawaguchiko','arashiyama']){
+  for(const place of ['kamakura','arashiyama']){
     const texture=scene.textures.createCanvas('map-'+place,480,320)!;
     const g=texture.context;
     const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)};
@@ -37,38 +37,24 @@ export function makeArt(scene:Phaser.Scene){
     r(0,0,480,320,C.grass);
     for(let i=0;i<2300;i++){const x=Math.floor(rand()*480),y=35+Math.floor(rand()*265);r(x,y,rand()>.7?2:1,1,['#86a36b','#9eb77a','#adc183'][i%3])}
     for(let i=0;i<85;i++){const x=Math.floor(rand()*480),y=40+Math.floor(rand()*240);r(x,y,1,3,'#6e925a');r(x-1,y-1,1,2,'#79975d')}
-    if(place==='kamakura'||place==='arashiyama'){
-      paving(210,130,47,156);paving(56,192,338,32);
-      for(let y=156;y<274;y+=15){r(218,y,30,10,'#b7b79a');r(221,y+1,24,7,'#d3cfac')}
-      shadow(173,131,119);r(179,77,105,55,'#a3815b');r(185,83,93,45,'#d5bb87');for(let x=187;x<281;x+=14)r(x,86,3,44,'#785a44');
-      roof(166,57,132,26);roof(180,47,105,10);r(219,100,28,31,'#514d3c');r(224,102,2,28,'#aa8560');r(239,102,2,28,'#aa8560');r(215,130,36,4,'#b9a780');lantern(196,93);lantern(266,93);
-      for(let y=136;y<150;y+=4)r(173-(y-136)/2,y,122+(y-136),3,'#b1ac92');
-      // Curved torii silhouette and stone lanterns.
-      r(131,136,9,53,'#b45843');r(320,136,9,53,'#b45843');r(128,134,205,7,'#bb6349');r(123,130,215,5,'#48554b');r(126,128,13,3,'#48554b');r(322,128,13,3,'#48554b');r(137,147,187,4,'#b45843');r(225,136,7,17,'#9c4939');r(222,139,13,11,'#d4ba78');
-      for(const x of [187,278]){r(x,174,5,18,'#8d9780');r(x-4,190,13,4,'#a9ad90');r(x-5,166,15,3,'#677b6c');r(x-2,169,9,6,'#d8c69a');r(x,171,5,3,'#6e7a62');r(x-1,160,7,5,'#a6ad8e')}
-      for(const [x,y] of [[34,87],[89,118],[53,180],[380,100],[437,151],[415,250],[57,266],[142,281]])tree(x,y,place==='kamakura');
-      if(place==='arashiyama'){
-        for(const base of [4,60,370,425])for(let i=0;i<8;i++){const x=base+i*5,y=95+(i%3)*12;r(x,y,3,95,'#59805a');r(x+1,y,1,95,'#a2b073');for(let yy=y+7;yy<y+90;yy+=13){r(x,yy,3,1,'#344f42');r(x-5,yy-4,7,2,'#668b59');r(x+2,yy+2,6,2,'#71965f')}}
-        text(204,91,'嵐山','#edd7a4',10);
-      }
-      fence(18,229,134);fence(330,229,132);bench(272,248);flowers(302,238);lamp(98,225);
-      for(let i=0;i<65;i++)r(105+Math.floor(rand()*270),180+Math.floor(rand()*101),2,1,'#efd1b3');
-      r(328,107,30,47,'#807454');roof(324,101,38,7);text(334,118,'絵馬','#f2dfb5',7);for(let i=0;i<9;i++)r(332+(i%3)*7,124+Math.floor(i/3)*8,5,6,'#d2b17b');
-    }else{
-      r(0,35,480,112,'#c3d6ce');r(0,35,480,33,'#b3cbca');
-      // Distant hills and stepped mountain, deliberately raster silhouettes.
-      for(let x=0;x<480;x+=4){const h=15+Math.sin(x/33)*9+Math.sin(x/17)*4;r(x,133-h,4,h+14,'#8eaaa0')}
-      for(let y=48;y<143;y+=2){const spread=(y-48)*1.14;r(242-spread,y,spread*2+4,2,y<76?'#ece8cf':y<105?'#9baeb0':'#8b9fa5');if(y>68&&y<83)for(let j=0;j<3;j++)r(225+j*15+(y%6),y,6,2,'#b7c3be')}
-      r(0,141,480,48,'#6f9c9b');r(0,141,480,2,'#bacab6');for(let i=0;i<210;i++){const y=145+Math.floor(rand()*43),x=Math.floor(rand()*480);r(x,y,3+Math.floor(rand()*15),1,i%3?'#88b0a7':'#b5c6b0')}
-      for(let y=147;y<184;y+=3){const w=35+(y-147)*.7;r(241-w/2,y,w,1,'#a6beb2')}
-      r(0,187,480,6,'#b4bc94');paving(0,196,480,26);paving(213,220,41,64);
-      r(269,171,57,33,'#9c8058');for(let y=173;y<203;y+=4)r(269,y,57,1,'#d0aa74');for(let x=270;x<328;x+=53){r(x,165,3,40,'#6b6850');r(x-1,164,5,2,'#d3c39a')}r(271,178,54,2,'#6b6850');r(274,202,3,6,'#6b6850');r(320,202,3,6,'#6b6850');
-      for(const [x,y] of [[27,250],[74,280],[145,275],[394,269],[452,242],[473,291]])tree(x,y);
-      bench(285,247);flowers(240,264);lamp(188,245);fence(0,185,249);fence(338,185,142);
-      r(414,161,25,9,'#c3b58a');r(418,158,18,5,'#e5d4a2');r(426,153,1,8,'#657c70');r(411,170,32,1,'#b3c9b6');
+    paving(210,130,47,156);paving(56,192,338,32);
+    for(let y=156;y<274;y+=15){r(218,y,30,10,'#b7b79a');r(221,y+1,24,7,'#d3cfac')}
+    shadow(173,131,119);r(179,77,105,55,'#a3815b');r(185,83,93,45,'#d5bb87');for(let x=187;x<281;x+=14)r(x,86,3,44,'#785a44');
+    roof(166,57,132,26);roof(180,47,105,10);r(219,100,28,31,'#514d3c');r(224,102,2,28,'#aa8560');r(239,102,2,28,'#aa8560');r(215,130,36,4,'#b9a780');lantern(196,93);lantern(266,93);
+    for(let y=136;y<150;y+=4)r(173-(y-136)/2,y,122+(y-136),3,'#b1ac92');
+    // Curved torii silhouette and stone lanterns.
+    r(131,136,9,53,'#b45843');r(320,136,9,53,'#b45843');r(128,134,205,7,'#bb6349');r(123,130,215,5,'#48554b');r(126,128,13,3,'#48554b');r(322,128,13,3,'#48554b');r(137,147,187,4,'#b45843');r(225,136,7,17,'#9c4939');r(222,139,13,11,'#d4ba78');
+    for(const x of [187,278]){r(x,174,5,18,'#8d9780');r(x-4,190,13,4,'#a9ad90');r(x-5,166,15,3,'#677b6c');r(x-2,169,9,6,'#d8c69a');r(x,171,5,3,'#6e7a62');r(x-1,160,7,5,'#a6ad8e')}
+    for(const [x,y] of [[34,87],[89,118],[53,180],[380,100],[437,151],[415,250],[57,266],[142,281]])tree(x,y,place==='kamakura');
+    if(place==='arashiyama'){
+      for(const base of [4,60,370,425])for(let i=0;i<8;i++){const x=base+i*5,y=95+(i%3)*12;r(x,y,3,95,'#59805a');r(x+1,y,1,95,'#a2b073');for(let yy=y+7;yy<y+90;yy+=13){r(x,yy,3,1,'#344f42');r(x-5,yy-4,7,2,'#668b59');r(x+2,yy+2,6,2,'#71965f')}}
+      text(204,91,'嵐山','#edd7a4',10);
     }
+    fence(18,229,134);fence(330,229,132);bench(272,248);flowers(302,238);lamp(98,225);
+    for(let i=0;i<65;i++)r(105+Math.floor(rand()*270),180+Math.floor(rand()*101),2,1,'#efd1b3');
+    r(328,107,30,47,'#807454');roof(324,101,38,7);text(334,118,'絵馬','#f2dfb5',7);for(let i=0;i<9;i++)r(332+(i%3)*7,124+Math.floor(i/3)*8,5,6,'#d2b17b');
     if(place!=='station'){
-      r(58,172,3,23,'#786b4f');r(51,171,52,16,'#455e50');r(53,173,48,12,'#e1d0a1');text(58,182,'← GARE','#4b6152',7);camera(345,195);
+      r(58,172,3,23,'#786b4f');r(51,171,52,16,'#455e50');r(53,173,48,12,'#e1d0a1');text(58,182,'← STATION','#4b6152',7);camera(345,195);
       for(const [x,y] of [[8,309],[64,311],[182,311],[305,310],[380,312],[467,310]])tree(x,y,place==='kamakura');
     }
     texture.refresh();
