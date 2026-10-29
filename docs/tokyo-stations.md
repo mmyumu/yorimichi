@@ -9,7 +9,7 @@ Developer cheat sheet for the wall map in the ticket hall (`src/tokyo-fares.ts`)
 | ¥160 | 神田 Kanda, 秋葉原 Akihabara, 御徒町 Okachimachi, **新橋 Shimbashi**, 有楽町 Yurakucho, 御茶ノ水 Ochanomizu, 新日本橋 Shin-Nihombashi, 馬喰町 Bakurocho, 八丁堀 Hatchobori, 越中島 Etchujima |
 | ¥200 | **上野 Ueno**, 鶯谷 Uguisudani, 日暮里 Nippori, 高輪ゲートウェイ Takanawa Gateway, 田町 Tamachi, 浜松町 Hamamatsucho, 錦糸町 Kinshicho, 潮見 Shiomi |
 | ¥210 | 西日暮里 Nishi-Nippori, 田端 Tabata, 駒込 Komagome, 巣鴨 Sugamo, 代々木 Yoyogi, 五反田 Gotanda, 大崎 Osaki, **品川 Shinagawa**, 四ツ谷 Yotsuya, 尾久 Oku, **新小岩 Shin-Koiwa**, 新木場 Shin-Kiba |
-| ¥260 | 大塚 Otsuka, **池袋 Ikebukuro**, 目白 Mejiro, 高田馬場 Takadanobaba, 新大久保 Shin-Okubo, **新宿 Shinjuku**, 原宿 Harajuku, **渋谷 Shibuya**, 恵比寿 Ebisu, 目黒 Meguro, 中野 Nakano, **赤羽 Akabane**, 板橋 Itabashi, 北千住 Kita-Senju, 小岩 Koiwa, 葛西臨海公園 Kasai-Rinkai-Koen, 舞浜 Maihama |
+| ¥260 | 大塚 Otsuka, **池袋 Ikebukuro**, 目白 Mejiro, 高田馬場 Takadanobaba, 新大久保 Shin-Okubo, **新宿 Shinjuku**, 原宿 Harajuku, **渋谷 Shibuya**, 恵比寿 Ebisu, 目黒 Meguro, 中野 Nakano, 東中野 Higashi-Nakano, **赤羽 Akabane**, 板橋 Itabashi, 北千住 Kita-Senju, 小岩 Koiwa, 葛西臨海公園 Kasai-Rinkai-Koen, 舞浜 Maihama |
 | ¥350 | 高円寺 Koenji, 阿佐ケ谷 Asagaya, 荻窪 Ogikubo, 蕨 Warabi, 西川口 Nishi-Kawaguchi, 川口 Kawaguchi, 十条 Jujo, 市川 Ichikawa, 本八幡 Motoyawata, 下総中山 Shimosa-Nakayama, 新浦安 Shin-Urayasu, 市川塩浜 Ichikawashiohama, **川崎 Kawasaki** |
 | ¥440 | 西荻窪 Nishi-Ogikubo, **吉祥寺 Kichijoji**, 三鷹 Mitaka, **浦和 Urawa**, 南浦和 Minami-Urawa, 松戸 Matsudo, 西船橋 Nishi-Funabashi, **船橋 Funabashi**, 東船橋 Higashi-Funabashi |
 | ¥530 | 武蔵境 Musashi-Sakai, 東小金井 Higashi-Koganei, 武蔵小金井 Musashi-Koganei, さいたま新都心 Saitama-Shintoshin, 与野 Yono, 北浦和 Kita-Urawa, 津田沼 Tsudanuma, 幕張本郷 Makuharihongo, 南船橋 Minami-Funabashi, 新習志野 Shin-Narashino, **横浜 Yokohama** |
@@ -314,6 +314,7 @@ Mitaka → Chiba, stopping where rail.ts says.
 | 阿佐ケ谷 | Asagaya | 17.3 | ¥350 |
 | 高円寺 | Koenji | 16.1 | ¥350 |
 | 中野 | Nakano | 14.7 | ¥260 |
+| 東中野 | Higashi-Nakano | 12.8 | ¥260 |
 | **新宿** | **Shinjuku** | 10.3 | **¥260** |
 | 代々木 | Yoyogi | 9.6 | ¥210 |
 | 四ツ谷 | Yotsuya | 6.6 | ¥210 |

@@ -186,7 +186,7 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 /* The traveller's phone (phone.ts): an Android-like handset raised on the right, the messaging app inside, and Lorenzo's flight. */
 .phone-overlay{position:fixed;inset:0;z-index:95;display:grid;align-items:center;justify-items:end;padding:0 max(16px,7vw);background:#0c1c1780;font-family:'Yorimichi Pixel','Yorimichi JP',monospace;letter-spacing:.5px}
 @media(max-width:600px){.phone-overlay{justify-items:center;padding:0 16px}}
-.phone{height:min(600px,92vh);aspect-ratio:9/18;display:flex;flex-direction:column;background:#161c1f;border:3px solid #39464c;border-radius:22px;padding:10px 8px 6px;box-shadow:inset 2px 2px 0 #4b5b62,6px 8px 0 #0008;animation:phone-up .18s ease-out}
+.phone{height:min(600px,92vh);width:min(300px,46vh);max-width:100%;min-width:0;display:flex;flex-direction:column;background:#161c1f;border:3px solid #39464c;border-radius:22px;padding:10px 8px 6px;box-shadow:inset 2px 2px 0 #4b5b62,6px 8px 0 #0008;animation:phone-up .18s ease-out}
 @keyframes phone-up{from{transform:translateY(40px);opacity:0}}
 .phone-status{display:flex;justify-content:space-between;align-items:center;color:#e9efe9;font-size:11px;padding:0 10px 5px}.phone-signal{display:flex;align-items:center;gap:2px}
 .phone-battery{display:inline-block;width:16px;height:8px;border:1px solid #e9efe9;margin-left:4px;background:linear-gradient(90deg,#e9efe9 70%,transparent 70%);background-clip:content-box;padding:1px}

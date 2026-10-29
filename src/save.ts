@@ -11,7 +11,7 @@ export interface Save {tickets:TravelTicket[];at?:Spot;clock?:number;phone:Phone
 const key='yorimichi-save',version=1;
 // Only tickets for routes and stations that still exist, and a spot whose place (and the station it needs) still exists; a save from another version starts afresh.
 const valid=(at:Spot|undefined)=>!!at&&(at.place in places||at.place in stations)&&Number.isFinite(at.x)&&Number.isFinite(at.y)&&(!at.outside||at.outside.from in stations)
-  &&(at.place!=='town'&&at.place!=='kamakura-trail'&&at.place!=='arashiyama'||!!at.outside)&&(at.place!=='corridor'||!!at.gate&&at.gate.hub in stations&&platformsAt(at.gate.hub,at.gate.service).length>0)&&at.place!=='platform';
+  &&(!['town','kamakura-trail','arashiyama','home-street','apartment'].includes(at.place)||!!at.outside)&&(at.place!=='corridor'||!!at.gate&&at.gate.hub in stations&&platformsAt(at.gate.hub,at.gate.service).length>0)&&at.place!=='platform';
 export function loadSave():Save{
   try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(saved?.version===version){
     // A ticket punched before punches named their station was punched at its own.

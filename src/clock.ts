@@ -7,6 +7,8 @@ export const minuteMs=60000/speed;
 /** As at JR East's stations, minutes of the day: the shutters go up at 4:30 and down at 1:00, the first trains are due from 4:40 and the last ones by 0:45
  * (the Yamanote Line's run from about 4:26 to about 1:04). */
 export const opens=270,closes=60,firstTrain=280,lastTrain=45;
+/** After a night in bed (Journey.sleep in main.ts) the traveller gets up at 9:00, the time a new journey starts. */
+export const wake=540;
 let now=0,shown='',last=performance.now();
 /** The clock in minutes from the epoch (a day is 1440): the trains' times are counted in these. */
 export const minutes=()=>now/60000;
@@ -14,7 +16,7 @@ export const minuteOfDay=(m=minutes())=>(m%1440+1440)%1440;
 export const clockMs=()=>now;
 /** A new journey starts at 9:00 today; `?time=23:40` sets the clock to that time of its day (to try the night and the last trains). */
 export function startClock(saved?:number){
-  const today=new Date(),ms=saved??Date.UTC(today.getFullYear(),today.getMonth(),today.getDate(),9),m=/^(\d{1,2}):(\d\d)$/.exec(new URLSearchParams(location.search).get('time')??'');
+  const today=new Date(),ms=saved??Date.UTC(today.getFullYear(),today.getMonth(),today.getDate(),wake/60),m=/^(\d{1,2}):(\d\d)$/.exec(new URLSearchParams(location.search).get('time')??'');
   now=ms;last=performance.now();if(m)setTimeOfDay(m[0]);else refresh();
 }
 /** Debug: the clock set to `time` ("H:MM") on its day (earlier or later); false if it does not read as a time. */

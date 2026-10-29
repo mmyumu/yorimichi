@@ -21,7 +21,7 @@ function letter(g:CanvasRenderingContext2D,x:number,y:number,text:string,color:s
 }
 const C={grass:'#92ad70',dark:'#344c42',leaf:'#497452',light:'#86a466',cream:'#efdbac',wood:'#806049',shadow:'#657756'};
 export function makeArt(scene:Phaser.Scene){
-  makeCommuters(scene);makePhone(scene);makeCar(scene);
+  makeCommuters(scene);makePhone(scene);makeCar(scene);makeHomeStreet(scene);makeApartment(scene);
   for(const place of ['kamakura-trail','arashiyama']){
     const texture=mapCanvas(scene,'map-'+place,480,320);
     const g=texture.context;
@@ -292,8 +292,9 @@ export function makeAreaMap(scene:Phaser.Scene,key:string,ja:string,en:string,ko
 /** The street outside a station, shared by every exit without a map of its own: the station front with its entrance under the sign (`title` over `subtitle`, underlined in `accent`),
  * a konbini beside it (the same shop for every chain, under the sign of `konbini`), a plaza with vending machines, planters, the area map and a bus stop, the road and its crossing, and the shops across it. Drawn once per station and exit, when first needed.
  * In art px: front 0–112 (entrance 196–284; konbini 334–480, sign 58–80, door 338–364), area map 118–152 × 108–144, planters at 76 and 376 (150–160), vending machines 20–64, konbini bins 410–430 × 112–122,
- * bus stop at 455, road 199–247, shops from 262. main.ts (solids, hotspots) relies on these. */
-export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:string,accent:string,konbini:Konbini){
+ * bus stop at 455, road 199–247, shops from 262; with `lane` (the street the traveller lives off, see `home` in network.ts), the blue 東中野一丁目 sign at the plaza's left edge
+ * (1–45 × 140–153, its post to 178) pointing to the home street. main.ts (solids, hotspots) relies on these. */
+export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:string,accent:string,konbini:Konbini,lane=false){
   const texture=mapCanvas(scene,key,480,320);const g=texture.context;
   const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
   const t=(x:number,y:number,text:string,c:string,big=false)=>letter(g,x,y,text,c,big);
@@ -351,7 +352,10 @@ export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:str
   for(const [x,c] of [[410,'#3a78c2'],[421,'#2c8a4a']] as const){r(x,112,9,10,'#aeb4b0');r(x+1,112,7,2,c);r(x+3,115,3,1,'#283e40');r(x,122,9,1,'#8e9476')}
   // Planters with trees, and the bus stop on the right.
   for(const x of [76,376]){r(x+2,160,28,3,'#8e9476');r(x,150,28,10,'#8b7d63');r(x,150,28,2,'#ab9b78');r(x+12,138,4,12,'#69533f');for(const [dx,dy,w,h,c] of [[-2,122,32,18,'#345d48'],[2,118,24,24,'#487951'],[6,120,12,10,'#63905b'],[16,126,8,6,'#86a367']] as const)r(x+dx,dy,w,h,c)}
-  r(455,142,2,42,'#4c6156');r(448,132,16,12,'#3a78c2');r(450,134,12,8,'#fffef2');r(454,136,4,4,'#3a78c2');r(451,184,10,3,'#5b6558');
+  r(455,142,2,42,'#4c6156');r(448,132,16,12,'#3a78c2');
+  // The way home: the blue address sign (住居表示) on its post at the plaza's left edge, an arrow to the lane.
+  if(lane){r(10,153,2,25,'#5b6558');r(9,177,4,1,'#00000030');r(1,140,44,13,'#fbfbf6');r(1.5,140.5,43,12,'#1d5fae');t(3,141.5,'←東中野一丁目','#ffffff');t(5,147,'HIGASHINAKANO 1','#d8e4f4')}
+r(450,134,12,8,'#fffef2');r(454,136,4,4,'#3a78c2');r(451,184,10,3,'#5b6558');
   // The kerb, the road with its centre line and the crossing straight ahead, the far pavement.
   r(0,196,480,3,'#e0dccb');r(0,199,480,48,'#5d625c');for(let i=0;i<300;i++)r(Math.floor(rand()*480),199+Math.floor(rand()*48),1,1,'#6b706a');
   for(let x=0;x<480;x+=32)if(x<196||x>276)r(x,222,16,2,'#e6e3cc');for(let x=206;x<274;x+=8)r(x,202,5,42,'#e6e3cc');
@@ -363,6 +367,177 @@ export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:str
   texture.refresh();
 }
 
+/** The home street's length in art px (shown at 2×, scrolling sideways like the platform): a screen and a half. */
+export const homeStreetWidth=720;
+/** The utility poles along the far side of the home street, each with its street light (art px, the pole's left edge): main.ts lights the lane under them at night. */
+export const homePoles=[150,388,560];
+/** The windows of the home street lit at night (art px, x y w h), gathered as makeHomeStreet draws them. */
+export const homeWindows:[number,number,number,number][]=[];
+/** The lane from Higashi-Nakano's west exit to the traveller's home, 720 × 320 art px, in the street's three-quarter view: along the far side, houses behind their block walls
+ * (facades 35–92, walls 92–114), a coin park, a pair of vending machines, and at the right end the apartment block コーポ ヨリミチ (592–720: the outside stairs on its left, the
+ * doors 101–103 at 632, 660 and 688, 14 × 30 from y 82, the traveller's 102 in the middle, the mailboxes at 706); the lane 114–196 with its white edge lines and the utility poles
+ * (homePoles) on its far edge; the near side's block wall from 196 and the roofs behind it, broken by a side street (300–340) with its とまれ; at the left end, the green
+ * 東中野駅 sign on the wall (2–50 × 100–113), the way back to the station. main.ts (solids, hotspots, lamps) relies on these. */
+function makeHomeStreet(scene:Phaser.Scene){
+  const W=homeStreetWidth,texture=mapCanvas(scene,'map-home-street',W,320),g=texture.context;
+  const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},t=(x:number,y:number,text:string,c:string,big=false)=>letter(g,x,y,text,c,big);
+  let seed=57;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
+  // The roofs beyond, under the top band.
+  r(0,0,W,24,'#6d7a72');for(let x=0;x<W;x+=30+Math.floor(rand()*30))r(x,0,1,24,'#58645d');
+  // Block walls: grey concrete blocks with their mortar lines, a lighter coping on top.
+  const blocks=(x:number,y:number,w:number,h:number)=>{r(x,y,w,h,'#bdb7a6');r(x,y,w,2,'#d6d0bf');for(let yy=y+2,k=0;yy<y+h;yy+=5,k++){r(x,yy+4.5,w,.5,'#a29c8c');for(let xx=x+(k%2)*5;xx<x+w;xx+=10)r(xx,yy,.5,5,'#a29c8c')}};
+  const glazing=(x:number,y:number,w:number,h:number,lit:boolean)=>{r(x-1,y-1,w+2,h+2,'#8f8a7c');r(x,y,w,h,'#476e79');r(x+1,y+1,w-2,3,'#9ebcb4');r(x+w/2,y,.5,h,'#cfc8ad');if(lit)homeWindows.push([x,y,w,h])};
+  // The far side: houses, the coin park, the vending machines.
+  const house=(x:number,w:number,wall:string,roof:string)=>{
+    r(x,22,w,14,roof);for(let y=24;y<36;y+=3)r(x,y,w,1,'#00000022');r(x,35,w,2,'#3b4541');r(x+2,37,w-4,58,wall);r(x+2,37,1,58,'#ffffff40');
+    glazing(x+10,44,18,12,rand()<.5);glazing(x+w-28,44,18,12,rand()<.5);glazing(x+8,70,16,12,rand()<.3);
+    r(x+w/2-6,68,12,24,'#806049');r(x+w/2-5,69,10,22,'#94704f');r(x+w/2+3,80,1.5,1.5,'#e8c440');r(x+w/2-8,66,16,2,'#5d6a62');
+    r(x+w-20,78,13,9,'#e8eef0');for(let k=0;k<4;k++)r(x+w-18+k*3,80,1,5,'#aeb4b8');
+    blocks(x,92,w,22);const gx=x+w/2-9;r(gx,92,18,22,'#a39d8d');for(let y=94;y<114;y+=4)r(gx,y,18,.5,'#8e887a');
+    for(let k=0;k<6;k++)r(gx+1+k*3,98,1,10,'#5b6558');r(gx,98,18,1,'#5b6558');r(gx,107,18,1,'#5b6558');r(gx+20,98,6,5,'#d6402e');r(gx+20,98,6,1,'#a52f22');
+    r(x+4,105,7,8,'#8b5a3c');r(x+3,99,9,7,'#487951');r(x+5,98,4,3,'#63905b');
+  };
+  const park=(x:number,w:number)=>{
+    r(x,22,w,14,'#8a8f88');r(x,35,w,79,'#5f635d');for(let i=0;i<120;i++)r(x+Math.floor(rand()*w),36+Math.floor(rand()*76),1,1,'#6b706a');
+    for(let k=0;k<4;k++)r(x+2+k*22,48,1,62,'#e6e3cc');r(x+2,48,66,1,'#e6e3cc');
+    // A small car parked nose in, seen from above.
+    r(x+6,56,16,32,'#c9cdd0');r(x+7,57,14,30,'#dfe3e6');r(x+8,61,12,6,'#55798a');r(x+8,79,12,4,'#55798a');r(x+5,64,1,3,'#3b4541');r(x+22,64,1,3,'#3b4541');
+    r(x+50,38,15,15,'#fbfbf6');r(x+51,39,13,13,'#1d5fae');t(x+55,40.5,'P','#ffffff',true);r(x+56,53,2,16,'#5b6558');
+    r(x+58,92,8,14,'#e8c440');r(x+59,94,6,4,'#283e40');r(x,112,w,1,'#e8c440');
+  };
+  const vending=(x:number,w:number)=>{
+    r(x,22,w,14,'#7d7262');r(x,35,w,2,'#3b4541');r(x+2,37,w-4,58,'#cfc8ad');glazing(x+20,46,20,12,true);blocks(x,92,4,22);blocks(x+w-4,92,4,22);r(x+4,92,w-8,22,'#a39d8d');
+    for(const [vx,c] of [[x+8,'#d24a3a'],[x+31,'#f4f4ee']] as const){r(vx,82,21,30,c);r(vx+2,84,17,12,'#e8eef0');for(let k=0;k<10;k++)r(vx+3+(k%5)*3,85+Math.floor(k/5)*6,2,5,['#d2402e','#3c9a5c','#e8c440','#3a78c2','#e8853a'][k%5]);r(vx+14,99,4,6,'#283e40');r(vx+3,106,11,3,'#283e40');r(vx+1,112,21,2,'#74855e')}
+    r(x+54,104,6,8,'#3a78c2');r(x+54,104,6,2,'#2c5a94');
+  };
+  let x=0;
+  for(const [w,kind,wall,roof] of [[92,'house','#e3dccb','#5d6a62'],[78,'house','#cdbfa4','#7a5a4a'],[104,'house','#d8d3c4','#4f5f6e'],[70,'park','',''],[86,'house','#e8e0cf','#6e5a52'],[60,'vending','',''],[96,'house','#d4c8b0','#5a6658']] as const){
+    if(kind==='house')house(x,w,wall,roof);else if(kind==='park')park(x,w);else vending(x,w);x+=w;
+  }
+  r(586,22,6,92,'#487951');r(587,30,4,80,'#63905b');
+  // The apartment block: two floors of pale tiles under its flat roof, the name plate, the outside corridor upstairs behind its railing, the doors downstairs, the stairs on the left.
+  const a=592;r(a,0,128,10,'#6f766f');r(a,10,128,104,'#e2d6c2');for(let y=12;y<112;y+=4)r(a,y,128,.5,'#d2c5ae');r(a,10,128,2,'#bfb29b');
+  for(const wx of [632,660,688])glazing(wx+1,16,12,9,wx!==660);
+  r(a+40,61,56,9,'#5a4a3e');r(a+40,61,56,.5,'#7d6a58');g.textAlign='center';t(a+68,63,'コーポ ヨリミチ','#fbf3dc');g.textAlign='left';
+  for(const dx of [632,660,688]){r(dx,38,14,18,'#7d8a84');r(dx+11,47,1.5,1.5,'#e8c440')}
+  r(a+24,54,104,3,'#aeab94');r(a+24,57,104,1,'#8f8a7c');r(a+24,46,104,1.5,'#5b6558');for(let bx=a+26;bx<a+128;bx+=4)r(bx,47,.5,7,'#5b6558');
+  for(const [k,dx] of [632,660,688].entries()){
+    r(dx-1,81,16,31,'#3b4541');r(dx,82,14,30,'#6f7d78');r(dx+1,83,12,28,'#7d8a84');r(dx+11,97,1.5,1.5,'#e8c440');
+    r(dx+2,74,10,6,'#fbfbf6');r(dx+2,74,10,.5,'#9aa29a');g.textAlign='center';t(dx+7,74.5,`10${k+1}`,'#283e40');g.textAlign='left';r(dx-6,76,3,3,'#fff6d0');
+  }
+  for(let k=0;k<13;k++){const sx=a+3+k*1.6,sy=108-k*4.2;r(sx,sy,9,1.5,'#aeab94');r(sx,sy+1.5,9,.5,'#7d7f78')}r(a+2,52,1,60,'#5b6558');r(a+13,52,1,60,'#5b6558');for(let k=0;k<13;k++)r(a+3+k*1.6,104-k*4.2,.5,5,'#5b6558');
+  r(706,84,12,16,'#c9cdd0');for(let k=0;k<6;k++)r(707+(k%2)*5.5,85+Math.floor(k/2)*5,4.5,4,'#9aa0a4');
+  // Two bicycles under the stairs.
+  for(const bx of [a+16,a+26])for(const cx of [bx,bx+8]){for(let y=-3;y<=3;y++)for(let xx=-3;xx<=3;xx++){const d=Math.hypot(xx,y);if(d>2.2&&d<=3.2)r(cx+xx,107+y,1,1,'#2b2b2b')}r(bx,105,8,.5,'#3a78c2');r(bx+6,102,1,3,'#2b2b2b')}
+  r(a,112,128,3,'#b5ae90');
+  // The lane: asphalt, its white edge lines, a manhole, and the side street crossing the near side with its stop line and とまれ.
+  r(0,114,W,82,'#666a64');for(let i=0;i<650;i++)r(Math.floor(rand()*W),114+Math.floor(rand()*82),1,1,i%2?'#727670':'#5c605a');
+  r(0,118,W,1,'#e6e3cc');for(const [x0,x1] of [[0,300],[340,W]])r(x0,192,x1-x0,1,'#e6e3cc');
+  for(let y=-5;y<=5;y++)for(let xx=-5;xx<=5;xx++){const d=Math.hypot(xx,y);if(d<=5)r(222+xx,156+y,1,1,d>4.2?'#4a4e48':(xx+y)%2?'#7d817a':'#6b6f68')}
+  r(300,192,40,128,'#666a64');for(let i=0;i<200;i++)r(300+Math.floor(rand()*40),196+Math.floor(rand()*124),1,1,'#727670');r(302,196,1,124,'#e6e3cc');r(337,196,1,124,'#e6e3cc');
+  r(303,202,34,2,'#fbfbf6');g.textAlign='center';t(320,206,'とまれ','#fbfbf6',true);g.textAlign='left';
+  // The near side: the block wall along the lane, hedges, the houses' roofs beyond it.
+  for(const [x0,w,roof] of [[0,74,'#6e5a52'],[74,112,'#5d6a62'],[186,114,'#7a6a5c'],[340,92,'#66705f'],[432,98,'#8a7f6a'],[530,92,'#5f6e6a'],[622,98,'#7d7262']] as const){
+    blocks(x0,196,w,8);r(x0,204,w,10,'#487951');for(let k=0;k<w;k+=3)r(x0+k,204+(k*7)%8,2,2,'#63905b');
+    r(x0+3,214,w-6,106,roof);for(let y=218;y<320;y+=4)r(x0+3,y,w-6,1,'#00000026');r(x0+3,262,w-6,2,'#ffffff30');r(x0+w-4,214,1,106,'#3b4541');
+  }
+  // The utility poles on the far edge, the wires between them, a street light on each.
+  r(0,31,W,.5,'#2b2b2b');r(0,34,W,.5,'#2b2b2b');
+  for(const px of homePoles){r(px-1,118,7,2,'#00000030');r(px,24,4,96,'#9a9c94');r(px+1,24,1,96,'#b8bab2');r(px-8,30,20,2,'#7d7f78');r(px+4,40,6,8,'#8e918a');for(let k=0;k<4;k++)r(px,100+k*2,4,1,k%2?'#2b2b2b':'#e8c440');r(px+4,62,10,1.5,'#5b6558');r(px+11,62,6,3,'#fff6d0')}
+  // The way back: the green station sign on the wall at the left end.
+  r(26,113,2,6,'#5b6558');r(2,100,48,13,'#fbfbf6');r(2.5,100.5,47,12,'#2c8a4a');t(4,101.5,'←東中野駅','#ffffff');t(5,107,'STATION','#d8f0de');
+  texture.refresh();
+}
+/** The apartment's windows, in the faces of the bedroom's and the living room's back walls (art px, x y w h): main.ts darkens them at night. */
+export const apartmentWindows=[[118,50,40,18],[214,48,86,26]] as const;
+/** The apartment, 102 of コーポ ヨリミチ, a 1LDK in the street's three-quarter view (480 × 416 art px, scrolling up and down): walls 6 px thick seen from above, the back
+ * wall of each room showing its 28 px face, the furniture sized to the traveller (16 × 24). Its rooms (floors, art px): the bedroom (70–192 × 74–232) and, through the sliding door
+ * in their wall (192–198 × 192–228), the living room with its open kitchen (LDK, 198–410 × 74–272); out of the LDK's door (206–232) the entrance corridor (198–240 × 306–402),
+ * the genkan at its foot (from 370) by the front door in the bottom wall (206–232); off the corridor on the left the washroom (134–192 × 266–346, door 306–340) and the
+ * bath beyond its glass door (70–128, door 300–330), on the right the toilet (246–294 × 306–356, door 314–346). The sofa, the kitchen island and the fridge stand in the room
+ * (apartmentProps, sorted with the traveller); apartmentSolids are what cannot be walked on. */
+export const apartmentSolids:[number,number,number,number][]=[
+  [0,0,480,74],[0,0,70,416],[410,0,70,416],[192,0,6,192],[192,228,6,78],[192,340,6,76],[70,232,122,34],[128,266,6,34],[128,330,6,16],[0,346,198,70],
+  [198,272,8,34],[232,272,178,34],[300,272,110,144],[240,306,6,8],[240,346,6,70],[294,272,6,90],[246,356,54,60],[192,402,54,14],
+  // The bed and its nightstand, the desk and its chair, a plant; the TV board, the low table, the sofa, a plant, the island, the bins, the fridge; the vanity, the washing machine, the tub; the toilet; the shoe cabinet.
+  [78,74,26,42],[106,74,10,10],[70,140,28,40],[72,216,14,14],[330,74,60,14],[340,104,40,18],[326,136,68,16],[198,74,14,14],[280,208,100,12],[380,240,8,28],[392,256,18,16],[140,266,24,14],[168,266,22,22],[74,266,50,30],[262,300,16,24],[228,372,12,26]];
+/** The furniture standing in the LDK, each on its own texture (`apartment-<name>`) whose foot is at `base` (art px): drawn in front of whoever stands behind it. */
+export const apartmentProps=[{name:'sofa',x:326,top:120,w:68,base:152},{name:'island',x:280,top:194,w:100,base:220},{name:'fridge',x:392,top:224,w:18,base:272}] as const;
+function makeApartment(scene:Phaser.Scene){
+  const texture=mapCanvas(scene,'map-apartment',480,416),g=texture.context;let c=g;
+  const r=(x:number,y:number,w:number,h:number,color:string)=>{c.fillStyle=color;c.fillRect(x,y,w,h)};
+  const wood=(x:number,y:number,w:number,h:number,base:string,line:string)=>{r(x,y,w,h,base);for(let px=x,k=0;px<x+w;px+=8,k++){r(px,y,.5,h,line);for(let py=y+(k%3)*14;py<y+h;py+=40)r(px,py,8,.5,line)}};
+  const tiles=(x:number,y:number,w:number,h:number,base:string,line:string,step=8)=>{r(x,y,w,h,base);for(let py=y;py<y+h;py+=step)r(x,py,w,.5,line);for(let px=x;px<x+w;px+=step)r(px,y,.5,h,line)};
+  // A wall's face: the paper, a shadow under the ceiling, the skirting board.
+  const face=(x:number,y:number,w:number,paper='#efe8d8')=>{r(x,y,w,28,paper);r(x,y,w,2,'#d6ccb8');r(x,y+25,w,3,'#a58766');r(x,y+25,w,.5,'#c4a682')};
+  const top=(x:number,y:number,w:number,h:number)=>{r(x,y,w,h,'#4a4440');r(x,y,w,.5,'#655d56')};
+  const shadow=(x:number,y:number,w:number,h=2)=>r(x,y,w,h,'#00000024');
+  r(0,0,480,416,'#24211f');
+  // The floors: oak in the rooms and the corridor (through the LDK's door), pale tiles in the wet rooms, grey stone in the genkan a step down.
+  wood(70,74,122,158,'#d0a774','#bb925f');wood(198,74,212,198,'#c99a62','#b5874f');wood(198,272,42,98,'#c99a62','#b5874f');
+  tiles(70,266,58,80,'#c9d6dc','#b4c3ca');tiles(134,266,58,80,'#e2e4df','#d0d3cc');tiles(246,306,48,50,'#e2e4df','#d0d3cc');
+  tiles(198,370,42,32,'#8e918a','#7d807a',10);r(198,368,42,2,'#6f6a60');
+  // The thresholds of the doors in the side walls: the bedroom's sliding door, the washroom's and the toilet's, the bath's glass door.
+  r(192,192,6,36,'#c99a62');r(192,306,6,34,'#e2e4df');r(240,314,6,32,'#e2e4df');r(128,300,6,30,'#bcd6de');
+  for(const [x,y,h] of [[192,192,36],[192,306,34],[240,314,32],[128,300,30]])r(x,y,6,1,'#7d5e40'),r(x,y+h-1,6,1,'#7d5e40');
+  // The walls' faces: the bedroom's and the LDK's at the back, the bath's and the washroom's, the corridor's either side of the LDK's door, the toilet's.
+  face(70,46,122);face(198,46,212);face(70,238,58,'#e4ecee');face(134,238,58);face(198,278,8);face(232,278,8);face(246,278,48);
+  // The LDK's door seen from the corridor: its frame round the doorway.
+  r(205,278,1.5,28,'#7d5e40');r(230.5,278,1.5,28,'#7d5e40');r(205,278,27,1.5,'#7d5e40');
+  // The windows: the bedroom's between pale green curtains, the LDK's down to the floor onto the balcony and its railing, light falling on the floors.
+  {const [x,y,w,h]=apartmentWindows[0];r(x-1,y-1,w+2,h+2,'#d8d2c4');r(x,y,w,h,'#9fd0e8');r(x,y+h-5,w,5,'#c3e2ee');r(x+w/2,y,1,h,'#d8d2c4');for(const cx of [x-6,x+w])r(cx,y-2,6,h+5,'#9cbf9a'),r(cx+2,y-2,1,h+5,'#86aa84');r(x+2,y+2,6,1,'#ffffff')}
+  {const [x,y,w,h]=apartmentWindows[1];r(x-1,y-1,w+2,h+1,'#d8d2c4');r(x,y,w,h,'#9fd0e8');r(x,y+h-9,w,9,'#b9c2c4');for(let k=0;k<w;k+=4)r(x+k,y+h-12,1,10,'#7d8a8e');r(x,y+h-12,w,1,'#6f7c80');r(x+w/2,y,1,h,'#d8d2c4');r(x+3,y+3,10,1,'#ffffff');r(x+46,y+3,8,1,'#ffffff');
+    for(const cx of [x-7,x+w])r(cx,y-2,7,h+2,'#c95f4a'),r(cx+3,y-2,1,h+2,'#a84a38');r(x-9,y-3,w+18,1.5,'#8a7a66')}
+  r(120,74,36,14,'#ffffff1a');r(216,74,82,26,'#ffffff1f');r(222,100,70,10,'#ffffff12');
+  // The bedroom: the bed, its headboard against the wall; the nightstand and its lamp; the closet's doors in the wall; the rug; the desk and its chair against the left wall; a plant.
+  shadow(78,116,26);r(78,60,26,16,'#7d5e40');r(79,61,24,2,'#9a7856');r(78,74,26,38,'#8a6a4e');r(79,74,24,36,'#f4f4ee');r(82,76,18,8,'#ffffff');r(82,83,18,1,'#d8d8cc');
+  r(79,88,24,22,'#7a9ec4');r(79,88,24,3,'#9ab8d8');for(let y=94;y<108;y+=6)for(let x=82+(y%12?3:0);x<101;x+=6)r(x,y,2,2,'#6a8cb2');r(78,110,26,6,'#6e5238');r(79,110,24,2,'#5a7aa0');
+  r(106,68,10,6,'#b08560');r(106,74,10,10,'#8a6a4e');r(107,78,8,.5,'#6e5238');r(110,76,2,1,'#e8c440');shadow(106,84,10,1);r(108,58,6,6,'#f2cf7c');r(109,59,4,2,'#fff6d0');r(110,64,2,4,'#5a4a3e');
+  r(160,47,30,27,'#d9c7a6');r(175,47,.5,27,'#a88f6c');r(160,47,30,1,'#a88f6c');r(172,58,1,5,'#8a7454');r(177,58,1,5,'#8a7454');
+  r(112,146,58,44,'#c98f8a');r(114,148,54,40,'#e0b0a8');for(let y=152;y<186;y+=6)r(116,y,50,1,'#d29c94');
+  shadow(70,180,16);r(70,136,16,40,'#b08560');r(70,176,16,4,'#8a6a4e');r(72,144,11,8,'#2f3438');r(73,145,9,5,'#9fc3c2');r(74,160,6,4,'#fbfbf6');r(72,166,8,6,'#e8c440');
+  r(88,152,10,10,'#3b4541');r(89,153,8,6,'#4f5960');r(96,148,2,14,'#2f3438');shadow(88,162,10,1);
+  r(75,222,10,8,'#b66c51');r(75,222,10,2,'#c98262');r(72,212,16,11,'#487951');r(75,208,10,6,'#63905b');r(78,214,5,4,'#86a367');
+  // The LDK: a clock and a picture on the wall, the TV on its board, the rug and the low table with cushions, a plant by the window, the stools at the island.
+  r(310,52,8,8,'#fbfbf6');r(310,52,8,1,'#2f3438');r(314,54,.5,3,'#2f3438');r(314,56,2,.5,'#2f3438');r(394,52,12,14,'#a07850');r(395,53,10,12,'#7fb0c8');r(395,60,10,5,'#63905b');
+  r(338,50,44,20,'#2f3438');r(340,52,40,15,'#1c2a33');r(342,53,12,1,'#3e5664');r(357,70,6,2,'#2f3438');r(330,70,60,6,'#7d5e40');r(330,76,60,12,'#5a4a3e');for(const x of [350,370])r(x,77,.5,10,'#3e3329');r(345,81,2,1,'#c49a6c');r(373,81,2,1,'#c49a6c');shadow(330,88,60);
+  r(316,96,88,72,'#c9b8a0');r(318,98,84,68,'#d8cbb2');for(let x=322;x<400;x+=8)r(x,164,2,4,'#b8a487');
+  shadow(340,122,40);r(340,102,40,16,'#a07850');r(341,103,38,2,'#b8906a');r(340,118,40,4,'#7d5e40');r(346,106,10,7,'#e8eef0');r(347,107,8,1,'#7d8a84');r(364,107,4,4,'#fbfbf6');r(365,108,2,2,'#8a5a3c');
+  r(326,106,10,10,'#d6402e');r(327,107,8,8,'#e86a52');r(384,106,10,10,'#3a78c2');r(385,107,8,8,'#5a94d8');
+  r(201,80,10,8,'#b66c51');r(201,80,10,2,'#c98262');r(198,66,14,15,'#487951');r(201,62,8,6,'#63905b');r(203,70,5,5,'#86a367');shadow(201,88,10,1);
+  for(const x of [298,326,354]){r(x,186,8,5,'#7d5e40');r(x+1,186,6,1,'#9a7856');r(x+1,191,1,8,'#5a4a3e');r(x+6,191,1,8,'#5a4a3e');shadow(x,199,8,1)}
+  // The kitchen's side: a mat before the island, the rubbish bins by the fridge.
+  r(292,228,72,10,'#9aa7a0');r(294,230,68,6,'#aab7b0');r(380,254,8,14,'#6f7c80');r(380,254,8,2,'#8a979b');r(380,240,8,12,'#3a78c2');r(380,240,8,2,'#5a94d8');
+  // The bath: the tub against its wall, the shower, a frosted window, the mat; the washroom: the mirror and the vanity, the washing machine, a towel; the toilet and its window, paper, mat.
+  r(100,243,20,10,'#dfe9ec');r(110,243,.5,10,'#c4d0d4');r(86,242,2,16,'#9aa0a4');r(84,242,6,3,'#c9cdd0');r(76,262,48,30,'#f4f4ee');r(79,265,42,22,'#9fd0e8');r(81,267,30,1,'#c3e2ee');r(74,292,50,4,'#d8dcdf');shadow(74,296,50);
+  r(84,304,22,10,'#7a9ec4');r(86,306,18,6,'#9ab8d8');
+  r(142,242,22,12,'#a7b4b8');r(143,243,20,10,'#cfe6ee');r(145,244,6,1,'#ffffff');r(140,256,24,10,'#f4f4ee');r(145,258,14,6,'#cfe1e6');r(151,255,2,3,'#9aa0a4');r(140,266,24,14,'#e8e4dc');r(152,267,.5,12,'#b8b2a6');shadow(140,280,24);
+  r(168,252,22,20,'#f4f4ee');r(171,255,16,14,'#c9cdd0');r(173,257,12,10,'#c3dddb');r(168,272,22,16,'#e8eef0');r(170,274,6,2,'#9aa0a4');shadow(168,288,22);r(176,244,8,10,'#e86a52');r(176,244,8,1,'#c95f4a');
+  r(262,282,16,8,'#dfe9ec');r(270,282,.5,8,'#c4d0d4');r(284,294,6,5,'#f4f4ee');r(284,294,6,1,'#c9cdd0');
+  r(263,292,14,12,'#f4f4ee');r(263,292,14,2,'#ffffff');r(268,294,4,1,'#9aa0a4');r(264,304,12,16,'#e8eef0');r(265,305,10,13,'#f4f4ee');r(267,308,6,8,'#cfe1e6');shadow(264,320,12);r(258,328,24,12,'#a7c4b0');r(260,330,20,8,'#b8d4c0');
+  // The genkan: the doormat at the step, the shoes left on the stone, the shoe cabinet with a little plant, the front door in the bottom wall.
+  r(204,358,30,9,'#7a8e9e');r(206,360,26,5,'#8ea2b2');
+  r(204,384,5,9,'#3b4541');r(210,385,5,9,'#3b4541');r(214,374,5,9,'#f4f4ee');r(220,375,5,9,'#f4f4ee');r(215,375,3,2,'#d6402e');r(221,376,3,2,'#d6402e');
+  r(228,364,12,26,'#c49a6c');r(228,390,12,8,'#a07850');r(228,394,12,.5,'#7d5e40');r(232,358,5,6,'#487951');r(233,363,3,3,'#b66c51');shadow(228,398,12,1);
+  // The walls, seen from above, over everything: round the flat, between the rooms, the doorways left open.
+  top(64,40,352,6);top(64,40,6,312);top(410,40,6,238);top(192,40,6,152);top(192,228,6,78);top(192,340,6,68);top(64,232,134,6);top(128,232,6,68);top(128,330,6,22);top(64,346,134,6);
+  top(192,272,14,6);top(232,272,184,6);top(240,272,6,42);top(240,346,6,62);top(294,272,6,90);top(240,356,60,6);top(192,402,54,6);
+  // The bedroom's sliding door, open, its edge against the wall; the front door in the bottom wall.
+  r(193,186,4,6,'#c49a6c');r(206,402,26,6,'#7d6a58');r(208,403,22,4,'#94806c');r(226,404,2,2,'#e8c440');
+  texture.refresh();
+  // The furniture in the room, each drawn in art px on its own canvas.
+  const props:Record<string,()=>void>={
+    // The sofa, seen from behind: its arms, the seat and cushions peeking over its back.
+    sofa:()=>{r(334,120,52,10,'#6d8fa1');r(338,121,20,7,'#e8c440');r(362,121,20,7,'#e0b0a8');r(326,124,8,28,'#4a6878');r(386,124,8,28,'#4a6878');r(326,124,8,2,'#5b7a8c');r(386,124,8,2,'#5b7a8c');
+      r(334,130,52,6,'#7b9db0');r(334,130,52,1,'#94b4c4');r(334,136,52,16,'#4a6878');r(360,136,.5,14,'#3e5a68');r(326,150,68,2,'#3a5260')},
+    // The island: its counter with the sink and the hob, a kettle; the cupboard doors on the kitchen's side.
+    island:()=>{r(280,194,100,14,'#e8e4dc');r(280,194,100,1,'#ffffff');r(292,197,22,9,'#9aa4a8');r(294,199,18,6,'#c3d0d4');r(302,195,2,4,'#7d8a84');r(338,197,30,9,'#2f3438');for(const x of [341,355])r(x,199,10,5,'#4a5058'),r(x+3,200.5,4,2,'#2f3438');r(356,195,7,5,'#d6402e');
+      r(280,208,100,12,'#d9cdb6');for(const x of [305,330,355])r(x,208,.5,11,'#b8ab92');for(const x of [292,317,342,367])r(x,212,1,3,'#8a7a66');r(280,219,100,1,'#6f6a60')},
+    // The fridge: its top, the two doors and their handles.
+    fridge:()=>{r(392,224,18,16,'#dfe5e8');r(392,224,18,1,'#ffffff');r(392,240,18,32,'#eef2f3');r(392,252,18,.5,'#b8bec2');r(393,244,1,6,'#9aa0a4');r(393,256,1,8,'#9aa0a4');r(392,270,18,2,'#c9cdd0');r(398,244,6,4,'#f2cf7c')},
+  };
+  for(const {name,x,top,w,base} of apartmentProps){const prop=mapCanvas(scene,`apartment-${name}`,w,base-top);c=prop.context;c.translate(-x,-top);props[name]();prop.refresh()}
+}
 /** The phone in the corner of the screen, 18 × 32 px shown at 2×: a dark handset, a conversation on its screen. */
 function makePhone(scene:Phaser.Scene){
   const t=scene.textures.createCanvas('phone-mini',18,32)!,g=t.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};

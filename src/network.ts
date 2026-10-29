@@ -5,8 +5,8 @@ import { shinkansenFare } from './fares';
 /** A station, by id (stations): every stop of a local line in rail.ts is one, all laid out alike. */
 export type Hub=string;
 /** Beyond the stations: an exit's own map, the street outside (`town`), the corridor behind a station's gates with the stairs up to its platforms
- * (which station and gates: `Journey.gateway`), and a platform. */
-export type Place=Hub|'kamakura-trail'|'arashiyama'|'town'|'corridor'|'platform';
+ * (which station and gates: `Journey.gateway`), a platform, and the traveller's home: the lane from the street outside its station (`home-street`) and the apartment at its end. */
+export type Place=Hub|'kamakura-trail'|'arashiyama'|'town'|'corridor'|'platform'|'home-street'|'apartment';
 export type Side='west'|'east';
 /** The konbini chains: the shop by a station's street is the same for all, only its sign differs (see makeTown). */
 export type Konbini='seven'|'family'|'lawson';
@@ -18,7 +18,9 @@ export type Service='shinkansen'|'local';
  * leaving from `platform`, the track at the station whose trains run its way (see runOf in platform.ts). Local trips are fare tickets (fares.ts). */
 export interface Route {id:string;from:Hub;to:Hub;service:Service;name:string;lineId:string;line:string;ja:string;color:string;fare:number;platform:string}
 /** The places that are not stations, by name. */
-export const places:Record<string,string>={'kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path',town:'Outside the station',corridor:'To the platforms',platform:'On the platform'};
+export const places:Record<string,string>={'kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path',town:'Outside the station',corridor:'To the platforms',platform:'On the platform','home-street':'Higashi-Nakano · The way home',apartment:'Higashi-Nakano · Home'};
+/** Where the traveller lives: the street outside this station's exit has a lane at its left end (the 東中野一丁目 sign) to the home street, the apartment at its end. */
+export const home:{hub:Hub;side:Side}={hub:'higashi-nakano',side:'west'};
 export const isHub=(place:Place):place is Hub=>place in stations;
 
 /** The stations, all laid out alike (see art.ts and hall-scene.ts): what tells them apart is their name, accent colour, exits (`west` and `east`: their name on the signs and
