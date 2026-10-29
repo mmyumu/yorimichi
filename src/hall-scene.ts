@@ -30,7 +30,7 @@ export const fromConcourse=(xAnchors:number[][],x:number,y:number)=>({x:piecewis
 // One texel covers ~4 world px, about one pixel of the low-resolution render at the default distance.
 const texel=4;
 // Muted palette shared with art.ts so the hall reads as the same game.
-export const C={ink:'#283e40',dark:'#314c51',tile:'#e6e3cc',grout:'#c9c4a6',tileShade:'#d8d3b8',floorA:'#74855e',floorB:'#68745b',floorLine:'#5a6650',ceiling:'#5d6a62',ceilingSeam:'#4c5852',haze:'#55625b',signBoard:'#2f3638',gate:'#d5d8d0',gateTop:'#3d4846',light:'#fffbe0',body:'#dfe1d6',bodyShade:'#c3c8b8',bodyEdge:'#9aa69a',side:'#9aa69a',sideDark:'#7d897e',plinth:'#3b4541',bezel:'#86967e',panel:'#b7c4a4',tray:'#2d4133',frame:'#8f9e8b',facade:'#e4e6df',facadeShade:'#d4d7ce',facadeSeam:'#b9bdb3',reveal:'#9ea69c',steel:'#aeb4b0'};
+export const C={ink:'#283e40',dark:'#314c51',tile:'#e6e3cc',grout:'#c9c4a6',tileShade:'#d8d3b8',floorA:'#cfd2cb',floorB:'#c4c8c0',floorLine:'#b1b5ad',ceiling:'#5d6a62',ceilingSeam:'#4c5852',haze:'#55625b',signBoard:'#2f3638',gate:'#d5d8d0',gateTop:'#3d4846',light:'#fffbe0',body:'#dfe1d6',bodyShade:'#c3c8b8',bodyEdge:'#9aa69a',side:'#9aa69a',sideDark:'#7d897e',plinth:'#3b4541',bezel:'#86967e',panel:'#b7c4a4',tray:'#2d4133',frame:'#8f9e8b',facade:'#e4e6df',facadeShade:'#d4d7ce',facadeSeam:'#b9bdb3',reveal:'#9ea69c',steel:'#aeb4b0'};
 export const accents:Record<string,string>={local:'#2c754e',charge:'#c5487e',shinkansen:'#6c78b8'};
 export const housings:Record<string,string>={local:'#d9dcd6',charge:'#d9dcd6',shinkansen:'#3d9a4c'};
 // Signs as at JR East stations: Japanese over English.

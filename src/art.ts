@@ -115,10 +115,10 @@ export function makeHub(scene:Phaser.Scene,hub:Hub){
     const dither=(x:number,y:number,w:number,h:number,c:string)=>{for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)r(x+i,y+j,1,1,c)};
     const tiles=(x:number,y:number,w:number,h:number,shade=false)=>{r(x,y,w,h,shade?'#c9c7b2':'#e6e3cc');for(let yy=y+7;yy<y+h;yy+=8)r(x,yy,w,1,shade?'#aeab94':'#c9c4a6');for(let xx=x+11;xx<x+w;xx+=12)r(xx,y,1,h,shade?'#aeab94':'#c9c4a6')};
     // Floor: the hall's olive checkerboard, and the ceiling edge with its fluorescent lights.
-    r(0,35,480,285,'#74855e');for(let y=35;y<320;y+=16)for(let x=0;x<480;x+=16){r(x,y,8,8,'#6e7d5a');r(x+8,y+8,8,8,'#6e7d5a');r(x,y,16,1,'#66734f');r(x,y,1,16,'#66734f')}
+    r(0,35,480,285,'#cfd2cb');for(let y=35;y<320;y+=16)for(let x=0;x<480;x+=16){r(x,y,8,8,'#c4c8c0');r(x+8,y+8,8,8,'#c4c8c0');r(x,y,16,1,'#b1b5ad');r(x,y,1,16,'#b1b5ad')}
     // Past the gates: the paid side's corridor running on towards the platforms, fading into the distance.
     const paid=(x:number,w:number)=>{
-      tiles(x,23,w,23,true);r(x,44,w,26,'#74855e');for(let y=44;y<70;y+=8)for(let xx=x;xx<x+w;xx+=16)r(xx+(y/8%2?8:0),y,8,8,'#6e7d5a');
+      tiles(x,23,w,23,true);r(x,44,w,26,'#cfd2cb');for(let y=44;y<70;y+=8)for(let xx=x;xx<x+w;xx+=16)r(xx+(y/8%2?8:0),y,8,8,'#c4c8c0');
       for(let k=0;k<5;k++)dither(x,44+k*2,w,2,['#1d2622','#2b3431','#3d4846','#55625b','#68745b'][k]);r(x,44,w,3,'#1d2622');
     };
     // Automatic gates, 22 px apart: grey cabinets with a coloured stripe, a blue IC reader and the green arrow at the end facing the hall.
@@ -289,10 +289,17 @@ export function makeAreaMap(scene:Phaser.Scene,key:string,ja:string,en:string,ko
   round(128,98,6,6,3,ink);for(let k=0;k<3;k++)r(131-k*.5,99+k,k+.5,1,white);t(136,98.5,'N',ink);t(128,109,'2026.10',faint);
   texture.refresh();
 }
+/** The shops across the town's road (makeTown): width, roof, awning and back wall. */
+const townShops=[[70,'#7a6a5c','#b45843','#cfc3ab'],[56,'#5d6a62','#3a78c2','#d8d3c4'],[84,'#8a7f6a','#2c8a4a','#c9bfa8'],[62,'#6e5a52','#e8c440','#ddd5c2'],[90,'#5f6e6a','#d24a3a','#cdc5b0'],[64,'#7d7262','#6c78b8','#d6cdb8'],[54,'#66705f','#e8853a','#c9c1ab']] as const;
+/** The windows in the backs of those shops (art px, x y w h), some of which main.ts lights at night. */
+export const townWindows:[number,number,number,number][]=[];
+{let x=0;for(const [w] of townShops){for(let wx=x+9;wx+12<=x+w-6;wx+=22)townWindows.push([wx,291,12,9]);x+=w}}
+/** The street lights on the town's far pavement (art px, their post's left edge; the post's foot at 259, its lamp at x + 6–14, y 212–216): main.ts lights them and keeps walkers off their feet. */
+export const townLights=[60,160,370,446];
 /** The street outside a station, shared by every exit without a map of its own: the station front with its entrance under the sign (`title` over `subtitle`, underlined in `accent`),
  * a konbini beside it (the same shop for every chain, under the sign of `konbini`), a plaza with vending machines, planters, the area map and a bus stop, the road and its crossing, and the shops across it. Drawn once per station and exit, when first needed.
- * In art px: front 0–112 (entrance 196–284; konbini 334–480, sign 58–80, door 338–364), area map 118–152 × 108–144, planters at 76 and 376 (150–160), vending machines 20–64, konbini bins 410–430 × 112–122,
- * bus stop at 455, road 199–247, shops from 262; with `lane` (the street the traveller lives off, see `home` in network.ts), the blue 東中野一丁目 sign at the plaza's left edge
+ * In art px: front 0–112 (entrance 196–284; konbini 334–480, sign 58–80, door 338–364), area map 118–152 × 108–144, planters at 76 and 300 (145–160), vending machines 390–432 × 109–138, konbini bins 366–386 × 112–122,
+ * bus stop at 455, road 199–247, street lights (townLights) on the far pavement, shops from 262; with `lane` (the street the traveller lives off, see `home` in network.ts), the blue 東中野一丁目 sign at the plaza's left edge
  * (1–45 × 140–153, its post to 178) pointing to the home street. main.ts (solids, hotspots) relies on these. */
 export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:string,accent:string,konbini:Konbini,lane=false){
   const texture=mapCanvas(scene,key,480,320);const g=texture.context;
@@ -340,18 +347,25 @@ export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:str
   // The plaza, its tiles, and the tactile strip from the doors to the crossing.
   r(0,112,480,87,'#c9c2a4');for(let y=112;y<199;y+=12){r(0,y,480,1,'#b5ae90');for(let x=(y/12%2)*12;x<480;x+=24)r(x,y,1,12,'#b5ae90')}
   r(237,112,6,87,'#e8c440');for(let y=113;y<199;y+=4)r(238+(y%8<4?0:2),y,2,1,'#cfa72c');
-  // Two vending machines against the front, on the left.
-  for(const [x,c] of [[20,'#d24a3a'],[44,'#3a78c2']] as const){r(x,112,20,24,c);r(x+2,114,16,10,'#e8eef0');for(let k=0;k<8;k++)r(x+3+(k%4)*4,115+Math.floor(k/4)*5,2,4,['#d2402e','#3c9a5c','#e8c440','#f4f4ee'][k%4]);r(x+13,127,4,5,'#283e40');r(x+3,132,10,2,'#283e40');r(x+1,136,20,2,'#74855e')}
+  // Two vending machines against the konbini's front, between its bins and the ATM.
+  for(const [x,c,top] of [[390,'#d24a3a','#e47a6a'],[412,'#3a78c2','#6f9fd8']] as const){r(x,109,20,3,top);r(x,112,20,24,c);r(x,112,20,.5,'#00000040');r(x+2,114,16,10,'#e8eef0');for(let k=0;k<8;k++)r(x+3+(k%4)*4,115+Math.floor(k/4)*5,2,4,['#d2402e','#3c9a5c','#e8c440','#f4f4ee'][k%4]);r(x+13,127,4,5,'#283e40');r(x+3,132,10,2,'#283e40');r(x+1,136,20,2,'#74855e')}
   // The area map (makeAreaMap, small): its dark frame on two posts, the two white panels ringed in blue, the map with its streets, the railway, the river, a park (its picture window, areaMapFace), the legend, the current spot in red.
   r(118,108,2,36,'#3a2e27');r(150,108,2,36,'#3a2e27');r(118,108,34,28,'#3a2e27');r(118,108,34,.5,'#5a4a3e');r(119,144,4,1,'#00000030');r(151,144,4,1,'#00000030');
   for(const y of [109,112.5]){r(120,y,30,3,'#fbfbf6');r(120.5,y+.5,29,2,'#1d5fae');r(121,y+1,28,1,'#fbfbf6');r(121.5,y+1,1.5,1,'#1d5fae');r(124,y+1,10,.5,'#1d5fae');r(124,y+1.5,5,.5,'#6f93c4');r(143,y+1,3,.5,'#1d5fae')}
   r(120,116,30,18,'#d9cfa3');r(144,116,6,18,'#fbfbf6');for(let y=117;y<133;y+=2)r(145,y,1,1,['#d6402e','#2b2b2b','#1d5fae','#00a040'][y%4/2|0]),r(146.5,y+.25,3,.5,'#9a9380');
   r(120,118,24,1,'#2b2b2b');r(126,117,12,3,'#b4b9bc');r(120,122,24,1,'#f7f5ec');for(const x of [124,130.5,137])r(x,123,.5,11,'#f7f5ec');r(120,128,24,.5,'#f7f5ec');
   r(131,124.5,5,3,'#9cc76f');for(let x=120;x<144;x+=.5)r(x,Math.round((130.5+Math.sin(x/3))*2)/2,.5,1,'#5b9bd5');r(127.5,120.5,1.5,1.5,'#d6402e');
-  // The konbini's bins by its window.
-  for(const [x,c] of [[410,'#3a78c2'],[421,'#2c8a4a']] as const){r(x,112,9,10,'#aeb4b0');r(x+1,112,7,2,c);r(x+3,115,3,1,'#283e40');r(x,122,9,1,'#8e9476')}
+  // The konbini's bins by its door.
+  for(const [x,c] of [[366,'#3a78c2'],[377,'#2c8a4a']] as const){r(x,112,9,10,'#aeb4b0');r(x+1,112,7,2,c);r(x+3,115,3,1,'#283e40');r(x,122,9,1,'#8e9476')}
   // Planters with trees, and the bus stop on the right.
-  for(const x of [76,376]){r(x+2,160,28,3,'#8e9476');r(x,150,28,10,'#8b7d63');r(x,150,28,2,'#ab9b78');r(x+12,138,4,12,'#69533f');for(const [dx,dy,w,h,c] of [[-2,122,32,18,'#345d48'],[2,118,24,24,'#487951'],[6,120,12,10,'#63905b'],[16,126,8,6,'#86a367']] as const)r(x+dx,dy,w,h,c)}
+  // In the three-quarter view: the planter's far rim, its soil with the trunk sunk into it, the near rim over its front; a round crown lit from the top left.
+  for(const x of [76,300]){
+    r(x+2,160,28,3,'#00000030');r(x,151,28,9,'#8b7d63');r(x,151,28,1,'#776a53');r(x,145,28,2,'#ab9b78');r(x,145,2,6,'#ab9b78');r(x+26,145,2,6,'#9d8e6d');r(x+2,147,24,4,'#5a4636');
+    for(let k=0;k<6;k++)r(x+3+Math.floor(rand()*22),147+Math.floor(rand()*3),1,1,'#6e5643');
+    r(x+12,134,4,15,'#69533f');r(x+13,136,1,12,'#8a6c50');r(x+11,148,6,1,'#46362a');r(x,150,28,1.5,'#c2b08a');
+    for(let yy=-14;yy<=13;yy++)for(let xx=-16;xx<=16;xx++){const d=Math.hypot(xx/16,yy/13.5),light=(-xx*.5-yy)/20+(rand()-.5)*.35;if(d>1-rand()*.08)continue;
+      r(x+14+xx,130+yy,1,1,d>.86&&yy>2?'#345d48':light>.45?'#86a367':light>.05?'#63905b':light>-.4?'#487951':'#345d48')}
+  }
   r(455,142,2,42,'#4c6156');r(448,132,16,12,'#3a78c2');
   // The way home: the blue address sign (住居表示) on its post at the plaza's left edge, an arrow to the lane; the post's shadow here, the sign itself on its own texture (laneSign),
   // its board 140–153 over its post to 178 (art px), which main.ts puts in front of whoever walks behind its foot.
@@ -362,9 +376,17 @@ r(450,134,12,8,'#fffef2');r(454,136,4,4,'#3a78c2');r(451,184,10,3,'#5b6558');
   r(0,196,480,3,'#e0dccb');r(0,199,480,48,'#5d625c');for(let i=0;i<300;i++)r(Math.floor(rand()*480),199+Math.floor(rand()*48),1,1,'#6b706a');
   for(let x=0;x<480;x+=32)if(x<196||x>276)r(x,222,16,2,'#e6e3cc');for(let x=206;x<274;x+=8)r(x,202,5,42,'#e6e3cc');
   r(0,247,480,3,'#e0dccb');r(0,250,480,12,'#bdb59a');for(let x=0;x<480;x+=16)r(x,250,1,12,'#a9a187');
-  // The shops across the road, seen from above: roofs, awnings and a lit sign each.
-  let x=0;for(const [w,roof,awning] of [[70,'#7a6a5c','#b45843'],[56,'#5d6a62','#3a78c2'],[84,'#8a7f6a','#2c8a4a'],[62,'#6e5a52','#e8c440'],[90,'#5f6e6a','#d24a3a'],[64,'#7d7262','#6c78b8'],[54,'#66705f','#e8853a']] as const){
-    r(x,262,w,58,roof);for(let y=270;y<320;y+=6)r(x,y,w,1,'#00000022');r(x,262,w,5,awning);for(let k=x;k<x+w;k+=8)r(k,262,4,5,'#fffef2aa');r(x+w-1,262,1,58,'#3b4541');r(x+8,268,w-16,4,'#fffbe0');x+=w;
+  // The street lights on the far pavement (townLights): a grey post, the lamp at the end of its arm, the light falling on the pavement under it.
+  for(const lx of townLights){r(lx-1,259,5,1,'#00000030');r(lx,214,2,45,'#9a9c94');r(lx+.5,214,.5,45,'#b8bab2');r(lx-1,256,4,3,'#7d7f78');r(lx+2,213,6,1.5,'#9a9c94');r(lx+6,212,8,3,'#5b6558');r(lx+7,215,6,1,'#fff6d0')}
+  // The shops across the road, in the same three-quarter view as the rest, turned away from us: their awnings over the far pavement, the flat roofs behind their parapets
+  // with the plant on them, and the backs of the buildings with their upper windows (townWindows, lit at night) and the outdoor units of their air conditioning.
+  let x=0;for(const [w,roof,awning,wall] of townShops){
+    r(x,262,w,5,awning);for(let k=x;k<x+w;k+=8)r(k,262,4,5,'#fffef2aa');r(x,267,w,1,'#00000040');
+    r(x,268,w,16,roof);r(x,268,w,1,'#ffffff30');r(x,282,w,2,'#ffffff40');
+    if(w>60){r(x+w-22,270,12,8,'#c9cdd0');r(x+w-22,270,12,1,'#e8eef0');r(x+w-19,272,5,5,'#5b6265')}else{r(x+10,269,9,10,'#aeb4b0');r(x+10,269,9,2,'#c9cdd0');r(x+13,279,3,3,'#5b6558')}
+    r(x,284,w,36,wall);r(x,284,w,3,'#00000033');r(x+3,287,1.5,33,'#9a9c94');
+    for(const [wx,wy,ww,wh] of townWindows)if(wx>=x&&wx<x+w){r(wx-1,wy-1,ww+2,wh+2,'#8f8a7c');r(wx,wy,ww,wh,'#476e79');r(wx+1,wy+1,ww-2,2,'#9ebcb4');r(wx+ww/2,wy,.5,wh,'#cfc8ad');r(wx,wy+wh+5,ww,7,'#d8dcdc');r(wx,wy+wh+5,ww,1,'#eef0f0');r(wx+4,wy+wh+7,5,4,'#7d8a84')}
+    r(x+w-1,262,1,58,'#3b4541');x+=w;
   }
   texture.refresh();
 }
@@ -381,7 +403,7 @@ export const homeWindows:[number,number,number,number][]=[];
  * comes in from the right: it is laid out below with the station's end on the left, then mirrored (x → 720 − x) but for its lettering. Along the far side, houses behind their block walls
  * (facades 35–92, walls 92–114), a coin park, a pair of vending machines, and at the right end the apartment block コーポ ヨリミチ (592–720: the outside stairs on its left, the
  * doors 101–103 at 632, 660 and 688, 14 × 30 from y 82, the traveller's 102 in the middle, the mailboxes at 706); the lane 114–196 with its white edge lines and the utility poles
- * (homePoles) on its far edge; the near side's block wall from 196 and the roofs behind it, broken by a side street (300–340) with its とまれ; at the left end, the green
+ * (homePoles) on its far edge; the near side's block wall from 196 and the houses behind it (roofs 214–268, back walls from 269), broken by a side street (300–340) with its とまれ; at the left end, the green
  * 東中野駅 sign on the wall (2–50 × 100–113), the way back to the station. main.ts (solids, hotspots, lamps) relies on these, mirrored: door 102 at 46–60, the sign at 670–718. */
 function makeHomeStreet(scene:Phaser.Scene){
   const W=homeStreetWidth,texture=mapCanvas(scene,'map-home-street',W,320),g=texture.context;
@@ -404,16 +426,25 @@ function makeHomeStreet(scene:Phaser.Scene){
     r(x+4,105,7,8,'#8b5a3c');r(x+3,99,9,7,'#487951');r(x+5,98,4,3,'#63905b');
   };
   const park=(x:number,w:number)=>{
-    r(x,22,w,14,'#8a8f88');r(x,35,w,79,'#5f635d');for(let i=0;i<120;i++)r(x+Math.floor(rand()*w),36+Math.floor(rand()*76),1,1,'#6b706a');
-    for(let k=0;k<4;k++)r(x+2+k*22,48,1,62,'#e6e3cc');r(x+2,48,66,1,'#e6e3cc');
-    // A small car parked nose in, seen from above.
-    r(x+6,56,16,32,'#c9cdd0');r(x+7,57,14,30,'#dfe3e6');r(x+8,61,12,6,'#55798a');r(x+8,79,12,4,'#55798a');r(x+5,64,1,3,'#3b4541');r(x+22,64,1,3,'#3b4541');
-    r(x+50,38,15,15,'#fbfbf6');r(x+51,39,13,13,'#1d5fae');t(x+55,40.5,'P','#ffffff',true);r(x+56,53,2,16,'#5b6558');
-    r(x+58,92,8,14,'#e8c440');r(x+59,94,6,4,'#283e40');r(x,112,w,1,'#e8c440');
+    // The coin park in the street's three-quarter view, shallow: the building beyond and the block wall at the back, the asphalt with its bays, their wheel stops and lock flaps,
+    // two cars parked nose in (seen from behind and above), the pay machine against the wall, the P sign on its post.
+    r(x,22,w,14,'#7a6a5c');for(let y=24;y<36;y+=3)r(x,y,w,1,'#00000022');r(x,35,w,2,'#3b4541');r(x,37,w,35,'#d8d3c4');glazing(x+10,42,14,9,rand()<.5);glazing(x+44,42,14,9,rand()<.5);glazing(x+27,58,14,9,rand()<.3);
+    blocks(x,70,w,10);r(x,80,w,32,'#74786f');for(let i=0;i<60;i++)r(x+Math.floor(rand()*w),80+Math.floor(rand()*32),1,1,i%2?'#7e8279':'#696d65');r(x,80,w,2,'#00000030');
+    for(let k=0;k<4;k++)r(x+2+k*22,82,1,28,'#e6e3cc');
+    for(let k=0;k<3;k++){const bx=x+3+k*22;r(bx+5,83,11,2,'#c9c2b0');r(bx+5,85,11,1,'#9e9784');r(bx+8,106,5,2,'#9aa0a4');r(bx+8,108,5,.5,'#5b6265')}
+    const car=(cx:number,body:string,side:string)=>{
+      r(cx-1,103,20,3,'#00000035');r(cx+2,76,14,2,body);r(cx+2,78,14,2,'#55798a');r(cx+1,80,16,6,'#eef0f2');r(cx+1,80,16,1,'#ffffff');r(cx-1,83,2,2,body);r(cx+17,83,2,2,body);
+      r(cx+1,86,16,5,'#3e5d6e');r(cx+2,87,6,1,'#9ebcb4');r(cx,91,18,2,body);r(cx,93,18,7,side);r(cx,93,1,7,'#00000025');r(cx+17,93,1,7,'#00000025');
+      r(cx+1,94,3,2,'#d6402e');r(cx+14,94,3,2,'#d6402e');r(cx+6,96,6,3,'#fbfbf6');r(cx+7,97,4,1,'#2c8a4a');r(cx,100,18,2,'#6f767a');r(cx+1,102,3,2,'#2b2b2b');r(cx+14,102,3,2,'#2b2b2b');
+    };
+    car(x+5,'#e2e5e8','#c4c9cd');car(x+49,'#4f6f9c','#3f5a82');
+    r(x+30,78,8,2,'#f2d46a');r(x+30,80,8,11,'#e8c440');r(x+31,82,6,3,'#283e40');r(x+32,87,4,1,'#5b6558');r(x+30,91,8,1,'#00000035');
+    r(x+66,62,2,20,'#5b6558');r(x+59,49,15,15,'#fbfbf6');r(x+60,50,13,13,'#1d5fae');t(x+64,51.5,'P','#ffffff',true);r(x+65,82,4,1,'#00000035');
+    r(x,111,w,1,'#e8c440');
   };
   const vending=(x:number,w:number)=>{
     r(x,22,w,14,'#7d7262');r(x,35,w,2,'#3b4541');r(x+2,37,w-4,58,'#cfc8ad');glazing(x+20,46,20,12,true);blocks(x,92,4,22);blocks(x+w-4,92,4,22);r(x+4,92,w-8,22,'#a39d8d');
-    for(const [vx,c] of [[x+8,'#d24a3a'],[x+31,'#f4f4ee']] as const){r(vx,82,21,30,c);r(vx+2,84,17,12,'#e8eef0');for(let k=0;k<10;k++)r(vx+3+(k%5)*3,85+Math.floor(k/5)*6,2,5,['#d2402e','#3c9a5c','#e8c440','#3a78c2','#e8853a'][k%5]);r(vx+14,99,4,6,'#283e40');r(vx+3,106,11,3,'#283e40');r(vx+1,112,21,2,'#74855e')}
+    for(const [vx,c] of [[x+8,'#d24a3a'],[x+31,'#f4f4ee']] as const){r(vx,79,21,3,vx<x+20?'#e47a6a':'#ffffff');r(vx,82,21,.5,'#00000040');r(vx,82,21,30,c);r(vx+2,84,17,12,'#e8eef0');for(let k=0;k<10;k++)r(vx+3+(k%5)*3,85+Math.floor(k/5)*6,2,5,['#d2402e','#3c9a5c','#e8c440','#3a78c2','#e8853a'][k%5]);r(vx+14,99,4,6,'#283e40');r(vx+3,106,11,3,'#283e40');r(vx+1,112,21,2,'#74855e')}
     r(x+54,104,6,8,'#3a78c2');r(x+54,104,6,2,'#2c5a94');
   };
   let x=0;
@@ -442,10 +473,15 @@ function makeHomeStreet(scene:Phaser.Scene){
   for(let y=-5;y<=5;y++)for(let xx=-5;xx<=5;xx++){const d=Math.hypot(xx,y);if(d<=5)r(222+xx,156+y,1,1,d>4.2?'#4a4e48':(xx+y)%2?'#7d817a':'#6b6f68')}
   r(300,192,40,128,'#666a64');for(let i=0;i<200;i++)r(300+Math.floor(rand()*40),196+Math.floor(rand()*124),1,1,'#727670');r(302,196,1,124,'#e6e3cc');r(337,196,1,124,'#e6e3cc');
   r(303,202,34,2,'#fbfbf6');g.textAlign='center';t(320,206,'とまれ','#fbfbf6',true);g.textAlign='left';
-  // The near side: the block wall along the lane, hedges, the houses' roofs beyond it.
-  for(const [x0,w,roof] of [[0,74,'#6e5a52'],[74,112,'#5d6a62'],[186,114,'#7a6a5c'],[340,92,'#66705f'],[432,98,'#8a7f6a'],[530,92,'#5f6e6a'],[622,98,'#7d7262']] as const){
+  // The near side: the block wall along the lane and its hedges, then the houses beyond, turned away from the lane, in the same three-quarter view: the far slope of their tiled roofs,
+  // the ridge, the near slope down to the gutter, and their back walls with the upstairs windows (lit at night), an air conditioner's outdoor unit and a drainpipe.
+  for(const [x0,w,roof,wall] of [[0,74,'#6e5a52','#d8d3c4'],[74,112,'#5d6a62','#e3dccb'],[186,114,'#7a6a5c','#cdbfa4'],[340,92,'#66705f','#e8e0cf'],[432,98,'#8a7f6a','#d4c8b0'],[530,92,'#5f6e6a','#ddd5c2'],[622,98,'#7d7262','#cfc3ab']] as const){
     blocks(x0,196,w,8);r(x0,204,w,10,'#487951');for(let k=0;k<w;k+=3)r(x0+k,204+(k*7)%8,2,2,'#63905b');
-    r(x0+3,214,w-6,106,roof);for(let y=218;y<320;y+=4)r(x0+3,y,w-6,1,'#00000026');r(x0+3,262,w-6,2,'#ffffff30');r(x0+w-4,214,1,106,'#3b4541');
+    const hx=x0+3,hw=w-6;r(x0,214,w,106,'#3f4a44');
+    r(hx,214,hw,12,roof);r(hx,214,hw,12,'#00000038');r(hx,226,hw,2,'#ffffff45');r(hx,228,hw,40,roof);for(let y=232;y<268;y+=4)r(hx,y,hw,1,'#00000026');r(hx,266,hw,3,'#3b4541');
+    r(hx,269,hw,51,wall);r(hx,269,hw,3,'#00000030');r(hx+hw-5,272,1.5,48,'#9a9c94');
+    glazing(hx+8,280,16,11,rand()<.45);glazing(hx+hw-28,280,16,11,rand()<.45);if(hw>100)glazing(hx+hw/2-8,280,16,11,rand()<.45);
+    r(hx+8,298,14,9,'#d8dcdc');r(hx+8,298,14,1,'#eef0f0');for(let y=-2;y<=2;y++)for(let xx=-2;xx<=2;xx++)if(Math.hypot(xx,y)<=2.4)r(hx+13+xx,302.5+y,1,1,'#7d8a84');
   }
   // The utility poles on the far edge, the wires between them, a street light on each.
   r(0,31,W,.5,'#2b2b2b');r(0,34,W,.5,'#2b2b2b');
@@ -632,7 +668,7 @@ export function makeCorridor(scene:Phaser.Scene,key:string,platforms:Platform[],
     }
   });
   // The gates seen from the paid side: the cabinets' backs with their green arrows, the concourse beyond, darker.
-  r(176,gates,128,60,'#74855e');for(let y=gates;y<height;y+=16)for(let x=176;x<304;x+=16){r(x,y,8,8,'#6e7d5a');r(x+8,y+8,8,8,'#6e7d5a')}
+  r(176,gates,128,60,'#cfd2cb');for(let y=gates;y<height;y+=16)for(let x=176;x<304;x+=16){r(x,y,8,8,'#c4c8c0');r(x+8,y+8,8,8,'#c4c8c0')}
   r(176,gates,128,8,'#d3cfbd');
   for(let x=180;x<304;x+=22){r(x+1,gates+40,8,3,'#4f5a48');r(x,gates+8,8,32,'#d5d8d0');r(x,gates+8,8,3,'#3d4846');r(x+7,gates+11,1,29,'#9aa29a');r(x,gates+22,8,2,'#3a78c2');r(x+2,gates+12,4,3,'#1d2622');r(x+3,gates+13,2,1,'#57c26a')}
   for(let k=0;k<6;k++)dither(176,gates+44+k*3,128,3,['#68745b','#55625b','#3d4846','#2b3431','#1d2622','#1d2622'][k]);
