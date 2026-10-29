@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
-import { renderWallFareMap } from './tokyo-fares';
-import { hasShinkansen, routes, stations, type Hub } from './network';
+import { renderWallFareMap, onTokyoBoard } from './tokyo-fares';
+import { boardLines, hasShinkansen, stations, type Hub } from './network';
 import { looks, type Figure, type Look } from './people';
 import { C, accents, anchors, backZ, centralGates, centralL, eastX, facadeD, facadeTop, floorY, frontZ, fromConcourse, gateZ, housings, machineW, officeL, officeZ, paintPerson, paintPoster, recessBottom, recessTop, shopDoor, shopL, shopR, transferGates, transferR, wallL, wallR, westX, type HallDevice } from './hall-scene';
 
 type Block=[number,number,number,number,number,number,string];
 // The hall's own units and layout (hall-scene.ts); here y is given as there, down from the ceiling, and z out of the wall.
+// The idle highlight rims fade between these two.
+const white=new THREE.Color('#ffffff'),yellow=new THREE.Color('#f3d76b');
 const eyeY=-1120,payTop=recessTop+180,unit=new THREE.BoxGeometry(1,1,1);
 const font='10px "Yorimichi Bitmap"';
 const shade=(hex:string,k:number)=>'#'+new THREE.Color(hex).multiplyScalar(k).getHexString();
@@ -84,6 +86,8 @@ export class HallVoxels {
   private pickable:THREE.Object3D[]=[];
   private rims=new Map<string,THREE.InstancedMesh>();
   private hovered:string|null=null;
+  // The idle rims fade between white and yellow, once a second.
+  private blink=0;
   private near:string|null=null;
   // Each commuter standing and in mid-step.
   private crowd:THREE.InstancedMesh[][]=[];
@@ -196,7 +200,7 @@ export class HallVoxels {
     const cx=1950,top=220,bw=1216,bh=684,border=18,station=stations[this.hub],l=cx-bw/2,r=cx+bw/2,t=top+border;
     b.add(cx-430,cx+430,50,190,0,14,C.ink).add(cx-430,cx+430,176,190,14,16,station.accent).text(`${station.ja}  ${station.en.toUpperCase()}`,cx,115,14,9,'#fffef2',8);
     const frame=new Blocks().add(l-border,r+border,top,t+bh+border,0,14,C.frame).mesh(this.material);this.scene.add(frame);
-    if(this.hub==='tokyo'){
+    if(onTokyoBoard(stations[this.hub].ja)){
       const holder=document.createElement('div');holder.className='hall-board';holder.style.width='1387px';holder.style.height='780px';
       const svg=renderWallFareMap(station.ja);svg.setAttribute('width','1387');svg.setAttribute('height','780');holder.append(svg);
       const board=new CSS3DObject(holder);board.scale.setScalar(.877);board.position.set(cx,-(t+bh/2),14.5);this.cssScene.add(board);
@@ -204,17 +208,17 @@ export class HallVoxels {
       frame.userData.device=hole.userData.device='map';this.pickable.push(frame,hole);this.rim('map',l-border,r+border,top,t+bh+border,16);
     }else{
       b.add(l,r,t,t+bh,14,18,'#fffef2').text(`${station.ja}駅 のりば案内`,r-40,t+60,18,6,'#2d563e',4,'right');
-      routes.filter(route=>route.from===this.hub).forEach((route,i)=>{
+      boardLines(this.hub).forEach((route,i)=>{
         const y=t+230+i*170;
         b.text(station.ja,l+40,y,18,8,'#d6402e',6,'left').add(l+220,l+260,y-20,y+20,18,26,'#d6402e').add(l+260,r-300,y-10,y+10,18,24,route.color).add(r-300,r-260,y-20,y+20,18,26,'#ffffff');
         b.text(route.ja,(l+r-40)/2,y-60,18,6,route.color,4).text(route.name.split(' / ')[1],r-230,y,18,8,C.ink,6,'left');
       });
     }
   }
-  /** A highlight rim of white voxels just proud of the face, shown around the machine in front (tinted yellow) or the one hovered. */
+  /** A highlight rim of voxels just proud of the face: fading between white and yellow on every machine, yellow on the one in front, white on the one hovered. */
   private rim(id:string,x0:number,x1:number,y0:number,y1:number,z:number){
-    const t=12,mesh=new Blocks().add(x0-t,x1+t,y0-t,y0,z,z+6,'#ffffff').add(x0-t,x1+t,y1,y1+t,z,z+6,'#ffffff').add(x0-t,x0,y0,y1,z,z+6,'#ffffff').add(x1,x1+t,y0,y1,z,z+6,'#ffffff').mesh(new THREE.MeshBasicMaterial({color:'#ffffff'}),0,false);
-    mesh.visible=false;this.scene.add(mesh);this.rims.set(id,mesh);
+    const t=12,mesh=new Blocks().add(x0-t,x1+t,y0-t,y0,z,z+6,'#ffffff').add(x0-t,x1+t,y1,y1+t,z,z+6,'#ffffff').add(x0-t,x0,y0,y1,z,z+6,'#ffffff').add(x1,x1+t,y0,y1,z,z+6,'#ffffff').mesh(new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.7}),0,false);
+    this.scene.add(mesh);this.rims.set(id,mesh);
   }
   /** The bank: a pale facade of panels standing out of the wall around the recesses, the steel ledge, and each machine. */
   private buildBank(b:Blocks,devices:HallDevice[]){
@@ -272,10 +276,10 @@ export class HallVoxels {
     this.camera.fov=2*Math.atan(Math.max(h,560)/2/1000)*180/Math.PI;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
   setHover(id:string|null){this.hovered=id;this.refresh()}
-  private refresh(){for(const [id,rim] of this.rims){rim.visible=id===this.near||id===this.hovered;(rim.material as THREE.MeshBasicMaterial).color.set(id===this.near?'#f3d76b':'#ffffff')}}
+  private refresh(){for(const [id,rim] of this.rims){const m=rim.material as THREE.MeshBasicMaterial,lit=id===this.near||id===this.hovered;if(lit)m.color.set(id===this.near?'#f3d76b':'#ffffff');else m.color.lerpColors(white,yellow,this.blink);m.opacity=lit?1:.6}}
   render(x:number,yaw:number,pitch:number,distance:number,near:string|null){
     if(!this.renderer)return;
-    if(near!==this.near){this.near=near;this.refresh()}
+    this.near=near;this.blink=(1-Math.cos(performance.now()/1000*Math.PI*2))/2;this.refresh();
     this.camera.rotation.set(pitch*Math.PI/180,-yaw*Math.PI/180,0);this.camera.position.set(x,eyeY,distance+1000);
     // Each commuter where the concourse has them, turned the way they face there, stepping while they walk; hidden once within a few steps of the eye or faded out at the gates.
     const t=performance.now()/1000;

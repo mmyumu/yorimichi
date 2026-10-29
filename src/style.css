@@ -122,3 +122,97 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .bag-head{display:flex;align-items:center;justify-content:space-between}.bag-head h2{font-size:14px;letter-spacing:2px;margin:0;font-weight:400}
 .bag-close{font:13px 'Yorimichi Pixel',monospace;cursor:pointer;background:#e7e8d5;color:#234236;border:2px solid #a1af92;box-shadow:0 3px #0005;padding:6px 12px}.bag-close:focus-visible{outline:3px solid #eac76d;outline-offset:2px}
 .bag-ticket{display:block;width:100%;image-rendering:pixelated;filter:drop-shadow(3px 3px 0 #0007)}
+/* The konbini ATM (atm.ts), after a Seven Bank machine: the bank's plate, the upper display with the card networks, the touch screen, card / receipt slots and the cash outlet, the wallet beside it. */
+.atm-shell{position:absolute;left:14px;top:20px;width:652px;height:606px;background:linear-gradient(100deg,#c3c8cb 0 12%,#dfe2e4 12% 70%,#cdd2d5 70%);border:6px solid #8f969a;box-shadow:0 8px 0 #0b1716}
+.atm-plate{height:46px;background:var(--bank);display:flex;align-items:center;gap:16px;padding:0 18px;color:#fff;border-bottom:4px solid #0003}.atm-plate strong{font-size:30px;letter-spacing:4px}.atm-plate span{font-size:15px}
+.atm-upper{margin:8px 34px 0;height:58px;background:#10264a;border:5px solid #2a3236;color:#ffe27a;padding:4px 10px;font-size:12px}.atm-upper p{margin:0 0 5px}
+.atm-marks{display:flex;gap:4px;flex-wrap:wrap}.atm-marks span{color:#fff;font-size:9px;padding:1px 4px;border:1px solid #fff6}
+.atm-screen{position:absolute;left:34px;top:128px;width:572px;height:300px;border:8px solid #2a3236;background:#f4f7fa;color:#172a30;box-shadow:0 4px 0 #9aa0a4}
+.atm-top{height:40px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;background:#1b3f8f;color:#fff}.atm-top h2{margin:0;font-size:17px}
+.atm-body{position:absolute;top:40px;bottom:34px;left:0;right:0;padding:12px 16px}
+.atm-bottom{position:absolute;bottom:0;left:0;right:0;height:34px;display:flex;align-items:center;gap:8px;padding:0 8px;background:#dfe4e8;border-top:2px solid #a7b2b8}
+.atm-fee{margin-left:auto;font-size:11px;color:#465d5b}
+/* In the bottom bar, right of とりけし and もどる, over the fee line. */
+.atm-notice{position:absolute;left:200px;right:6px;bottom:3px;height:24px;margin:0;padding:0 8px;display:flex;align-items:center;justify-content:center;background:#fff6c4;color:#3b2c10;border:2px solid #8f7f12;font-size:13px;text-align:center;z-index:2;pointer-events:none;animation:atm-notice 3s steps(6) forwards}
+@keyframes atm-notice{0%,75%{opacity:1}100%{opacity:0;visibility:hidden}}
+.atm-overlay .atm-screen button{font-size:18px;line-height:1.25;white-space:pre-line;cursor:pointer;color:#172a30;border:2px solid #4f6670;background:#eef6f8;box-shadow:inset 3px 3px 0 #fff,inset -3px -3px 0 #bdcdd4,0 3px 0 #1b2f3a99;padding:6px 10px;min-height:40px}
+.atm-overlay .atm-screen button:active{transform:translateY(2px)}.atm-overlay .atm-screen button:disabled{opacity:.5;cursor:default;box-shadow:inset 3px 3px 0 #fff8}
+.atm-overlay .atm-screen .main{background:#ffd27a;border-color:#a8641a;box-shadow:inset 3px 3px 0 #ffecc0,inset -3px -3px 0 #e8a040,0 3px 0 #0006}
+.atm-overlay .atm-screen .ok{background:#6fd22e;border-color:#2f6f12;box-shadow:inset 3px 3px 0 #c4f59a,inset -3px -3px 0 #3f9a15,0 3px 0 #0006}
+.atm-overlay .atm-screen .fix{background:#f5db30;border-color:#8f7f12;box-shadow:inset 3px 3px 0 #fff3a0,inset -3px -3px 0 #c3a91c}
+.atm-overlay .atm-screen .atm-language{font-size:12px;min-height:26px;padding:2px 12px}
+.atm-overlay .atm-bottom .atm-cancel{font-size:13px;min-height:26px;padding:1px 14px;background:#d83d26;color:#fff;border-color:#8c2414;box-shadow:inset 2px 2px 0 #ff9b86,inset -2px -2px 0 #a92a15}
+.atm-overlay .atm-bottom .atm-back{font-size:13px;min-height:26px;padding:1px 14px;background:#f5db30;border-color:#8f7f12;box-shadow:inset 2px 2px 0 #fff3a0,inset -2px -2px 0 #c3a91c}
+.atm-overlay button:focus-visible,.atm-overlay.pad-nav button:focus{outline:3px solid #ffce42;outline-offset:2px}
+.atm-menu{display:grid;grid-template-columns:1.3fr 1fr 1fr;grid-template-rows:80px 80px;gap:10px}.atm-overlay .atm-menu button{font-size:21px}.atm-overlay .atm-menu .withdraw{grid-row:1/3;font-size:28px}
+.atm-note{font-size:12px;line-height:1.5;margin:8px 0;color:#465d5b}.atm-note.centre{text-align:center}
+.atm-prompt{display:flex;align-items:center;gap:22px;margin:22px 10px 14px;font-size:17px;line-height:1.6;white-space:pre-line}.atm-prompt p{margin:0}.atm-prompt img{width:96px;image-rendering:pixelated;animation:atm-card 1.2s steps(2) infinite}
+@keyframes atm-card{50%{transform:translateY(8px)}}
+.atm-entry{display:grid;grid-template-columns:1fr 250px;grid-template-rows:auto auto 1fr;column-gap:16px;align-items:start}
+.atm-display{grid-column:1;font-size:30px;background:#fff;border:3px solid #4f6670;padding:10px 14px;text-align:right;letter-spacing:2px}.atm-display.pin{text-align:center;letter-spacing:14px}
+.atm-pad{grid-column:2;grid-row:1/4;display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.atm-overlay .atm-pad button{min-height:44px;font-size:19px;padding:2px}
+.atm-overlay .atm-entry .wide{grid-column:1;justify-self:start;margin-top:4px}
+.atm-amounts{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.atm-overlay .atm-amounts button{min-height:52px;font-size:21px}.atm-overlay .atm-amounts .other{grid-column:1/4;min-height:42px;font-size:17px}
+.atm-details{display:grid;grid-template-columns:180px 1fr;margin:4px 0;border:1px solid #adb5a9;font-size:15px}.atm-details dt,.atm-details dd{margin:0;padding:7px 9px;border-bottom:1px solid #ccd0c5}.atm-details dt{background:#657065;color:#fff}.atm-details dd{background:#fff;text-align:right}
+.atm-overlay .atm-screen .atm-confirm{position:absolute;right:16px;bottom:10px;min-width:140px}
+.atm-choice{display:flex;justify-content:center;gap:30px;padding:36px 0}.atm-overlay .atm-choice button{min-width:170px;min-height:84px;font-size:26px}
+.atm-wait{width:200px;height:14px;margin:56px auto 0;border:3px solid #4f6670;background:repeating-linear-gradient(90deg,#1b3f8f 0 14px,#f4f7fa 14px 28px);animation:atm-wait .6s steps(4) infinite}
+@keyframes atm-wait{to{background-position:28px 0}}
+.atm-message{font-size:18px;line-height:1.7;white-space:pre-line;text-align:center;margin:40px 0 0}
+.atm-front{position:absolute;left:20px;right:20px;top:446px;bottom:14px;display:grid;grid-template-columns:150px 140px 1fr 104px;gap:8px;padding:8px;background:#c9cdd0;border:3px solid #9aa0a4;box-shadow:inset 3px 3px 0 #e8ebec}
+.atm-slot{background:#eef0f1;border:2px solid #9aa0a4;box-shadow:inset 2px 2px 0 #fff,inset -2px -2px 0 #c3c8cb;display:flex;flex-direction:column;align-items:center;gap:4px;padding:5px;color:#333b38}
+.atm-label{font-size:11px}.atm-opening{display:block;width:96px;height:8px;background:#151a19;border:3px solid #8f969a;margin-top:auto}
+.atm-card.ready .atm-opening{animation:slot-ready 1s steps(2) infinite;border-color:#e5b917}.atm-card.hover{border-color:#ffb300;background:#fff6c4}.atm-card.shake{animation:slot-shake .3s steps(4)}
+.atm-cash{background:#d9dcde}.atm-tray{margin-top:auto;width:100%;flex:1;max-height:92px;background:#2a2f2e;border:4px solid #8f969a;border-top:6px solid #5b6265;display:flex;align-items:center;justify-content:center}
+.atm-slot.lit .atm-opening,.atm-cash.lit .atm-tray{border-color:#e5b917;box-shadow:0 0 8px #e5b917aa}
+.atm-overlay .atm-out{background:none;border:0;padding:0;cursor:pointer;display:flex;align-items:center;gap:0;color:#fff3d6;font-size:13px}.atm-overlay .atm-out.fresh{animation:tray-drop .4s steps(4)}
+.atm-out img{image-rendering:pixelated;height:30px}.atm-out-card img{width:66px;height:42px;filter:drop-shadow(2px 2px 0 #0007)}.atm-out-cash img{height:34px;margin-left:-60px;filter:drop-shadow(1px 1px 0 #0008)}.atm-out-cash img:first-child{margin-left:0}
+.atm-out-receipt span{display:block;background:#fbfbf6;color:#283e40;font-size:9px;line-height:1.3;padding:3px 5px;white-space:pre;text-align:left;box-shadow:2px 2px 0 #0005}
+.atm-overlay .atm-out:disabled{cursor:default;opacity:.55}
+.atm-keys{display:grid;grid-template-columns:repeat(3,24px);gap:3px;justify-content:center;align-content:center;background:#b8bdc0;border:2px solid #9aa0a4}.atm-keys span{display:grid;place-items:center;height:16px;background:#f7f6f0;border:1px solid #8d8a7e;box-shadow:0 2px 0 #8d8a7e;font-size:10px}
+.atm-overlay .atm-own-card{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:8px;background:#3c2617;border:2px solid #2b1a10;box-shadow:inset 2px 2px 0 #6b4a30;color:#f6e3c4;padding:6px;cursor:grab;touch-action:none;font-size:12px;white-space:pre-line;text-align:left;min-height:70px}
+.atm-own-card img{width:90px;height:57px;image-rendering:pixelated;pointer-events:none}.atm-own-card span:only-child{grid-column:1/3}.atm-overlay .atm-own-card:disabled{opacity:.5;cursor:default}
+.atm-memo{margin:2px 6px;background:#fff3a0;color:#3b2c10;padding:6px 8px;font-size:14px;transform:rotate(-2deg);box-shadow:2px 3px 0 #0005}
+.atm-pieces{display:grid;gap:2px;flex:1;align-content:start}.atm-piece{display:flex;align-items:center;gap:8px;font-size:13px}.atm-piece img{height:20px;width:40px;object-fit:contain;image-rendering:pixelated}.atm-piece.none{opacity:.35}
+/* The fare adjustment machine (のりこし精算機): JR East's yellow, and the traveller's tickets above the money in the wallet panel, to drag onto the ticket slot. */
+.machine-overlay .machine-design.adjust .machine-shell{background:linear-gradient(100deg,#b88a12 0 20%,#d4a21c 20% 42%,#e8b82a 42% 62%,#d4a21c 62% 84%,#b88a12 84%);border-color:#6b5110}
+.machine-overlay .adjust .machine-brand{color:#2b2208}
+.machine-overlay .adjust .charge-prompt{color:#3b3410}.machine-overlay .adjust-card{background:#e8f1df;color:#2d4a2a;font-size:20px;box-shadow:inset 4px 4px 0 #fff,inset -4px -4px 0 #b6cfa4,0 4px 0 #0005}
+.wallet-tickets{display:flex;flex-wrap:wrap;gap:5px;align-items:center}.wallet-tickets-head{width:100%;font-size:12px;letter-spacing:1px}
+.wallet-ticket{padding:2px;min-height:0;background:#3c2617;border:2px solid #2b1a10;box-shadow:inset 2px 2px 0 #6b4a30;cursor:grab;touch-action:none}.wallet-ticket img{display:block;width:96px;height:48px;image-rendering:pixelated}
+.wallet-ticket:disabled{opacity:.45;cursor:default}.wallet-ticket:focus-visible{outline:3px solid #ffce42;outline-offset:2px}
+/* The journey's clock (clock.ts) in the overlays' headers (hall, gates); the scene shows its own in its top band. */
+.game-clock{color:#f3dfb1;font-size:17px;letter-spacing:1px;white-space:nowrap;align-self:center}.game-clock .clock-day{font-size:11px;letter-spacing:1px;color:#b6bd98;margin-right:6px}@media(max-width:600px){.game-clock .clock-day{display:none}.game-clock{font-size:14px}}
+/* The traveller's phone (phone.ts): an Android-like handset raised on the right, the messaging app inside, and Lorenzo's flight. */
+.phone-overlay{position:fixed;inset:0;z-index:95;display:grid;align-items:center;justify-items:end;padding:0 max(16px,7vw);background:#0c1c1780;font-family:'Yorimichi Pixel','Yorimichi JP',monospace;letter-spacing:.5px}
+@media(max-width:600px){.phone-overlay{justify-items:center;padding:0 16px}}
+.phone{height:min(600px,92vh);aspect-ratio:9/18;display:flex;flex-direction:column;background:#161c1f;border:3px solid #39464c;border-radius:22px;padding:10px 8px 6px;box-shadow:inset 2px 2px 0 #4b5b62,6px 8px 0 #0008;animation:phone-up .18s ease-out}
+@keyframes phone-up{from{transform:translateY(40px);opacity:0}}
+.phone-status{display:flex;justify-content:space-between;align-items:center;color:#e9efe9;font-size:11px;padding:0 10px 5px}.phone-signal{display:flex;align-items:center;gap:2px}
+.phone-battery{display:inline-block;width:16px;height:8px;border:1px solid #e9efe9;margin-left:4px;background:linear-gradient(90deg,#e9efe9 70%,transparent 70%);background-clip:content-box;padding:1px}
+.phone-screen{flex:1;min-height:0;display:flex;flex-direction:column;background:#f3f1ea;color:#253634;border-radius:4px;overflow:hidden}
+.phone button{font:inherit;letter-spacing:inherit;cursor:pointer;border:0;background:none;color:inherit}.phone button:focus-visible{outline:3px solid #eac76d;outline-offset:1px}
+.phone-home{background:linear-gradient(#f2b27c,#c97b8e 45%,#5d6aa8);color:#fffef2;align-items:center;padding-top:44px}
+.phone-clock{font-size:46px;letter-spacing:2px;text-shadow:2px 2px 0 #0003}.phone-date{font-size:13px;margin-bottom:auto}
+.phone-apps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;width:100%;padding:12px 8px 18px}
+.phone-app{display:flex;flex-direction:column;align-items:center;gap:5px;font-size:10px!important}.phone-app:disabled{opacity:.55;cursor:default}
+.phone-tile{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;box-shadow:inset 0 -3px #0003,0 2px #0003}.phone-tile img{width:30px;image-rendering:pixelated}
+.phone-badge{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#d6402e;color:#fff;font-size:11px;font-weight:400}.phone-tile .phone-badge{position:absolute;right:-6px;top:-6px}
+.phone-bar{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#2f6f62;color:#fffef2;font-size:16px;letter-spacing:1px}
+.phone-back{font-size:18px!important;padding:0 4px}
+.phone-list{overflow:auto}.phone-row{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border-bottom:1px solid #dcd8cb!important;text-align:left}.phone-row:hover{background:#e7e4d8}
+.phone-avatar{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;color:#fff;font-size:16px;box-shadow:inset 0 -3px #0002}.phone-bar .phone-avatar{width:28px;height:28px;font-size:13px}
+.phone-row-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}.phone-row-text strong{font-weight:400;font-size:14px}.phone-row-text span{font-size:11px;color:#6b7772;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phone-row.unread .phone-row-text span{color:#253634}.phone-row-side{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:10px;color:#6b7772}
+.phone-log{flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px 10px}
+.phone-bubble{max-width:80%;align-self:flex-start;background:#e2ded2;padding:8px 10px;border-radius:4px 12px 12px 12px;font-size:13px;line-height:1.35}
+.phone-bubble.me{align-self:flex-end;background:#3b8a6e;color:#fffef2;border-radius:12px 4px 12px 12px}.phone-bubble small{display:block;margin-top:3px;font-size:9px;opacity:.6;text-align:right}
+.phone-bubble.typing{letter-spacing:3px;animation:phone-typing 1s steps(2) infinite}@keyframes phone-typing{50%{opacity:.4}}
+.phone-compose{padding:8px;border-top:1px solid #dcd8cb}.phone-chip{width:100%;text-align:left;font-size:12px!important;line-height:1.35;padding:8px 10px!important;border:2px solid #3b8a6e!important;border-radius:12px;color:#2f6f62!important;background:#fffef7!important}
+.phone-chip:hover{background:#e3f0ea!important}.phone-field{padding:9px 12px;border-radius:16px;background:#e7e4d8;color:#9aa29a;font-size:12px}
+.phone-nav{display:flex;justify-content:space-around;padding-top:5px}.phone-nav button{color:#c9d1cc;font-size:16px;width:48px;padding:3px 0}
+.flight-overlay{position:fixed;inset:0;z-index:96;display:grid;place-items:center;background:#0c1c17e0;font-family:'Yorimichi Pixel','Yorimichi JP',monospace;letter-spacing:.5px;color:#f6e3c4;outline:none;cursor:pointer}
+.flight-card{width:min(92vw,(100vh - 110px)*1.5);display:flex;flex-direction:column;gap:8px}.flight-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:15px}.flight-head strong{font-weight:400;font-size:20px;letter-spacing:2px}
+.flight-map{position:relative;border:4px solid #2b1a10;box-shadow:6px 8px 0 #0008}.flight-map canvas{display:block;width:100%;image-rendering:pixelated}
+.flight-label{position:absolute;transform:translate(-50%,-50%);font-size:clamp(9px,1.4vw,14px);white-space:nowrap;pointer-events:none}.flight-label.below{transform:translate(-50%,40%);color:#fffef2;text-shadow:1px 1px 0 #283e40,-1px -1px 0 #283e40,1px -1px 0 #283e40,-1px 1px 0 #283e40}
+.flight-label.land{color:#5d7746;letter-spacing:3px}.flight-label.sea{color:#9cc2d4;letter-spacing:3px}.flight-foot{font-size:12px;opacity:.7;text-align:right}

@@ -1,4 +1,5 @@
-import { fareMapHeight, fareMapWidth, renderTokyoFareMap } from './tokyo-fares';
+import { fareMapHeight, fareMapWidth, renderTokyoFareMap, onTokyoBoard } from './tokyo-fares';
+import { clockBadge } from './clock';
 import { HallScene } from './hall-scene';
 import { HallPicture } from './hall-picture';
 import { HallVoxels } from './hall-voxels';
@@ -6,7 +7,8 @@ import { leftInTray, trayKey, type MachineKind } from './ticket-machine';
 import { machineKinds, stations, type Hub, type Service } from './network';
 import type { Figure } from './people';
 
-type DeviceKind=MachineKind;
+// The bank's machines; the fare adjustment machine stands by the exit gates instead.
+type DeviceKind=Exclude<MachineKind,'adjust'>;
 interface Device {id:string;kind:DeviceKind;x:number;label:string}
 const names:Record<DeviceKind,[string,string]>={local:['tickets','きっぷ / Local tickets'],charge:['charge','チャージ専用 / IC charge'],shinkansen:['express','新幹線 / Shinkansen']};
 /** The station's machine bank (machineKinds), 600 px apart along the wall. */
@@ -60,12 +62,12 @@ export class MachineHall {
     if(crowd?.start!==undefined&&crowd.start>=0)this.x=this.targetX=devices[crowd.start].x+250;
     this.overlay.className='machine-hall';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','In front of the ticket machines');
     const header=this.el(this.overlay,'header','','hall-header');
-    this.el(header,'div',`${stations[hub].ja} ${stations[hub].en.toUpperCase()} / きっぷうりば`,'hall-heading');
+    this.el(header,'div',`${stations[hub].ja} ${stations[hub].en.toUpperCase()} / きっぷうりば`,'hall-heading');header.append(clockBadge());
     this.button(header,'Back to the hall',()=>this.close(),'hall-exit');
     this.viewport.className='hall-viewport'+(pixel?' is-pixel':'');this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label',pixel?'Left and right arrows to walk from machine to machine, up to look at the board.':'Drag to look around. Left and right arrows to move sideways, up and down to step closer or back.');
     this.overlay.append(this.viewport);this.scene=pixel?new HallPicture(this.viewport,hub,devices,crowd?.figures):view==='voxel'?new HallVoxels(this.viewport,hub,devices,crowd?.figures):new HallScene(this.viewport,hub,devices,crowd?.figures);
     const bottom=this.el(this.overlay,'div','','hall-bottom');bottom.append(this.position,this.status);
-    this.el(this.overlay,'p',pixel?`Click a machine${hub==='tokyo'?' or the map':''} · ← / → or D-pad: walk from machine to machine · ↑ / ↓: ${hub==='tokyo'?'wall map':'station board'} · E or A: use · B / Esc: back`:'Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
+    this.el(this.overlay,'p',pixel?`Click a machine${onTokyoBoard(stations[hub].ja)?' or the map':''} · ← / → or D-pad: walk from machine to machine · ↑ / ↓: ${onTokyoBoard(stations[hub].ja)?'wall map':'station board'} · E or A: use · B / Esc: back`:'Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
     this.overlay.addEventListener('keydown',this.keydown);this.overlay.addEventListener('keyup',this.keyup);
     this.overlay.addEventListener('focusout',()=>this.keys.clear());
     window.addEventListener('blur',this.blur);
@@ -84,7 +86,7 @@ export class MachineHall {
   /** Whether A / E would use the nearest machine rather than turn back towards the machines. */
   private facingMachines(){return this.pitch<=10&&Math.abs(this.yaw)<=18}
   /** Whether the head is raised to the Tokyo fare map: it is highlighted and A / E / a click reads it. */
-  private facingMap(){return this.hub==='tokyo'&&this.pitch>10&&Math.abs(this.yaw)<=25}
+  private facingMap(){return onTokyoBoard(stations[this.hub].ja)&&this.pitch>10&&Math.abs(this.yaw)<=25}
   private activate(){
     if(this.paused)return;
     if(this.facingMap()){this.openMapDetail();return;}
@@ -95,17 +97,17 @@ export class MachineHall {
     this.pause();this.open(device.kind,device.id);
   }
   private openMapDetail(){
-    if(this.mapDetail||this.hub!=='tokyo')return;
+    if(this.mapDetail||!onTokyoBoard(stations[this.hub].ja))return;
     this.keys.clear();
     const detail=this.el(this.overlay,'section','','hall-map-detail');
     detail.setAttribute('role','dialog');detail.setAttribute('aria-modal','true');detail.setAttribute('aria-label','Detailed JR map');
     this.mapDetail=detail;
     const toolbar=this.el(detail,'div','','hall-map-detail-toolbar');
-    this.el(toolbar,'strong','東京駅から · JR線近距離きっぷ運賃表');
+    this.el(toolbar,'strong',`${stations[this.hub].ja}駅から · JR線近距離きっぷ運賃表`);
     this.el(toolbar,'span','Wheel, pinch or LT / RT: zoom · drag or sticks: move','hall-map-selected');
     const viewport=this.el(detail,'div','','hall-map-canvas');viewport.tabIndex=0;
     viewport.setAttribute('aria-label','JR map, drag horizontally and vertically');
-    const diagram=renderTokyoFareMap();viewport.append(diagram);
+    const diagram=renderTokyoFareMap(stations[this.hub].ja);viewport.append(diagram);
     // Zooming out stops once the whole map fits; the point under the cursor (or the centre) stays in place.
     let zoom=1;
     const size=()=>{diagram.style.width=`${fareMapWidth*zoom}px`;diagram.style.height=`${fareMapHeight*zoom}px`};
@@ -234,7 +236,7 @@ export class MachineHall {
       const free=!this.mapDetail;
       this.scene.render(this.x,this.yaw,this.pitch,this.distance,free&&this.facingMap()?'map':free&&this.facingMachines()?nearest.id:null);
       this.position.textContent=nearest.label;
-      this.status.textContent=this.backing>0&&this.sideways?'Keep going sideways to return to the hall':this.distance>=maxDistance&&this.backing>0?'Keep stepping back to return to the hall':this.crowd?.busy(this.devices.indexOf(nearest))&&!this.facingMap()&&this.pitch<=10?'Someone is using this machine · wait for them or take another':this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?(this.pixel?'Station board · ↓: back to the machines':'Wall map · move sideways to follow the lines'):nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':this.pixel?`Click a machine or E / A: use · ← / →: walk along · ↑: ${this.hub==='tokyo'?'wall map':'station board'}`:'Click the machine or E / A: use · drag to look around';
+      this.status.textContent=this.backing>0&&this.sideways?'Keep going sideways to return to the hall':this.distance>=maxDistance&&this.backing>0?'Keep stepping back to return to the hall':this.crowd?.busy(this.devices.indexOf(nearest))&&!this.facingMap()&&this.pitch<=10?'Someone is using this machine · wait for them or take another':this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?(this.pixel?'Station board · ↓: back to the machines':'Wall map · move sideways to follow the lines'):nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':this.pixel?`Click a machine or E / A: use · ← / →: walk along · ↑: ${onTokyoBoard(stations[this.hub].ja)?'wall map':'station board'}`:'Click the machine or E / A: use · drag to look around';
       this.overlay.dataset.machine=nearest.id;this.overlay.dataset.x=this.x.toFixed(1);this.overlay.dataset.pitch=this.pitch.toFixed(1);this.overlay.dataset.yaw=this.yaw.toFixed(1);
       this.overlay.dataset.mapDetail=String(this.pitch>10&&this.distance<=700);
     }

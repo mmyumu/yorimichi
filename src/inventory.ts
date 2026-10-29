@@ -1,3 +1,4 @@
+import { stations } from './network';
 import { paintTicket } from './ticket-gate';
 import type { TravelTicket } from './ticket-machine';
 import { coinCount, coins, isCoin, notes, pieceArt, walkFactor, walletTotal, type Wallet } from './wallet';
@@ -16,7 +17,7 @@ export function openInventory(tickets:TravelTicket[],wallet:Wallet,close:()=>voi
     // Painted again once the Japanese font is in, like the signs.
     const paint=()=>{const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;paintTicket(canvas.getContext('2d')!,128,64,ticket);image.src=canvas.toDataURL()};
     paint();document.fonts?.load('16px "Yorimichi JP"').then(paint).catch(()=>{});
-    image.alt=image.title=(ticket.kind==='route'?`${ticket.from} → ${ticket.to}, ${ticket.line}, ¥${ticket.fare}`:`Tokyo fare ticket, ¥${ticket.fare}`)+(ticket.punched?', punched':'');
+    image.alt=image.title=(ticket.kind==='route'?`${stations[ticket.from].en} → ${stations[ticket.to].en}, ${ticket.line}, ¥${ticket.fare}`:ticket.kind==='adjust'?`Fare adjustment ticket, ${stations[ticket.from].en} → ${ticket.toEn}, ¥${ticket.fare} paid`:`Fare ticket from ${stations[ticket.from].en}, ¥${ticket.fare}`)+(ticket.punched?', punched':'');
   }
   if(!tickets.length)el(list,'p','No ticket','gate-empty');
   const purse=el(panel,'section','','gate-purse'),factor=walkFactor(wallet);

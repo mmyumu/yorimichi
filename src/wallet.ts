@@ -48,8 +48,8 @@ export function pieceArt(value:number){
 }
 
 let audio:AudioContext|null=null;
-/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep. */
-export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'){
+/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message. */
+export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'){
   try{
     audio??=new AudioContext();const now=audio.currentTime,gain=audio.createGain();gain.connect(audio.destination);
     const tone=(freq:number,start:number,length:number,type:OscillatorType='sine',volume=.08)=>{
@@ -60,6 +60,7 @@ export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'){
     else if(kind==='drop'){tone(1700,0,.12);tone(2600,.09,.12,'sine',.05);tone(1500,.2,.15,'sine',.04);}
     // The gates' refusal: two short high beeps.
     else if(kind==='beep'){tone(2300,0,.09,'square',.04);tone(2300,.16,.09,'square',.04);}
+    else if(kind==='message'){tone(1320,0,.12,'sine',.06);tone(1760,.11,.2,'sine',.06);}
     else if(kind==='note'){for(let i=0;i<6;i++)tone(140+i*12,i*.05,.06,'square',.025);}
     else tone(110,0,.25,'sawtooth',.05);
   }catch{}

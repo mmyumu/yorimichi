@@ -1,7 +1,7 @@
 import { C, accents, anchors, box, dither, facadeD, facadeTop, floorY, fromConcourse, housings, machineW, paintPerson, paintPoster, recessBottom, recessD, recessTop, signH, wallL, wallR, type HallDevice } from './hall-scene';
 import { Picture, type View } from './ticket-gate';
-import { renderWallFareMap } from './tokyo-fares';
-import { hasShinkansen, routes, stations, type Hub } from './network';
+import { renderWallFareMap, onTokyoBoard } from './tokyo-fares';
+import { boardLines, hasShinkansen, stations, type Hub } from './network';
 import { looks, type Figure } from './people';
 
 type P=[number,number,number];
@@ -51,7 +51,7 @@ export class HallPicture {
   constructor(private host:HTMLElement,private hub:Hub,private devices:HallDevice[],private figures:()=>Figure[]=()=>[]){
     this.xAnchors=anchors(hasShinkansen(hub));
     this.canvas.width=this.backdrop.width=W;this.canvas.height=this.backdrop.height=H;this.wrap.className='hall-picture';this.wrap.append(this.canvas);host.append(this.wrap);
-    if(hub==='tokyo'){
+    if(onTokyoBoard(stations[hub].ja)){
       // The fare map stays the crisp SVG, laid over the picture where its board is.
       this.map=document.createElement('div');this.map.className='hall-picture-map';
       const svg=renderWallFareMap(stations[hub].ja);svg.setAttribute('width','100%');svg.setAttribute('height','100%');this.map.append(svg);this.wrap.append(this.map);
@@ -103,9 +103,9 @@ export class HallPicture {
     front(board.cx-board.w/2-board.border,board.cx+board.w/2+board.border,board.top,board.top+board.h+board.border*2,14,C.frame);
     const inner=this.rect(board.cx-board.w/2,board.cx+board.w/2,board.top+board.border,board.top+board.border+board.h,14.5),[l,t,r,b]=inner;
     front(board.cx-board.w/2,board.cx+board.w/2,board.top+board.border,board.top+board.border+board.h,14.5,'#fffef2');
-    if(this.hub!=='tokyo'){
+    if(!onTokyoBoard(stations[this.hub].ja)){
       letter(g,`${station.ja}駅 のりば案内`,r-6,t+9,'#2d563e','right');
-      routes.filter(route=>route.from===this.hub).forEach((route,i)=>{
+      boardLines(this.hub).forEach((route,i)=>{
         const y=Math.round(t+(b-t)*.4+i*28);
         letter(g,station.ja,l+8,y,'#d6402e','left');box(g,l+32,y-3,7,7,'#d6402e','#fff');box(g,l+39,y-1,r-l-90,3,route.color);box(g,r-51,y-3,7,7,'#fff',C.ink);
         letter(g,route.ja,(l+r-12)/2,y-10,route.color);letter(g,route.name.split(' / ')[1],r-40,y,C.ink,'left');
@@ -114,7 +114,7 @@ export class HallPicture {
     }
     if(this.map)Object.assign(this.map.style,{left:l/W*100+'%',top:t/H*100+'%',width:(r-l)/W*100+'%',height:(b-t)/H*100+'%'});
     this.rects.clear();
-    if(this.hub==='tokyo')this.rects.set('map',this.rect(board.cx-board.w/2-board.border,board.cx+board.w/2+board.border,board.top,board.top+board.h+board.border*2,14));
+    if(onTokyoBoard(stations[this.hub].ja))this.rects.set('map',this.rect(board.cx-board.w/2-board.border,board.cx+board.w/2+board.border,board.top,board.top+board.h+board.border*2,14));
     // The bank: each machine in its recess (housing, side reveals, tilted screen, payment block), then the facade around them, the ledge and the lit signs.
     for(const d of this.devices){
       const x=d.x,back=facadeD-recessD,housing=housings[d.kind]??housings.local,kind=d.kind;
@@ -163,14 +163,16 @@ export class HallPicture {
     }
   }
   setHover(id:string|null){this.hovered=id}
-  /** The picture from where the player stands along the bank (x), raised to the board when they look up, the machine (or map) in front highlighted in yellow, a hovered one in white, and the concourse's commuters in front of the bank. */
+  /** The picture from where the player stands along the bank (x), raised to the board when they look up, every machine and the map framed, fading between white and yellow, the one in front highlighted in yellow, a hovered one in white, and the concourse's commuters in front of the bank. */
   render(x:number,_yaw:number,pitch:number,_distance:number,near:string|null){
     const now=performance.now(),dt=Math.min((now-this.previousTime)/1000||0,.1);this.previousTime=now;
     const target=pitch>10?1:0;this.look+=(target-this.look)*Math.min(1,dt*8);if(Math.abs(target-this.look)<.01)this.look=target;
     this.view.eye[0]=Math.round(x);this.view.vy=Math.round(vyMachines+(vyBoard-vyMachines)*this.look);
     const key=`${this.view.eye[0]},${this.view.vy}`;if(key!==this.painted){this.painted=key;this.paint()}
     const g=this.g;g.imageSmoothingEnabled=false;g.drawImage(this.backdrop,0,0);
-    for(const [id,rect] of this.rects)if(id===near||id===this.hovered)frame(g,rect,id===near?'#f3d76b':'#ffffff',2);
+    // Everything usable framed, fading between white and yellow; the one in front in yellow, a hovered one in white, both thicker.
+    const k=(1-Math.cos(now/1000*Math.PI*2))/2,blink=`rgba(${255-12*k},${255-40*k},${255-148*k},.6)`;
+    for(const [id,rect] of this.rects)frame(g,rect,id===near?'#f3d76b':id===this.hovered?'#ffffff':blink,id===near||id===this.hovered?2:1);
     const t=now/1000;
     // Only those between the machines and a few steps out: further forward they would stand before the whole bank, behind the wall they are at the gates.
     const people=this.figures().map(f=>({f,...fromConcourse(this.xAnchors,f.x,f.y)})).filter(p=>p.f.alpha>.5&&p.z>60&&p.z<620).sort((a,b)=>a.z-b.z);

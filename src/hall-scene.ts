@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
-import { renderWallFareMap } from './tokyo-fares';
-import { hasShinkansen, routes, stations, type Hub } from './network';
+import { renderWallFareMap, onTokyoBoard } from './tokyo-fares';
+import { boardLines, hasShinkansen, stations, type Hub } from './network';
 import { looks, type Figure, type Look } from './people';
 
 /** Machines as the hall knows them; x is the left edge in wall pixels. */
@@ -9,6 +9,8 @@ export interface HallDevice {id:string;kind:string;x:number}
 type Painter=(g:CanvasRenderingContext2D,w:number,h:number)=>void;
 
 // World units are the old CSS wall pixels: x to the right, y up (CSS y negated), z out of the wall towards the player.
+// The idle highlight rims fade between these two.
+const white=new THREE.Color('#ffffff'),yellow=new THREE.Color('#f3d76b');
 const eyeY=-1120;
 export const machineW=500,floorY=1760;
 // Machine bank, in CSS-style y down from the ceiling: facade under the fare map, sign band, recesses down to the ledge, cabinet below.
@@ -213,6 +215,8 @@ export class HallScene {
   private raycaster=new THREE.Raycaster();
   private resize=new ResizeObserver(()=>this.fit());
   private hovered:string|null=null;
+  // The idle rims fade between white and yellow, once a second.
+  private blink=0;
   // Fare map frame (yellow when it is looked at or hovered) and the meshes a click on the map hits.
   private boardFrame:THREE.Mesh<THREE.BoxGeometry,THREE.MeshBasicMaterial>|null=null;
   private boardMeshes:THREE.Mesh[]=[];
@@ -320,11 +324,11 @@ export class HallScene {
     const station=stations[this.hub];
     this.plane(nameW,nameH,this.material(this.texture(nameW/texel,nameH/texel,(g,cw,ch)=>{box(g,0,0,cw,ch,C.ink);box(g,0,ch-3,cw,3,station.accent);pixelText(g,`${station.ja}  ${station.en.toUpperCase()}`,cw/2,(ch-3)/2,22,'#fffef2','center',true)}))).position.set(cx,-(50+nameH/2),2);
     // Only the Tokyo map opens in detail, so only it can be highlighted and clicked.
-    if(this.hub==='tokyo'){this.boardFrame=frame;frame.userData.device='map';this.boardMeshes.push(frame)}
-    if(this.hub==='tokyo'){
+    if(onTokyoBoard(stations[this.hub].ja)){this.boardFrame=frame;frame.userData.device='map';this.boardMeshes.push(frame)}
+    if(onTokyoBoard(stations[this.hub].ja)){
       // The fare map is the vector SVG itself, kept sharp to be readable; the WebGL plane only clears its pixels to transparent.
       const holder=document.createElement('div');holder.className='hall-board';holder.style.width=w+'px';holder.style.height=h+'px';
-      const svg=renderWallFareMap();svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));holder.append(svg);
+      const svg=renderWallFareMap(station.ja);svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));holder.append(svg);
       const board=new CSS3DObject(holder);board.scale.setScalar(scale);board.position.set(cx,cy,14.5);this.cssScene.add(board);
       const hole=this.plane(bw,bh,this.hole);hole.position.copy(board.position);hole.userData.device='map';this.boardMeshes.push(hole);
     }else{
@@ -332,7 +336,7 @@ export class HallScene {
         // One line per route from the station, which is marked in red at their left end.
         box(g,0,0,cw,ch,'#fffef2');pixelText(g,station.ja+'駅 · のりば案内',cw-12,14,14,'#2d563e','right',true);
         const row=(y:number,line:string,color:string,destination:string)=>{g.fillStyle=color;g.fillRect(70,y,cw-180,4);box(g,58,y-4,12,12,'#d6402e','#fff');box(g,cw-110,y-4,12,12,'#fff',C.ink);pixelText(g,station.ja,40,y+2,13,'#d6402e','center',true);pixelText(g,line,(cw-40)/2,y-12,12,color,'center',true);pixelText(g,destination,cw-92,y+2,13,C.ink,'left')};
-        routes.filter(route=>route.from===this.hub).forEach((route,i)=>row(70+i*60,`${route.ja} ${route.line.replace(/ Line$/,'').toUpperCase()}`,route.color,route.name.split(' / ')[1]+(route.service==='local'?' ¥'+route.fare.toLocaleString('en-US'):'')));
+        boardLines(this.hub).forEach((route,i)=>row(70+i*60,`${route.ja} ${route.line.replace(/ Line$/,'').toUpperCase()}`,route.color,route.name.split(' / ')[1]));
         pixelText(g,`Detailed ${station.en} fare map coming soon.`,12,ch-14,12,'#65735a','left');
       });
       const board=this.plane(bw,bh,this.material(texture));board.position.set(cx,cy,14.5);
@@ -386,8 +390,8 @@ export class HallScene {
     const paint=()=>paintPayment(pay.getContext('2d')!,pay.width,pay.height,device.kind);paint();this.crisp.push(paint);
     const payObject=new CSS3DObject(pay);payObject.position.set(device.x+machineW/2,-payTop-payH/2,payZ+.5);this.cssScene.add(payObject);
     // Hover outline: a frame around the recess and sign.
-    const outline=new THREE.Group();outline.visible=false;group.add(outline);
-    const rim=new THREE.MeshBasicMaterial({color:'#fff'}),t=10,frameTop=facadeTop+6,frameH=recessBottom-frameTop;
+    const outline=new THREE.Group();group.add(outline);
+    const rim=new THREE.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.7}),t=10,frameTop=facadeTop+6,frameH=recessBottom-frameTop;
     for(const [w,h,x,y] of [[machineW+2*t,t,machineW/2,frameTop-t/2],[machineW+2*t,t,machineW/2,recessBottom-t/2],[t,frameH,-t/2,frameTop+frameH/2],[t,frameH,machineW+t/2,frameTop+frameH/2]]){const bar=new THREE.Mesh(new THREE.PlaneGeometry(w,h),rim);bar.position.set(x,-y,facadeD+1);outline.add(bar)}
     this.machines.set(device.id,{group,outline,materials,sign});
   }
@@ -400,20 +404,20 @@ export class HallScene {
     this.renderer.setSize(Math.ceil(w/scale),Math.ceil(h/scale),false);this.css.setSize(w,h);
     this.camera.fov=2*Math.atan(Math.max(h,560)/2/1000)*180/Math.PI;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
-  /** Highlights: yellow rim on the machine in front or the map looked at (A / E or a click uses it), white rim on another hovered machine. */
+  /** Highlights: a rim fading between white and yellow on every machine, yellow on the machine in front or the map looked at (A / E or a click uses it), white on another hovered machine. */
   setHover(id:string|null){this.hovered=id;this.refresh()}
   private refresh(){
     this.boardFrame?.material.color.set(this.near==='map'||this.hovered==='map'?'#f3d76b':C.frame);
     for(const [id,machine] of this.machines){
-      const hovered=id===this.hovered||id===this.near;machine.outline.visible=hovered;
-      ((machine.outline.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial).color.set(id===this.near?'#f3d76b':'#ffffff');
+      const hovered=id===this.hovered||id===this.near,rim=(machine.outline.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial;
+      if(hovered)rim.color.set(id===this.near?'#f3d76b':'#ffffff');else rim.color.lerpColors(white,yellow,this.blink);rim.opacity=hovered?1:.6;
       for(const m of machine.materials)m.userData.base??=m.color.clone(),m.color.copy(m.userData.base).multiplyScalar(hovered?1.12:1);
       machine.sign.classList.toggle('is-hover',hovered);
     }
   }
   render(x:number,yaw:number,pitch:number,distance:number,near:string|null){
     if(!this.renderer)return;
-    if(near!==this.near){this.near=near;this.refresh()}
+    this.near=near;this.blink=(1-Math.cos(performance.now()/1000*Math.PI*2))/2;this.refresh();
     // The eye stays 1000px behind the former CSS pivot (perspective: 1000px) and the head turns in place, like a first-person look.
     this.camera.rotation.set(pitch*Math.PI/180,-yaw*Math.PI/180,0);
     this.camera.position.set(x,eyeY,distance+1000);
