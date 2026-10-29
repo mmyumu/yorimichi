@@ -299,6 +299,7 @@ export function openDepartures(destinations:{ja:string;en:string}[],select:(stat
   const list=document.createElement('div');list.className='jr-destination-list';board.append(list);
   for(const station of destinations){const button=document.createElement('button');button.textContent=station.ja+' / '+station.en;const line=document.createElement('small');line.textContent=linesAt(station.ja,'local').map(line=>line.en).join(' / ');button.append(line);button.onclick=()=>select(station);list.append(button)}
   overlay.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Escape'){event.preventDefault();close()}if(event.key==='Tab'){const buttons=Array.from(overlay.querySelectorAll('button')),last=buttons.at(-1);if(event.shiftKey&&document.activeElement===cancel){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();cancel.focus()}}});
+  overlay.addEventListener('pointerdown',event=>{if(event.target===overlay)close()});
   document.body.append(overlay);cancel.focus();return{destroy:()=>overlay.remove()};
 }
 

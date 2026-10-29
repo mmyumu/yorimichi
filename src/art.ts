@@ -353,8 +353,10 @@ export function makeTown(scene:Phaser.Scene,key:string,title:string,subtitle:str
   // Planters with trees, and the bus stop on the right.
   for(const x of [76,376]){r(x+2,160,28,3,'#8e9476');r(x,150,28,10,'#8b7d63');r(x,150,28,2,'#ab9b78');r(x+12,138,4,12,'#69533f');for(const [dx,dy,w,h,c] of [[-2,122,32,18,'#345d48'],[2,118,24,24,'#487951'],[6,120,12,10,'#63905b'],[16,126,8,6,'#86a367']] as const)r(x+dx,dy,w,h,c)}
   r(455,142,2,42,'#4c6156');r(448,132,16,12,'#3a78c2');
-  // The way home: the blue address sign (住居表示) on its post at the plaza's left edge, an arrow to the lane.
-  if(lane){r(10,153,2,25,'#5b6558');r(9,177,4,1,'#00000030');r(1,140,44,13,'#fbfbf6');r(1.5,140.5,43,12,'#1d5fae');t(3,141.5,'←東中野一丁目','#ffffff');t(5,147,'HIGASHINAKANO 1','#d8e4f4')}
+  // The way home: the blue address sign (住居表示) on its post at the plaza's left edge, an arrow to the lane; the post's shadow here, the sign itself on its own texture (laneSign),
+  // its board 140–153 over its post to 178 (art px), which main.ts puts in front of whoever walks behind its foot.
+  if(lane){r(9,177,4,1,'#00000030');if(!scene.textures.exists('lane-sign')){const sign=mapCanvas(scene,'lane-sign',46,38),s=sign.context,p=(x:number,y:number,w:number,h:number,c:string)=>{s.fillStyle=c;s.fillRect(x,y-140,w,h)};
+    p(10,153,2,25,'#5b6558');p(1,140,44,13,'#fbfbf6');p(1.5,140.5,43,12,'#1d5fae');letter(s,3,1.5,'←東中野一丁目','#ffffff');letter(s,5,7,'HIGASHINAKANO 1','#d8e4f4');sign.refresh()}}
 r(450,134,12,8,'#fffef2');r(454,136,4,4,'#3a78c2');r(451,184,10,3,'#5b6558');
   // The kerb, the road with its centre line and the crossing straight ahead, the far pavement.
   r(0,196,480,3,'#e0dccb');r(0,199,480,48,'#5d625c');for(let i=0;i<300;i++)r(Math.floor(rand()*480),199+Math.floor(rand()*48),1,1,'#6b706a');
@@ -369,24 +371,28 @@ r(450,134,12,8,'#fffef2');r(454,136,4,4,'#3a78c2');r(451,184,10,3,'#5b6558');
 
 /** The home street's length in art px (shown at 2×, scrolling sideways like the platform): a screen and a half. */
 export const homeStreetWidth=720;
-/** The utility poles along the far side of the home street, each with its street light (art px, the pole's left edge): main.ts lights the lane under them at night. */
-export const homePoles=[150,388,560];
+/** The utility poles along the far side of the home street (art px, the pole's left edge, as makeHomeStreet lays them out before its mirror). */
+const homePoles=[150,388,560];
+/** Their street lights, in the street as shown (art px): main.ts lights the lane under them at night. */
+export const homeLights=homePoles.map(x=>homeStreetWidth-x-14);
 /** The windows of the home street lit at night (art px, x y w h), gathered as makeHomeStreet draws them. */
 export const homeWindows:[number,number,number,number][]=[];
-/** The lane from Higashi-Nakano's west exit to the traveller's home, 720 × 320 art px, in the street's three-quarter view: along the far side, houses behind their block walls
+/** The lane from Higashi-Nakano's west exit to the traveller's home, 720 × 320 art px, in the street's three-quarter view. Out of the station's street by its left edge, the lane
+ * comes in from the right: it is laid out below with the station's end on the left, then mirrored (x → 720 − x) but for its lettering. Along the far side, houses behind their block walls
  * (facades 35–92, walls 92–114), a coin park, a pair of vending machines, and at the right end the apartment block コーポ ヨリミチ (592–720: the outside stairs on its left, the
  * doors 101–103 at 632, 660 and 688, 14 × 30 from y 82, the traveller's 102 in the middle, the mailboxes at 706); the lane 114–196 with its white edge lines and the utility poles
  * (homePoles) on its far edge; the near side's block wall from 196 and the roofs behind it, broken by a side street (300–340) with its とまれ; at the left end, the green
- * 東中野駅 sign on the wall (2–50 × 100–113), the way back to the station. main.ts (solids, hotspots, lamps) relies on these. */
+ * 東中野駅 sign on the wall (2–50 × 100–113), the way back to the station. main.ts (solids, hotspots, lamps) relies on these, mirrored: door 102 at 46–60, the sign at 670–718. */
 function makeHomeStreet(scene:Phaser.Scene){
   const W=homeStreetWidth,texture=mapCanvas(scene,'map-home-street',W,320),g=texture.context;
-  const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},t=(x:number,y:number,text:string,c:string,big=false)=>letter(g,x,y,text,c,big);
+  // The lettering is kept for after the mirror, to be written the right way round where it ends up.
+  const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},words:[number,number,string,string,boolean,CanvasTextAlign][]=[],t=(x:number,y:number,text:string,c:string,big=false)=>{words.push([x,y,text,c,big,g.textAlign])};
   let seed=57;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296};
   // The roofs beyond, under the top band.
   r(0,0,W,24,'#6d7a72');for(let x=0;x<W;x+=30+Math.floor(rand()*30))r(x,0,1,24,'#58645d');
   // Block walls: grey concrete blocks with their mortar lines, a lighter coping on top.
   const blocks=(x:number,y:number,w:number,h:number)=>{r(x,y,w,h,'#bdb7a6');r(x,y,w,2,'#d6d0bf');for(let yy=y+2,k=0;yy<y+h;yy+=5,k++){r(x,yy+4.5,w,.5,'#a29c8c');for(let xx=x+(k%2)*5;xx<x+w;xx+=10)r(xx,yy,.5,5,'#a29c8c')}};
-  const glazing=(x:number,y:number,w:number,h:number,lit:boolean)=>{r(x-1,y-1,w+2,h+2,'#8f8a7c');r(x,y,w,h,'#476e79');r(x+1,y+1,w-2,3,'#9ebcb4');r(x+w/2,y,.5,h,'#cfc8ad');if(lit)homeWindows.push([x,y,w,h])};
+  const glazing=(x:number,y:number,w:number,h:number,lit:boolean)=>{r(x-1,y-1,w+2,h+2,'#8f8a7c');r(x,y,w,h,'#476e79');r(x+1,y+1,w-2,3,'#9ebcb4');r(x+w/2,y,.5,h,'#cfc8ad');if(lit)homeWindows.push([W-x-w,y,w,h])};
   // The far side: houses, the coin park, the vending machines.
   const house=(x:number,w:number,wall:string,roof:string)=>{
     r(x,22,w,14,roof);for(let y=24;y<36;y+=3)r(x,y,w,1,'#00000022');r(x,35,w,2,'#3b4541');r(x+2,37,w-4,58,wall);r(x+2,37,1,58,'#ffffff40');
@@ -445,7 +451,11 @@ function makeHomeStreet(scene:Phaser.Scene){
   r(0,31,W,.5,'#2b2b2b');r(0,34,W,.5,'#2b2b2b');
   for(const px of homePoles){r(px-1,118,7,2,'#00000030');r(px,24,4,96,'#9a9c94');r(px+1,24,1,96,'#b8bab2');r(px-8,30,20,2,'#7d7f78');r(px+4,40,6,8,'#8e918a');for(let k=0;k<4;k++)r(px,100+k*2,4,1,k%2?'#2b2b2b':'#e8c440');r(px+4,62,10,1.5,'#5b6558');r(px+11,62,6,3,'#fff6d0')}
   // The way back: the green station sign on the wall at the left end.
-  r(26,113,2,6,'#5b6558');r(2,100,48,13,'#fbfbf6');r(2.5,100.5,47,12,'#2c8a4a');t(4,101.5,'←東中野駅','#ffffff');t(5,107,'STATION','#d8f0de');
+  r(26,113,2,6,'#5b6558');r(2,100,48,13,'#fbfbf6');r(2.5,100.5,47,12,'#2c8a4a');t(4,101.5,'東中野駅→','#ffffff');t(5,107,'STATION','#d8f0de');
+  // The mirror, then the lettering: a left edge becomes a right one.
+  const copy=document.createElement('canvas');copy.width=g.canvas.width;copy.height=g.canvas.height;copy.getContext('2d')!.drawImage(g.canvas,0,0);
+  g.save();g.setTransform(-1,0,0,1,g.canvas.width,0);g.drawImage(copy,0,0);g.restore();
+  for(const [x,y,text,c,big,align] of words){g.textAlign=align==='center'?'center':'right';letter(g,W-x,y,text,c,big)}g.textAlign='left';
   texture.refresh();
 }
 /** The apartment's windows, in the faces of the bedroom's and the living room's back walls (art px, x y w h): main.ts darkens them at night. */
