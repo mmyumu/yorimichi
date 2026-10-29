@@ -557,8 +557,10 @@ function makePhone(scene:Phaser.Scene){
 }
 /** Lorenzo's Uber, 62 × 31 art px, in the street's three-quarter view, facing right (east, along the station's side of the road): seen from above the roof,
  * the windscreen and rear window, the bonnet and boot; below, its near flank with the side windows, the door lettered and the wheels, and its shadow on the road. */
-function makeCar(scene:Phaser.Scene){
-  const t=mapCanvas(scene,'uber-car',62,31),g=t.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+function makeCar(scene:Phaser.Scene){for(let k=0;k<4;k++)drawCar(scene,k)}
+/** The car with its wheels turned `k` eighths of a turn clockwise (`uber-car-<k>`): a bar across each hubcap, drawn on the canvas's half art px, shows them roll (main.ts, `roll`). */
+function drawCar(scene:Phaser.Scene,k:number){
+  const t=mapCanvas(scene,`uber-car-${k}`,62,31),g=t.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},a=k*Math.PI/4;
   r(3,28,58,3,'#0000003a');
   // From above: the boot and bonnet, the roof between the sloping rear window and windscreen.
   r(2,7,14,6,'#2e353a');r(1,8,1,5,'#2e353a');r(2,7,14,1,'#4f5960');r(48,7,12,6,'#2e353a');r(60,8,1,5,'#2e353a');r(48,7,12,1,'#4f5960');r(52,9,6,1,'#394147');
@@ -568,7 +570,8 @@ function makeCar(scene:Phaser.Scene){
   r(16,7,32,5,'#6f97a8');r(17,7,14,1,'#a9c8d3');r(33,7,14,1,'#a9c8d3');for(const x of [16,31,32,47])r(x,7,1,5,'#1f2427');r(16,12,32,1,'#1f2427');
   r(1,13,60,10,'#1f2427');r(0,14,62,8,'#1f2427');r(1,13,60,1,'#3a4248');r(1,22,60,1,'#15191b');r(31,13,1,9,'#15191b');r(47,12,3,1,'#15191b');
   r(17,14.5,3,1,'#5b6265');r(33,14.5,3,1,'#5b6265');r(59,14,3,3,'#fff4c0');r(60,18,2,2,'#5b6265');r(0,14,2,3,'#c8352b');letter(g,20.5,13.5,'Uber','#ffffff');
-  for(const cx of [13,48]){r(cx-7,18,15,4,'#0c0e10');for(let y=18;y<30;y++)for(let x=cx-6;x<=cx+6;x++){const d=Math.hypot(x-cx,y-24);if(d<=5.4)r(x,y,1,1,d<=1.3?'#5b6265':d<=3?'#9aa0a4':'#14171a')}}
+  for(const cx of [13,48]){r(cx-7,18,15,4,'#0c0e10');for(let y=18;y<30;y++)for(let x=cx-6;x<=cx+6;x++){const d=Math.hypot(x-cx,y-24);if(d<=5.4)r(x,y,1,1,d<=1.3?'#5b6265':d<=3?'#9aa0a4':'#14171a')}
+    for(let y=21;y<28;y+=.5)for(let x=cx-3;x<cx+4;x+=.5){const dx=x+.25-cx-.5,dy=y+.25-24.5;if(Math.hypot(Math.floor(x)-cx,Math.floor(y)-24)<=3&&Math.abs(dx*Math.sin(a)-dy*Math.cos(a))<=.55)r(x,y,.5,.5,'#4a5155')}}
   t.refresh();
 }
 /** The ticket office (みどりの窓口) from its band at (x, y), 62 × 52 art px: the green sign band, three glazed counters with their clerks, numbered, and the base.

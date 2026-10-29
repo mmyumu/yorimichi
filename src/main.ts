@@ -10,7 +10,7 @@ import { Phone, askLorenzo, callLorenzo, contacts, playFlight, type Contact } fr
 import { loadSave, writeSave } from './save';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
-import { addMinutes, clockMs, darkness, dayLabel, hhmm, inService, minuteMs, minutes, opens, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
+import { addMinutes, clockMs, darkness, dayLabel, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
 import { openDepartures, onTokyoBoard, tokyoStations } from './tokyo-fares';
 import { coinCount, loadWallet, machineSound, walkFactor, walletTotal } from './wallet';
 
@@ -1025,20 +1025,20 @@ class Journey extends Phaser.Scene {
     this.dialog('Lorenzo’s Uber',`“Ciao! Hop in, the driver knows the way to your place in Higashi-Nakano. It’s on me!”\nAbout ${ride} minutes by road.`,[[`Ride home (${ride} min)`,()=>this.rideHome(ride)]]);
   }
   /** The ride home: the screen fades out on the street and in on the home street, the Uber pulled up at the apartment's door and the traveller just out of it; it drives off,
-   * and Lorenzo, dropped at Higashi-Nakano Station, waits there (his Uber in its street) until called again. */
+   * and Lorenzo (wishing a good night from 18:00 to 5:00, else a good morning or afternoon), dropped at Higashi-Nakano Station, waits there (his Uber in its street) until called again. */
   private rideHome(ride:number){
     this.modal?.destroy(true);this.modal=this.add.container(0,0);const camera=this.cameras.main;
     camera.fadeOut(700,0,0,0);camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
       addMinutes(ride);this.phone.lorenzo={state:'here',at:home.hub};this.outside={from:home.hub,side:home.side};this.loadPlace('home-street',{x:140,y:300});this.facing='down';
-      this.modal=this.add.container(0,0);const car=this.car=this.add.image(106,352,'uber-car');this.world.add(car);camera.fadeIn(700);
-      camera.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE,()=>this.tweens.add({targets:car,x:this.mapWidth+80,duration:2400,ease:'Cubic.easeIn',onComplete:()=>{
-        car.destroy();if(this.car===car)this.car=null;this.modal?.destroy(true);this.modal=null;this.receive('lorenzo','Here we are! Sleep well. I’ll be around Higashi-Nakano Station if you need me.');
+      this.modal=this.add.container(0,0);const car=this.car=this.add.image(106,352,'uber-car-0');this.world.add(car);camera.fadeIn(700);
+      camera.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE,()=>this.tweens.add({targets:car,x:this.mapWidth+80,duration:2400,ease:'Cubic.easeIn',onUpdate:()=>this.roll(car),onComplete:()=>{
+        car.destroy();if(this.car===car)this.car=null;this.modal?.destroy(true);this.modal=null;const hour=minuteOfDay()/60;this.receive('lorenzo',`Here we are! ${hour>=18||hour<5?'Sleep well.':hour<12?'Have a good morning.':'Enjoy the rest of your afternoon.'} I’ll be around Higashi-Nakano Station if you need me.`);
       }}));
     });
   }
   /** The Uber on the station's side of the road, just past the crossing: parked, or pulling up from the left before `then`. Solid once parked, nudging aside a traveller standing there. */
   private parkCar(then?:()=>void){
-    const image=this.car=this.add.image(then?-70:638,417,'uber-car');this.world.add(image);
+    const image=this.car=this.add.image(then?-70:638,417,'uber-car-0');this.world.add(image);
     const park=()=>{
       if(this.car===image){
         const rect=new Phaser.Geom.Rectangle(578,418,120,28);image.setData('parked',true);this.solids.push(rect);
@@ -1048,8 +1048,10 @@ class Journey extends Phaser.Scene {
       then?.();
     };
     // Timed apart from the tween, so that the message still comes if the traveller has left the street meanwhile.
-    if(then){this.tweens.add({targets:image,x:638,duration:2600,ease:'Cubic.easeOut'});this.time.delayedCall(2600,park)}else park();
+    if(then){this.tweens.add({targets:image,x:638,duration:2600,ease:'Cubic.easeOut',onUpdate:()=>this.roll(image)});this.time.delayedCall(2600,park)}else park();
   }
+  /** Turns the car's wheels to where it has rolled: an eighth of a turn every 8.5 px (a wheel 68 px round), the bar across the hubcap the same every half turn. */
+  private roll(car:Phaser.GameObjects.Image){car.setTexture(`uber-car-${(Math.floor(car.x/8.5)%4+4)%4}`)}
   /** Into bed: the screen fades to black, the clock runs on to the next 9:00 (wake), and the traveller gets up beside the bed, free to go. */
   private sleep(){
     this.modal?.destroy(true);this.modal=this.add.container(0,0);const camera=this.cameras.main;
