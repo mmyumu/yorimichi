@@ -275,7 +275,7 @@ export class TicketMachine {
         const button=this.button(item.value!=='ticket'&&isCoin(item.value)?coinBin:items,'',()=>this.take(index),'tray-item'+(item.fresh?' fresh':'')+(item.value==='ticket'?' tray-ticket':isCoin(item.value)?' coin':' note'));button.dataset.key='tray-'+name;
         if(item.value==='ticket'){
           // The real card, as the gates and the bag draw it, painted again once the Japanese font is in; several lie stacked, the bin keeping its size.
-          {const step=Math.min(cards++,4);button.style.cssText=`left:calc(50% + ${step*3-6}px);top:calc(50% + ${step*2-4}px)`}
+          {const step=Math.min(cards++,4);button.style.cssText=`left:calc(50% + ${step*3-6}px);top:calc(50% + ${step>>1}px)`}
           const image=this.element(button,'img') as HTMLImageElement,ticket=item.ticket;image.draggable=false;image.alt=button.title=this.tr('きっぷを取る','Take the ticket');
           const paint=()=>{if(!ticket)return;const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;paintTicket(canvas.getContext('2d')!,128,64,ticket);image.src=canvas.toDataURL()};
           paint();document.fonts?.load('16px "Yorimichi JP"').then(paint).catch(()=>{});

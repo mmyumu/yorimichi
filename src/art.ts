@@ -758,55 +758,84 @@ export function makeCorridor(scene:Phaser.Scene,key:string,platforms:Platform[],
 
 /** The platform's length in art px: two screens, a staircase at each end (makePlatform). */
 export const platformWidth=960;
-/** A train from above (makeTrain): `cars` cars of `car` art px with doors at `doors` along each, standing at the platform with its first car's start at `origin`,
+/** A train (makeTrain): `cars` cars of `car` art px with doors at `doors` along each, standing at the platform with its first car's start at `origin`,
  * off the left edge, so that its doors line up with the marks on the platform (doorMarks) and it runs past both ends. */
 export const trainLayout=(service:Service)=>service==='shinkansen'?{car:160,doors:[24,136],cars:16,origin:-400}:{car:120,doors:[30,90],cars:12,origin:-240};
 /** Where a standing train's doors are along the platform, left to right (art px): the 乗車位置 marks the queues form at. */
 export const doorMarks=(service:Service)=>{const {car,doors,cars,origin}=trainLayout(service);return Array.from({length:cars},(_,c)=>doors.map(d=>origin+c*car+d)).flat().filter(x=>x>=10&&x<=platformWidth-10)};
-/** A train in `color` (its line's), from above at art scale, its platform side at the bottom (flipped on the far track): grey cars with the line's stripe and their roof units,
- * or the Shinkansen's white cars with a long nose at each end. The doors are pale notches in each side; main.ts opens them over the picture. */
+/** A train's picture in the three-quarter view, art px: its roof, `trainRoof` deep, over the side facing us, as tall as the rest of `trainHeight`; the doors are `doorSize` wide. */
+export const trainHeight=54,trainRoof=16,doorSize=12;
+/** Where a train's picture starts (art px, top), track by track: the far one's side stands at the platform's edge, its doors facing us; the near one's roof bites a little into the edge,
+ * up to the white line, its side facing us the one away from the platform, so that it hides nobody but the feet of those right at the edge. */
+export const trainTop=[32,228] as const;
+/** A train in `color` (its line's) in the three-quarter view, the same on either track: grey cars with their roof units, windows and the line's stripe,
+ * or the Shinkansen's white cars with a long nose at each end. main.ts opens the doors over the picture. */
 export function makeTrain(scene:Phaser.Scene,key:string,color:string,service:Service){
-  const {car,doors,cars}=trainLayout(service),w=car*cars,texture=scene.textures.createCanvas(key,w,30)!,g=texture.context,shinkansen=service==='shinkansen';
+  const {car,doors,cars}=trainLayout(service),w=car*cars,h=trainHeight,top=trainRoof,texture=scene.textures.createCanvas(key,w,h)!,g=texture.context,shinkansen=service==='shinkansen';
   const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  const glass=(x:number,y:number,w:number,h:number)=>{r(x,y,w,h,'#2f3f49');r(x,y,w,1,'#1f2a31');r(x+1,y+1,Math.min(3,w-1),h-2,'#587078')};
   for(let c=0;c<cars;c++){
     const x=c*car;
-    if(shinkansen){r(x+1,1,car-2,28,'#f1f2ec');r(x+1,1,car-2,1,'#b9bcb4');r(x+1,28,car-2,1,'#9aa29a');r(x+1,23,car-2,3,color);r(x+1,4,car-2,1,color);r(x+8,10,car-16,8,'#e1e3dc');for(let k=x+12;k<x+car-12;k+=6)r(k,11,1,6,'#cfd2ca')}
-    else{r(x+1,1,car-2,28,'#c9ccc6');r(x+1,0,car-2,1,'#7d8279');r(x+1,29,car-2,1,'#7d8279');r(x+1,25,car-2,2,color);r(x+1,3,car-2,2,color);r(x+6,8,car-12,14,'#b6b9b1');r(x+car/2-11,10,22,10,'#9aa29a');for(let k=x+car/2-9;k<x+car/2+10;k+=3)r(k,11,1,8,'#7d8279')}
-    r(x+car-1,7,2,16,'#2b3431');
-    for(const d of doors){r(x+d-4,26,8,4,'#e6e8e2');r(x+d,26,1,4,'#9aa29a');r(x+d-4,0,8,3,'#e6e8e2')}
+    if(shinkansen){
+      r(x,0,car,top,'#d9dbd4');r(x,0,car,1,'#b9bcb4');r(x+8,4,car-16,7,'#c6c9c1');r(x,top-1,car,1,'#f8f8f2');r(x,top,car,h-top,'#f1f2ec');r(x,h-12,car,4,color);r(x,h-8,car,1,'#bfc2ba');r(x,h-3,car,3,'#9aa29a');
+      for(let k=x+36;k<x+car-36;k+=7)r(k,top+12,5,9,'#2f3f49');
+    }else{
+      r(x,0,car,top,'#aeb2ab');r(x,0,car,1,'#7d8279');r(x,top-2,car,2,'#8c918a');r(x+8,3,car-16,8,'#9aa29a');r(x+car/2-13,2,26,10,'#7d8279');for(let k=x+car/2-11;k<x+car/2+12;k+=3)r(k,3,1,8,'#5e6660');
+      r(x,top,car,h-top,'#d3d6d0');r(x,top,car,1,'#eceee8');r(x,top+29,car,3,color);r(x,h-5,car,2,'#7d8279');r(x,h-3,car,3,'#3d4846');
+      for(const [from,to] of [[6,doors[0]-8],[doors[0]+8,doors[1]-8],[doors[1]+8,car-6]])for(let k=x+from;k+16<=x+to;k+=19)glass(k,top+8,16,14);
+    }
+    r(x+car-1,0,2,h,'#2b3431');
+    for(const d of doors){const l=x+d-doorSize/2,y=top+3;r(l-1,y-1,doorSize+2,h-top-3,'#7d8279');r(l,y,doorSize,h-top-5,shinkansen?'#e6e8e2':'#e0e2dc');r(l+doorSize/2,y,1,h-top-5,'#7d8279');for(const k of [l+1,l+7])glass(k,y+3,4,11)}
   }
-  if(shinkansen)for(let k=0;k<40;k++){const inset=Math.round((40-k)**2/140);for(const x of [k,w-1-k]){g.clearRect(x,0,1,inset);g.clearRect(x,30-inset,1,inset)}}
-  else{r(1,4,3,22,'#2b3431');r(w-4,4,3,22,'#2b3431')}
+  if(shinkansen)for(let k=0;k<44;k++){
+    const inset=Math.min(h-16,Math.round((44-k)**2/64)),under=Math.round((44-k)**2/640);
+    for(const x of [k,w-1-k]){g.clearRect(x,0,1,inset);g.clearRect(x,h-under,1,under);if(k<36&&k>18)r(x,inset+top*.3,1,6,'#2f3f49')}
+  }else for(const x of [0,w-14]){r(x,0,14,top,'#8c918a');glass(x+2,top+7,10,16)}
   texture.refresh();
 }
 /** The station sign (駅名標) in the middle of the platform, posts included (art px): drawn by makePlatform on its own texture, sorted with the people at its posts' feet. */
 export const stationSign={x:platformWidth/2-74,y:128,w:148,h:60};
-/** The route map board (路線図) standing on the platform, right of the station sign (art px): each face shows the line as seen from the track on that side. */
-export const routeBoard={x:platformWidth/2+120,y:152,w:60};
-/** The departure boards hanging over the platform (art px, top left of the board itself): near each stairwell, one over each edge, for its track. */
-export const platformBoards=[180,platformWidth-180].flatMap(cx=>[{x:cx-42,y:104,track:0 as const},{x:cx-42,y:196,track:1 as const}]);
-/** A departure board hanging over the platform, 84 × 18 art px, with its track's number and an arrow to that track above it (`up`) or below; the departures are the scene's text.
- * At twice the art's density, like the maps, for the number's lettering; drawn with 7 px of arrow above the board when `up`. */
-export function makeBoard(scene:Phaser.Scene,key:string,track:number,up:boolean){
-  const texture=mapCanvas(scene,key,84,25),g=texture.context,a=up?7:0,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
-  r(0,a,84,18,'#59625e');r(1,a+1,82,16,'#1b1f1e');r(3,a+3,12,12,'#ffffff');g.textAlign='center';letter(g,9,a+4,String(track),'#1d2622',true);
-  for(let k=0;k<6;k++)r(42-k,up?k+1:24-k,1+2*k,1,'#f2c230');
+/** The route map board (路線図) standing on the platform, right of the station sign (art px; its foot at y + 12, its face `h` tall): each face shows the line as seen from the track on that side. */
+export const routeBoard={x:platformWidth/2+120,y:152,w:60,h:36};
+/** The departure gantries (art px, `x` the left of their boards, `foot` where their post stands): one by each stairwell, its two boards one over the other, a track's each, `y` the top of the upper one. */
+export const platformBoards=[180,platformWidth-180].map(cx=>({x:cx-42,y:66,foot:141}));
+/** A gantry's picture (makeBoard), art px: its boards `boardHeight` tall each with their arrow, the post down to the foot. */
+export const boardHeight=25,gantryHeight=platformBoards[0].foot-platformBoards[0].y;
+/** A departure gantry, 84 art px wide: the post, then two boards each with its track's number and an arrow to that track, up for the far one, down for the near one; the departures are the scene's text.
+ * At twice the art's density, like the maps, for the numbers' lettering. */
+export function makeBoard(scene:Phaser.Scene,key:string,tracks:[number,number]){
+  const texture=mapCanvas(scene,key,84,gantryHeight),g=texture.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  r(40,0,4,gantryHeight,'#7d8279');r(40,0,1,gantryHeight,'#9aa29a');r(38,gantryHeight-3,8,3,'#59625e');
+  tracks.forEach((track,k)=>{
+    const a=(k?0:7)+k*boardHeight;
+    r(0,a,84,18,'#59625e');r(1,a+1,82,16,'#1b1f1e');r(3,a+3,12,12,'#ffffff');g.textAlign='center';letter(g,9,a+4,String(track),'#1d2622',true);
+    for(let j=0;j<6;j++)r(42-j,k?a+24-j:j+1,1+2*j,1,'#f2c230');
+  });
   texture.refresh();
 }
-/** An island platform from above, `platformWidth` long between its two tracks (the first at the top, 44–88; the second at the bottom, 232–276): each edge with its white line
+/** An island platform in the three-quarter view, `platformWidth` long, its floor 88–232 between its two tracks: the far one with the wall beyond it, the near one below the platform's
+ * own side (232–246), its rails further from the edge than the far one's as a train there shows its roof from the edge on (trainTop). Each edge with its white line
  * and yellow tactile strip, the 乗車位置 marks where the doors stop (doorMarks: a lane either side of each door, x ±6–20, 98–125 and 196–223), a stairwell down at each end (0–80 and 880–960 × 128–192, open towards the middle), the station
- * sign in the middle (駅名標: the station, the stops either side on `color`, its line's, and their English; 406–554 × 128–188 with its posts), and the shadows of the departure
- * boards hanging over each edge near the stairwells (platformBoards). In art px; main.ts (solids, hotspots, queues) relies on these. */
+ * sign in the middle (駅名標: the station, the stops either side on `color`, its line's, and their English; 406–554 × 128–188 with its posts) and the route map, each on its own texture, sorted with the people.
+ * In art px; main.ts (solids, hotspots, queues) relies on these. */
 export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:string;tracks:[number,number];color:string;prev:string;next:string;prevEn:string;nextEn:string;service:Service}){
   const W=platformWidth,texture=mapCanvas(scene,key,W,320),g=texture.context;
   const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},t=(x:number,y:number,text:string,c:string,big=false)=>letter(g,x,y,text,c,big);
   const dither=(x:number,y:number,w:number,h:number,c:string)=>{for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)r(x+i,y+j,1,1,c)};
-  // The walls beyond both tracks, then the tracks: ballast, sleepers, rails.
-  r(0,0,W,320,'#3d4846');r(0,35,W,9,'#59625e');r(0,276,W,44,'#59625e');for(let x=4;x<W;x+=24){r(x,36,2,8,'#46524f');r(x,277,2,10,'#46524f')}
-  for(const top of [44,232]){r(0,top,W,44,'#6f6a5f');dither(0,top,W,44,'#5e5a50');for(let x=0;x<W;x+=8)r(x,top+6,4,32,'#4a4038');for(const y of [top+12,top+30]){r(0,y,W,2,'#b8bcb4');r(0,y+2,W,1,'#2b3431')}}
+  // The wall beyond the far track, its pillars and posters, its foot in shadow.
+  r(0,0,W,50,'#7d8783');r(0,0,W,2,'#59625e');r(0,46,W,4,'#59625e');for(let x=0;x<W;x+=48)r(x,0,3,46,'#6c7773');
+  ['#efe6c8','#c9dfe6','#f0cfc4','#d3e3bd'].forEach((paper,k)=>{for(let x=24+k*120;x<W;x+=480){r(x-1,23,62,20,'#46524f');r(x,24,60,18,paper);r(x+5,28,24,2,'#59625e');r(x+5,32,34,1,'#8d8a7a');r(x+5,35,28,1,'#8d8a7a');r(x+44,27,11,12,['#d07a5a','#5b8fa8','#c95f6e','#7fa35b'][k])}});
+  // The tracks: ballast, sleepers, the two rails, a train's foot apart (trainTop).
+  for(const [top,bottom,rail] of [[50,88,71],[246,292,266]]){r(0,top,W,bottom-top,'#6f6a5f');dither(0,top,W,bottom-top,'#5e5a50');for(let x=0;x<W;x+=8)r(x,rail-2,4,18,'#4a4038');for(const y of [rail+1,rail+12]){r(0,y,W,1,'#b8bcb4');r(0,y+1,W,1,'#2b3431')}}
+  // The cable trough along the foot of the platform's side.
+  r(0,249,W,7,'#8d8a7a');r(0,249,W,1,'#a39f8d');for(let x=0;x<W;x+=14)r(x,250,1,6,'#6f6b5e');
+  // Beyond the near track, a low wall seen from above, its fence's posts.
+  r(0,292,W,28,'#59625e');r(0,292,W,3,'#8d8a7a');r(0,295,W,2,'#46524f');for(let x=4;x<W;x+=24)r(x,297,2,23,'#46524f');
+  // The platform's own side, facing the near track, its coping's shadow and the dark recess under it.
+  r(0,232,W,14,'#a39f8d');r(0,232,W,1,'#efeee4');r(0,240,W,6,'#3d4846');for(let x=20;x<W;x+=80)r(x,240,6,6,'#8d8a7a');
   // The floor, its edges (white line, then the yellow tactile strip) and the door marks behind them.
   r(0,88,W,144,'#cfcab4');for(let y=88;y<232;y+=16)for(let x=0;x<W;x+=16){r(x,y,16,1,'#c2bda6');r(x,y,1,16,'#c2bda6')}
-  r(0,86,W,2,'#8d8a7a');r(0,88,W,3,'#efeee4');r(0,229,W,3,'#efeee4');r(0,232,W,2,'#8d8a7a');
+  r(0,86,W,2,'#8d8a7a');r(0,88,W,3,'#efeee4');r(0,229,W,3,'#efeee4');
   for(const y of [94,223]){r(0,y,W,3,'#e8c440');for(let x=1;x<W;x+=3)r(x,y+1,1,1,'#cfa72c')}
   // At each door, as on Japanese platforms, two lanes running back from the edge either side of it (the queues' two lines, main.ts slot: door ±13, three rows), the middle kept clear
   // for those getting off; a pale green, quiet beside the tactile strip and clear of the yellow highlights. In each lane a pair of footprints per row, toes to the track.
@@ -814,11 +843,18 @@ export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:strin
     for(const dx of [-20,-6,5,19])r(x+dx,top?98:196,1,27,'#8fc078');
     for(const row of [0,1,2])for(const lane of [-15,10]){const y=top?99+row*9:217-row*9;for(const foot of [0,3]){r(x+lane+foot,top?y:y+2,2,3,'#8fc078');r(x+lane+foot,top?y+4:y,2,1,'#8fc078')}}
   }
-  // A stairwell at each end: steps going down towards the end, darker as they go, railed on three sides, the yellow sign over the mouth.
+  // A stairwell at each end, seen from the side like the rest: the steps drop away towards the end along the far wall, which rises behind them with its handrail; the near parapet stands in front of their foot, the yellow sign on the far one.
   for(const left of [true,false]){
     const mouth=left?80:W-80;
-    for(let k=0;k<16;k++)r(left?mouth-5-k*5:mouth+k*5,128,5,64,['#bdb9a6','#b0ac99','#a39f8d','#969281','#898575','#7c7869','#6f6b5e','#625f53'][k>>1]);
-    r(left?0:mouth-2,126,82,2,'#9aa29a');r(left?0:mouth-2,192,82,2,'#9aa29a');r(left?0:W-2,126,2,68,'#9aa29a');
+    r(left?0:mouth,128,80,64,'#59625e');
+    for(let k=0;k<16;k++){
+      const x=left?mouth-5-k*5:mouth+k*5,top=130+k*3;
+      r(x,128,5,top-128,['#a8adb6','#9da2ab','#9297a0','#878c95','#7c818a','#71767f','#666b74','#5b6069'][k>>1]);r(x,128,5,1,'#59625e');
+      r(x,top,5,190-top,['#c8c4c4','#bbb7b7','#aeaaaa','#a19d9e','#949091','#878385','#7a7679','#6d696d'][k>>1]);r(x,top,5,1,'#ecebee');r(left?x+4:x,top,1,190-top,'#59625e');
+      r(x,top-10,5,1,'#e6e8e2');r(x,top-9,5,1,'#59625e');if(k%4===1)r(x+2,top-9,1,9,'#7d8279');
+    }
+    r(left?0:mouth-2,114,82,14,'#b9bcb4');r(left?0:mouth-2,114,82,3,'#e6e8e2');r(left?0:mouth-2,127,82,1,'#7d8279');
+    r(left?0:mouth-2,184,82,14,'#b9bcb4');r(left?0:mouth-2,184,82,3,'#e6e8e2');r(left?0:mouth-2,197,82,2,'#a8a48f');r(left?0:W-3,114,3,84,'#9aa29a');
     r(left?24:mouth,118,56,8,'#f2c230');g.textAlign='center';t(left?52:mouth+28,119.5,'↓ 出口・のりかえ','#1d2622');g.textAlign='left';
   }
   // The station sign stands on its own texture (`<key>-sign`, stationSign), so that people pass behind it; its posts' shadow on the floor.
@@ -832,9 +868,11 @@ export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:strin
   g.textAlign='center';t(W/2,130,o.ja,'#1d2622',true);t(W/2,142,o.en.toUpperCase(),'#59625e');
   g.textAlign='left';t(sx+3,big?152:155,prev,ink,big);t(sx+3,165.5,o.prevEn,'#59625e');g.textAlign='right';t(sx+145,big?152:155,next,ink,big);t(sx+145,165.5,o.nextEn,'#59625e');g.textAlign='left';
   sign.refresh()}
-  // The route map (路線図), a low board standing on the platform, read from either side (routeBoard).
-  {const {x,y,w}=routeBoard;r(x+2,y+12,w,3,'#bdb8a3');r(x,y,w,12,'#283e40');r(x+2,y+2,w-4,8,'#efeee4');r(x+4,y+8,w-8,1,o.color);for(let k=x+6;k<x+w-4;k+=8)r(k,y+7,2,3,o.color);g.textAlign='center';t(x+w/2,y+2,'路線図','#1d2622');g.textAlign='left'}
-  // The shadows of the departure boards hanging over each edge (platformBoards; the boards themselves hang over the people, drawn by makeBoard).
-  for(const {x,y} of platformBoards)r(x+4,y+20,84,4,'#bdb8a3');
+  // The route map (路線図), a board on two legs read from either side (routeBoard), on its own texture (`<key>-route`) like the station sign; its feet's shadow on the floor.
+  r(routeBoard.x+2,routeBoard.y+10,routeBoard.w,3,'#bdb8a3');
+  {const {w,h}=routeBoard,board=mapCanvas(scene,key+'-route',w,h),g=board.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  r(5,26,3,10,'#7d8279');r(w-8,26,3,10,'#7d8279');r(0,0,w,26,'#283e40');r(2,2,w-4,22,'#efeee4');r(4,17,w-8,1,o.color);for(let k=6;k<w-4;k+=8)r(k,15,2,5,o.color);g.textAlign='center';letter(g,w/2,4,'路線図','#1d2622');g.textAlign='left';board.refresh()}
+  // The gantries' feet (platformBoards; the gantries themselves are sorted with the people, drawn by makeBoard).
+  for(const {x,foot} of platformBoards)r(x+38,foot-1,12,2,'#bdb8a3');
   texture.refresh();
 }

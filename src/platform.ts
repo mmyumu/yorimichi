@@ -19,7 +19,7 @@ export function runOf(line:RailLine,station:string,track:0|1):Run{
 export const alightAt=(ja:string):Hub|null=>stationAt(ja)??null;
 /** A stop's English name (rail.ts). */
 export const stopEn=(ja:string)=>stopNames[ja]??ja;
-/** A platform seen from above (`platform` in main.ts): platform `i` behind a station's gates. `track` is the side the traveller came up on, or the track of the train
+/** A platform in the three-quarter view (`platform` in main.ts): platform `i` behind a station's gates. `track` is the side the traveller came up on, or the track of the train
  * `arriving` with them on board. */
 export interface Deck {ja:string;en:string;hub:Hub;i:number;service:Service;platform:Platform;track:0|1;arriving?:RailLine}
 /** The platform of `line` at the station `ja`, the traveller on `track`. */

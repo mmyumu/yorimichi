@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { connectedPad } from './pad';
 import './style.css';
-import { apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, homeLights, homeStreetWidth, homeWindows, doorMarks, makeArt, makeAreaMap, makeBoard, makeCorridor, makeHub, makePlatform, makeTown, makeTrain, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
+import { apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, homeLights, homeStreetWidth, homeWindows, doorMarks, makeArt, makeAreaMap, makeBoard, makeCorridor, makeHub, makePlatform, makeTown, makeTrain, boardHeight, doorSize, gantryHeight, trainHeight, trainRoof, trainTop, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
 import { vivid } from './palette';
 import { alightAt, deckFor, runOf, stopEn, type Deck, type Run } from './platform';
 import { MachineHall } from './machine-hall';
@@ -230,10 +230,10 @@ class Journey extends Phaser.Scene {
     }
     // The platform: the tracks beyond both edges, the stairwells at its ends and the station sign's posts in the middle; a hotspot down each stairwell and one at each door mark of each track.
     if(place==='platform'){
-      const w=this.mapWidth;this.solids.push(new Phaser.Geom.Rectangle(0,0,w,180),new Phaser.Geom.Rectangle(0,462,w,200),new Phaser.Geom.Rectangle(0,256,160,128),new Phaser.Geom.Rectangle(w-160,256,160,128),new Phaser.Geom.Rectangle(w/2-140,350,280,26));
-      {const {x,y,w}=routeBoard;this.solids.push(new Phaser.Geom.Rectangle(x*2,y*2,w*2,24));hotspotFrames.route=[x*2-10,y*2-20,w*2+20,64];hotspotShapes.route=[[x,y,w,12]];outlines.route=outline(hotspotShapes.route)}
+      const w=this.mapWidth;this.solids.push(new Phaser.Geom.Rectangle(0,0,w,180),new Phaser.Geom.Rectangle(0,462,w,200),new Phaser.Geom.Rectangle(0,256,160,128),new Phaser.Geom.Rectangle(w-160,256,160,128),new Phaser.Geom.Rectangle(w/2-140,350,280,26),...platformBoards.map(({x,foot})=>new Phaser.Geom.Rectangle((x+38)*2,(foot-4)*2,16,8)));
+      {const {x,y,w}=routeBoard;this.solids.push(new Phaser.Geom.Rectangle(x*2,y*2,w*2,24));hotspotFrames.route=[x*2-10,y*2-40,w*2+20,84];hotspotShapes.route=[[x,y+12-routeBoard.h,w,26]];outlines.route=outline(hotspotShapes.route)}
       hotspotFrames.downL=[0,256,232,128];hotspotShapes.downL=[[0,128,80,64]];hotspotFrames.downR=[w-232,256,232,128];hotspotShapes.downR=[[w/2-80,128,80,64]];outlines.downL=outline(hotspotShapes.downL);outlines.downR=outline(hotspotShapes.downR);
-      this.doorXs().forEach((x,k)=>{for(const track of [0,1]){const spot=`door${track}-${k}`;hotspotFrames[spot]=[x-36,track?372:186,72,84];hotspotShapes[spot]=[[x/2-4,track?239:77,8,4]];outlines[spot]=outline(hotspotShapes[spot])}});
+      this.doorXs().forEach((x,k)=>{for(const track of [0,1]){const spot=`door${track}-${k}`;hotspotFrames[spot]=[x-36,track?372:186,72,84];hotspotShapes[spot]=[track?[x/2-doorSize/2-2,trainTop[1]-4,doorSize+4,6]:[x/2-doorSize/2,trainTop[0]+trainRoof+3,doorSize,trainHeight-trainRoof-5]];outlines[spot]=outline(hotspotShapes[spot])}});
     }
     if(place==='town')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,202),new Phaser.Geom.Rectangle(780,272,84,48),new Phaser.Geom.Rectangle(314,248,22,40),new Phaser.Geom.Rectangle(8,244,140,44),new Phaser.Geom.Rectangle(732,272,40,20),new Phaser.Geom.Rectangle(236,228,68,60),new Phaser.Geom.Rectangle(152,300,56,20),new Phaser.Geom.Rectangle(600,300,56,20),new Phaser.Geom.Rectangle(900,360,12,14),new Phaser.Geom.Rectangle(0,524,960,116),...townLights.map(x=>new Phaser.Geom.Rectangle(x*2-2,510,10,14)));
     // The home street: the far side's walls and houses, the near side's wall and roofs (the side street ends there too). The apartment: its walls
@@ -255,11 +255,13 @@ class Journey extends Phaser.Scene {
       this.queues=[this.doorXs().map(()=>[]),this.doorXs().map(()=>[])];this.trains=[0,1].map(track=>this.train(track as 0|1));
       // The station sign, sorted with the people at its posts' feet: those beyond it pass behind.
       this.world.add(this.add.image(stationSign.x*2,(stationSign.y+stationSign.h)*2,this.platformMap()+'-sign').setOrigin(0,1));
-      // The departure boards hang over everyone (kept on top in update): two per track, one by each stairwell, with their text.
-      this.overhead=platformBoards.flatMap(({x,y,track})=>{
-        const number=this.deck!.platform.tracks[track],key=`platform-board-${number}-${track}`;if(!this.textures.exists(key))makeBoard(this,key,number,!track);
-        const board=this.add.image(x*2,(y-(track?0:7))*2,key).setOrigin(0),text=this.label(x*2+36,y*2+5,'',10,'#ffb347').setLineSpacing(1).setData('track',track);this.world.add([board,text]);return [board,text];
-      });
+      this.world.add(this.add.image(routeBoard.x*2,(routeBoard.y+12)*2,this.platformMap()+'-route').setOrigin(0,1));
+      // The departure gantries, sorted with the people at their post's foot: a container, to carry each board's text with them.
+      const tracks=this.deck!.platform.tracks,key=`platform-board-${tracks.join('-')}`;if(!this.textures.exists(key))makeBoard(this,key,tracks);
+      for(const {x,foot} of platformBoards){
+        const texts=[0,1].map(track=>this.label(36,(track?boardHeight:7)*2+5-gantryHeight*2,'',10,'#ffb347').setLineSpacing(1).setData('track',track)),gantry=this.add.container(x*2,foot*2,[this.add.image(0,0,key).setOrigin(0,1),...texts]);
+        this.world.add(gantry);this.overhead.push(...texts);
+      }
       const crowd=this.crowd();this.gather().forEach((commuter,k)=>{
         const {image,look}=commuter;commuter.steps=[{wait:between(0,8000),face:'down'}];if(k>=crowd)return;
         // A platform already in use: about half wait in the queues, some are on their way up to them, some off an earlier train head for the stairs, the rest come later.
@@ -359,8 +361,8 @@ class Journey extends Phaser.Scene {
   /** Every hotspot of the current place. */
   private hotspots(){return isHub(this.place)?['staff','ticket','local',this.right(this.place),'westExit','eastExit']:this.place==='town'?['return','konbini','atm','vending-town-red','vending-town-blue','areaMap',...(this.homeTown()?['lane']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='home-street'?['return','home','vending-home-red','vending-home-white']:this.place==='apartment'?['return','bed']:this.place==='corridor'?['return','adjust','window',...this.corridorPlatforms().flatMap((_,i)=>[`stairs${i}L`,`stairs${i}R`])]:this.place==='platform'?['downL','downR','route',...this.openDoors()]:['return','photo']}
   private hotspotAt(x:number,y:number){
-    // A standing train is clicked anywhere along it, at its nearest door (the door marks themselves are not clickable).
-    const train=this.place==='platform'&&this.trains.find(train=>(train.phase==='alight'||train.phase==='board')&&(train.track?y>=470&&y<540:y>=96&&y<176));
+    // A standing train is clicked anywhere along it, the near one's door outlines included, at its nearest door (the door marks themselves are not clickable).
+    const train=this.place==='platform'&&this.trains.find(train=>(train.phase==='alight'||train.phase==='board')&&(train.track?y>=(trainTop[1]-5)*2&&y<(trainTop[1]+trainHeight)*2:y>=trainTop[0]*2&&y<(trainTop[0]+trainHeight)*2));
     if(train){const doors=this.doorXs();return `door${train.track}-${doors.reduce((best,door,k)=>Math.abs(door-x)<Math.abs(doors[best]-x)?k:best,0)}`}
     // Only the train itself boards: a click on the platform in front of a door just walks.
     return this.hotspots().filter(spot=>!spot.startsWith('door')).find(spot=>{const [fx,fy,w,h]=this.frameFor(spot);return x>=fx&&x<fx+w&&y>=fy&&y<fy+h})??'';
@@ -627,8 +629,10 @@ class Journey extends Phaser.Scene {
   /** The train on `track`: the one the traveller arrives on, pulling in, or none yet, the first one due soon on the side they came up. */
   private train(track:0|1):Train{
     const deck=this.deck!,arriving=deck.arriving&&deck.track===track?deck.arriving:null,{car,doors,cars,origin}=trainLayout(deck.service);
-    const body=this.add.container(origin*2,track?478:102),image=this.add.image(0,0,'__DEFAULT').setOrigin(0).setScale(2).setFlipY(!!track);body.add(image);this.world.add(body);
-    const rects=Array.from({length:cars},(_,c)=>doors.map(d=>this.add.rectangle(2*(c*car+d),track?0:52,16,8,0x1d2622).setOrigin(.5,0).setScale(0,1))).flat();body.add(rects);
+    // The near train sorts at the platform's edge, whatever bites into it: those at the edge pass behind its roof.
+    const sort=track?472:trainTop[0]*2,lift=trainTop[track]*2-sort,body=this.add.container(origin*2,sort),image=this.add.image(0,lift,'__DEFAULT').setOrigin(0).setScale(2);body.add(image);this.world.add(body);
+    // A door open: the far track's shows the dark inside; the near track's, on the side out of sight, the light it spills over the gap to the platform.
+    const rects=Array.from({length:cars},(_,c)=>doors.map(d=>(track?this.add.rectangle(2*(c*car+d),lift-8,doorSize*2,8,0xfff1cc):this.add.rectangle(2*(c*car+d),(trainRoof+3)*2,doorSize*2,(trainHeight-trainRoof-5)*2,0x1d2622)).setOrigin(.5,0).setScale(0,1))).flat();body.add(rects);
     const train:Train={track,line:arriving??pick(deck.platform.lines),run:runOf(deck.platform.lines[0],deck.ja,track),due:this.dueIn(arriving?dwell-3800:(track===deck.track?1500:7500)+dwell),phase:arriving?'arrive':'gap',t:arriving?3800:0,wait:0,tick:0,body,image,doors:rects,player:arriving?'off':undefined};
     this.dress(train);return train;
   }
@@ -1153,9 +1157,8 @@ class Journey extends Phaser.Scene {
   }
   private outdoors(){return this.place==='town'||this.place==='kamakura-trail'||this.place==='arashiyama'||this.place==='home-street'}
   /** What lights the night where the traveller is, in scene px (art × 2): in the street the konbini's window, the vending machines, the bus stop, the street lights across the road, Lorenzo's Uber
-   * and the station's entrance and name while it is open; on the exits' maps the stone lanterns, the temple's lanterns and the lamp; along a platform its lights. */
+   * and the station's entrance and name while it is open; on the exits' maps the stone lanterns, the temple's lanterns and the lamp. */
   private lamps():Lamp[]{
-    if(this.place==='platform')return Array.from({length:Math.ceil(this.mapWidth/160)},(_,k):Lamp=>[80+k*160,320,190,0xf4f8ff]);
     if(this.place==='town'){
       const warm=0xfff1cc,cool=0xe4f4ff,lights=townLights.flatMap((x):Lamp[]=>[[x*2+20,428,14,0xfff6d0],[x*2+20,510,70,warm,.7,.45]]);
       return [...lights,[720,238,40,cool,.7],[810,238,40,cool,.7],[900,238,40,cool,.7],[810,284,110,cool,.8,.35],[800,284,26,cool,.8],[844,284,26,cool,.8],[822,330,50,cool,.6,.4],[912,276,28,cool,.8],...(stationOpen()?[[480,262,70,warm],[480,298,110,warm,.5,.4],[480,202,100,cool,.8]] as Lamp[]:[]),
@@ -1167,10 +1170,10 @@ class Journey extends Phaser.Scene {
     if(this.outdoors())return [[379,344,48,0xffd99a],[561,344,48,0xffd99a],[401,258,28,0xffb070,.8],[541,258,28,0xffb070,.8],[198,442,84,0xfff1cc],[154,358,50,0xfff1cc,.6]];
     return [];
   }
-  /** Nightfall (darkness on the clock): out of doors the scene turns a deep blue but where the lamps shine, the platforms dim by half; indoors the lights are always on. */
+  /** Nightfall (darkness on the clock): out of doors the scene turns a deep blue but where the lamps shine, the lit platforms dim evenly, a little; indoors the lights are always on. */
   private nightfall(){
     this.over.setPosition(this.world.x,this.world.y);this.shutter?.setVisible(!stationOpen());this.pane?.setAlpha(darkness()*.85);
-    const k=darkness()*(this.outdoors()?1:this.place==='platform'?.5:0);this.shade.setVisible(k>0);this.neon?.setAlpha(k);if(!k)return;
+    const k=darkness()*(this.outdoors()?1:this.place==='platform'?.4:0);this.shade.setVisible(k>0);this.neon?.setAlpha(k);if(!k)return;
     const tint=Phaser.Display.Color.Interpolate.ColorWithColor(Phaser.Display.Color.ValueToColor(0xffffff),Phaser.Display.Color.ValueToColor(0x303c68),1,k);
     this.shade.clear().fill(Phaser.Display.Color.GetColor(tint.r,tint.g,tint.b));
     for(const [x,y,r,color,a=1,flat=1] of this.lamps())this.shade.stamp('light',undefined,x+this.world.x,y+this.world.y,{scaleX:r/16,scaleY:r/16*flat,tint:color,alpha:a*k,originX:.5,originY:.5});
@@ -1195,8 +1198,8 @@ class Journey extends Phaser.Scene {
       const ahead=this.machineAhead(),near=this.place==='corridor'?this.nearby():'';
       this.playerSpot=near==='adjust'||near==='window'?near:this.place==='corridor'?'':this.hall?this.hallSpot:ahead>=0?'machine'+ahead:'';
       this.commuters.forEach((commuter,i)=>{if(this.playerSpot)this.giveWay(commuter);commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});
-      // The outlines over the people, so that a train's doors show theirs; the overhead signs over all.
-      this.world.sort('y');if(this.place==='platform')this.world.bringToTop(this.glow);for(const sign of this.overhead)this.world.bringToTop(sign);
+      // The outlines over the people, so that a train's doors show theirs.
+      this.world.sort('y');if(this.place==='platform')this.world.bringToTop(this.glow);
     }
     // In the street and along the lane, the passers-by; Lorenzo's Uber and the lane's sign keep their own order with the traveller (below).
     if(this.place==='town'||this.place==='home-street'){this.commuters.forEach((commuter,i)=>{commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});this.world.sort('y')}
