@@ -3,7 +3,7 @@
 export interface Look {coat:string;legs:string;hair:string;style:'short'|'bob'|'long'|'bun'|'ponytail';skin?:string;skirt?:string;length?:'knee'|'robe';sash?:string;tie?:boolean;mask?:boolean;bag?:string;backpack?:boolean;cane?:boolean;height?:number;pace?:number}
 /** A commuter as the concourse simulation (main.ts) has them, in top-down scene pixels; the first-person hall shows the same figures where they are. */
 export interface Figure {look:number;x:number;y:number;alpha:number;face:'up'|'down'|'left'|'right';moving:boolean}
-// Every figure in the hall gets its own look, so no one is seen twice.
+// The first people of a place each get their own look; only a big crowd sees one twice (Journey.gather).
 export const looks:Look[]=[
   {coat:'#2d3a4a',legs:'#262f3a',hair:'#1f1c1a',style:'short',tie:true,bag:'#3b2f28'},
   {coat:'#c9b38a',legs:'#3a3f48',hair:'#4a3426',style:'long',length:'knee',bag:'#8a3b3b',height:.95},

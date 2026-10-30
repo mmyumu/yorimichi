@@ -11,8 +11,10 @@ import { Atm } from './atm';
 import { Shop, type Chain } from './konbini';
 import { Vending } from './vending';
 import { Pigeons } from './pigeons';
+import { busiest, crowdAt, type Stage } from './crowd';
 import type { Item, VendorId } from './goods';
-import { Phone, askLorenzo, callLorenzo, contacts, playFlight, type Contact } from './phone';
+import { playFlight } from './flight';
+import { Phone, askLorenzo, callLorenzo, contacts, type Contact } from './phone';
 import { loadSave, eraseAll, writeSave } from './save';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
@@ -53,8 +55,6 @@ type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:num
  * closing, leaving. `due`: its time on the boards, when it leaves, in minutes on the journey's clock (clock.ts). `player`: the traveller arriving on board (`off`, to get off) or boarded (`on`),
  * the doors shutting at `wait` once they have chosen where to get off. */
 type Train={track:0|1;line:RailLine;run:Run;due:number;phase:'gap'|'arrive'|'alight'|'board'|'close'|'leave';t:number;wait:number;tick:number;body:Phaser.GameObjects.Container;image:Phaser.GameObjects.Image;doors:Phaser.GameObjects.Rectangle[];player?:'off'|'on';to?:Deck;served?:number[]};
-// How many travellers walk the corridor behind the gates and wait on a platform (to become each station's own density).
-const corridorCrowd=8,platformCrowd=24;
 /** A train's ms from pulling in to the earliest its doors close (arriving, those getting off, a moment's boarding): its time on the boards is when it leaves, that long after it starts pulling in. */
 const dwell=6000+2600+4000;
 /** How long (ms) someone getting off leaves the traveller standing in their way dazed. */
@@ -119,7 +119,7 @@ class Journey extends Phaser.Scene {
   private padPrev:boolean[]=[];
   private walk=0;
   private moving=false;
-  // Concourse commuters, one per outfit of the first-person hall: each runs random trips (planTrip) as a queue of steps, or stands still facing `face`.
+  // The people about here (gather, as many as the place ever holds; crowd.ts): each runs random trips (planTrip) as a queue of steps, or stands still facing `face`.
   private commuters:Commuter[]=[];
   // Machines and counters someone is using, so two commuters never share one.
   private spots=new Set<string>();
@@ -132,7 +132,6 @@ class Journey extends Phaser.Scene {
   // Ms left dazed, knocked by someone getting off: no walking, no boarding, stars over the head (`dizzy`).
   private stun=0;
   private dizzy!:Phaser.GameObjects.Graphics;
-  private announcement!:Phaser.GameObjects.Text;
   // Only places that still exist: memories from removed trips (Kawaguchiko) are dropped, and the Kamakura one, kept before the station, is the temple trail's.
   private collected=new Set<string>((JSON.parse(localStorage.getItem('yorimichi-memories')||'[]') as string[]).map(place=>place==='kamakura'?'kamakura-trail':place).filter(place=>place==='kamakura-trail'||place==='arashiyama'));
   private wallet=loadWallet();
@@ -243,18 +242,14 @@ class Journey extends Phaser.Scene {
     if(place==='apartment'){this.solids.push(...apartmentSolids.map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));for(const {name,x,base} of apartmentProps)this.world.add(this.add.image(x*2,base*2,`apartment-${name}`).setOrigin(0,1))}
     // Two concourse pillars carrying the yellow exit signs, drawn in depth order with the people (see update) and solid at their foot.
     if(isHub(place))for(const [x,side] of [[254,'west'],[690,'east']] as const){this.world.add(this.add.image(x,380,`exit-pillar-${place}-${side}`).setOrigin(.5,1));this.solids.push(new Phaser.Geom.Rectangle(x-30,364,60,16))}
-    // As in the hall, every outfit is in the concourse: two stand reading, the others come and go at random (planTrip), already spread out along their first trip.
-    if(isHub(place))looks.forEach((_,look)=>{
-      const face=look===looks.length-2?[312,272]:look===looks.length-1?[760,238]:null;
-      const image=this.add.image(face?.[0]??0,face?.[1]??0,`commuter-${look}-${face?'up':'down'}-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1));
-      const commuter:Commuter={image,look,steps:[],speed:(.045+(look*7%5)*.006)*(looks[look].pace??1),face:face?'up':undefined};this.world.add(image);this.commuters.push(commuter);
-      if(!face)for(let t=between(0,20000);t>0;t-=200)this.stepCommuter(commuter,look,200);
-    });
-    // Behind the gates, outfits drawn at random (repeating only past the last one) come and go between the stairs and the gates (corridorTrip), already spread out along their first trip.
-    if(place==='corridor'){const order=Phaser.Utils.Array.Shuffle(looks.map((_,i)=>i));for(let k=0;k<corridorCrowd;k++){
-      const look=order[k%order.length],image=this.add.image(0,0,`commuter-${look}-down-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1)).setAlpha(0);
-      const commuter:Commuter={image,look,steps:[],speed:0};this.world.add(image);this.commuters.push(commuter);for(let t=between(0,20000);t>0;t-=200)this.stepCommuter(commuter,k,200);
-    }}
+    // The concourse's people, already spread out along their first trip, and, when it is busy enough, two standing to read.
+    if(isHub(place)){
+      const people=this.gather();
+      if(this.crowd()>=8)for(const [k,[x,y]] of [[312,272],[760,238]].entries()){people[k].face='up';people[k].image.setPosition(x,y).setAlpha(1)}
+      people.forEach((commuter,k)=>{for(let t=between(0,20000);t>0;t-=200)this.stepCommuter(commuter,k,200)});
+    }
+    // Behind the gates, people come and go between the stairs and the gates (corridorTrip); in the street and along the lane, they pass by (streetTrip, laneTrip). All already on their way.
+    if(place==='corridor'||place==='town'||place==='home-street')this.gather().forEach((commuter,k)=>{for(let t=between(0,20000);t>0;t-=200)this.stepCommuter(commuter,k,200)});
     // On a platform, the two trains, the departure boards and the people on it (platformTrip).
     if(place==='platform'){
       this.queues=[this.doorXs().map(()=>[]),this.doorXs().map(()=>[])];this.trains=[0,1].map(track=>this.train(track as 0|1));
@@ -265,9 +260,8 @@ class Journey extends Phaser.Scene {
         const number=this.deck!.platform.tracks[track],key=`platform-board-${number}-${track}`;if(!this.textures.exists(key))makeBoard(this,key,number,!track);
         const board=this.add.image(x*2,(y-(track?0:7))*2,key).setOrigin(0),text=this.label(x*2+36,y*2+5,'',10,'#ffb347').setLineSpacing(1).setData('track',track);this.world.add([board,text]);return [board,text];
       });
-      const order=Phaser.Utils.Array.Shuffle(looks.map((_,i)=>i));for(let k=0;k<platformCrowd;k++){
-        const look=order[k%order.length],image=this.add.image(0,0,`commuter-${look}-down-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1)).setAlpha(0);
-        const commuter:Commuter={image,look,steps:[{wait:between(0,8000),face:'down'}],speed:0};this.world.add(image);this.commuters.push(commuter);
+      const crowd=this.crowd();this.gather().forEach((commuter,k)=>{
+        const {image,look}=commuter;commuter.steps=[{wait:between(0,8000),face:'down'}];if(k>=crowd)return;
         // A platform already in use: about half wait in the queues, some are on their way up to them, some off an earlier train head for the stairs, the rest come later.
         const r=Math.random();
         if(r<.55){this.platformTrip(commuter);const at=commuter.steps[commuter.steps.length-2] as {x:number;y:number};image.setPosition(at.x,at.y).setAlpha(1);commuter.steps=commuter.steps.slice(-1)}
@@ -276,7 +270,7 @@ class Journey extends Phaser.Scene {
           const from={x:between(220,this.mapWidth-220),y:pick([between(200,240),between(410,440)])},{mouth,end}=this.stairwell(from.x);
           if(this.canWalk(from.x,from.y)){commuter.speed=(.045+(look*7%5)*.006)*(looks[look].pace??1);image.setPosition(from.x,from.y).setAlpha(1);commuter.steps=[...this.route(from,{x:mouth,y:from.y<320?300:340}),{x:end,y:from.y<320?300:340,alpha:0},{wait:between(4000,12000),face:'down'}]}
         }
-      }
+      });
     }
     // The station's shutters, ribbed, over the glazed entrance (makeTown).
     if(place==='town'){const g=this.shutter=this.add.graphics();g.fillStyle(0x8d938c).fillRect(380,240,200,38);g.fillStyle(0x6f766f);for(let y=242;y<278;y+=4)g.fillRect(380,y,200,2);g.fillStyle(0x4c5550).fillRect(380,276,200,2);this.world.add(g)}
@@ -322,10 +316,20 @@ class Journey extends Phaser.Scene {
     // The phone in the corner, a badge counting what is unread: a click on it (or P, or the pad's RB) takes it out.
     this.mini=this.add.container(916,580);this.hud.add(this.mini);this.mini.add(this.add.image(0,0,'phone-mini').setScale(2).setInteractive({useHandCursor:true}).on('pointerdown',()=>this.openPhone()));
     this.badgeText=this.add.text(0,0,'',{fontFamily:'monospace',fontSize:12,color:'#ffffff'}).setOrigin(.5);this.badge=this.add.container(16,-30,[this.add.circle(0,0,10,0xd6402e).setStrokeStyle(2,0xfffef2),this.badgeText]);this.mini.add(this.badge);this.refreshPhone();
-    // No bottom bar: the action prompt floats over the player when something is in reach (see update), the station announcements run in the top band.
+    // No bottom bar: the action prompt floats over the player when something is in reach (see update).
     this.prompt=this.label(0,0,'',13,'#fff0d4',this.hud).setOrigin(.5,1).setPadding(8,4,8,4).setBackgroundColor('#263d39e0').setVisible(false);
-    this.announcement=this.label(176,13,'',10,'#96aa95',this.hud);
     this.keep();
+  }
+  /** The stage the traveller is on and how many are about on it (crowd.ts). */
+  private stage(){return (isHub(this.place)?'concourse':this.place) as Stage}
+  private crowd(){return crowdAt(this.stage(),stations[this.nearestStation()].ja)}
+  /** As many people as this place ever holds, hidden until their first trip: outfits drawn at random, repeating only past the last one, and then only the plainest (no second kimono, no second schoolchild). */
+  private gather(){
+    const order=Phaser.Utils.Array.Shuffle(looks.map((_,i)=>i)),plain=order.filter(i=>looks[i].length!=='robe'&&(looks[i].height??1)>=.7&&!looks[i].cane);
+    return Array.from({length:busiest(this.stage(),stations[this.nearestStation()].ja)},(_,k)=>{
+      const look=k<order.length?order[k]:plain[k%plain.length],image=this.add.image(0,0,`commuter-${look}-down-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1)).setAlpha(0);
+      const commuter:Commuter={image,look,steps:[],speed:0};this.world.add(image);this.commuters.push(commuter);return commuter;
+    });
   }
   /** The street outside the station left by `outside`, its sign naming the station and exit: drawn the first time (makeTown). */
   private townMap(){
@@ -651,10 +655,10 @@ class Journey extends Phaser.Scene {
   private phase(train:Train,phase:Train['phase']){train.phase=phase;train.t=train.tick=0;train.served=undefined}
   /** The trains' cycles: in, doors open for those getting off then the queues, doors shut, out; the next one follows a moment later (lines sharing the platform take turns).
    * They keep to the journey's clock: each pulls in in time to leave at its time on the boards, and none runs between the last train and the first.
-   * The departure boards and the announcements in the top band follow them. */
+   * The departure boards follow them. */
   private runTrains(delta:number){
     // Far enough out that the whole train is off the platform at either end.
-    const deck=this.deck!,{origin,car,cars}=trainLayout(deck.service),stop=origin*2,far=car*cars*2+stop+200;let say='';
+    const deck=this.deck!,{origin,car,cars}=trainLayout(deck.service),stop=origin*2,far=car*cars*2+stop+200;
     for(const train of this.trains){
       // Trains leave the way they go, as the station sign shows it (the next stop on the right); they come in from the other side, or at a terminus from that same side, to turn back.
       const out=train.run.dir,from=train.run.starts?out:-out;let open=0;train.t+=delta;
@@ -680,14 +684,12 @@ class Journey extends Phaser.Scene {
       // After the last train, the boards say so until the station closes.
       const en=Math.floor(this.time.now/4000)%2===1,text=train.phase==='gap'&&!trainsRun()?(en?'Service has ended\nfor today':'本日の運転は\n終了しました'):en?`${time} ${line.loop?run.destEn.split(',')[0]:'for '+run.destEn}\n${line.en}`:`${time} ${line.loop?run.dest.split(' ')[0]:run.dest+'行'}\n${line.ja}`;
       for(const board of this.overhead)if(board instanceof Phaser.GameObjects.Text&&board.getData('track')===train.track&&board.text!==text)board.setText(text);
-      if(train.phase==='arrive')say=`まもなく ${deck.platform.tracks[train.track]}番線に ${train.line.ja} ${train.run.dest}${train.line.loop?'':'行'}がまいります`;else if(train.phase==='close'&&!say)say='ドアが閉まります ご注意ください';
     }
-    this.announcement.setText(say);
   }
   /** The doors open: a few people step off and make for the stairs (out of those away from the platform), and so does the traveller, arriving. */
   private alight(train:Train){
     const free=this.commuters.filter(c=>!c.queue&&c.image.alpha===0&&!!c.steps[0]&&'wait' in c.steps[0]),doors=this.doorXs();
-    for(const c of free.slice(0,Math.floor(between(2,6)))){
+    for(const c of free.slice(0,Math.round(between(.3,1)*this.crowd()/4))){
       const k=Math.floor(Math.random()*doors.length),door=this.doorPoint(train.track,k),out=this.clearPoint(train.track,k),y=between(300,340),{mouth,end}=this.stairwell(door.x);c.image.setPosition(door.x,door.y).setAlpha(0);
       c.steps=[{wait:between(0,800),face:train.track?'up':'down'},{...out,alpha:1,off:[train.track,k]},...this.route(out,{x:mouth,y}),{x:end,y,alpha:0},{wait:between(4000,12000),face:'down'}];
     }
@@ -856,6 +858,7 @@ class Journey extends Phaser.Scene {
   /** Asked once more, the pad's focus starting on Close so that A, A cannot erase a journey. */
   private confirmRestart(){
     this.dialog('Restart from zero?','Your whole journey will be erased: position, tickets, money, groceries, memories and messages. You start again at Tokyo Station with the starting purse. This cannot be undone.',[['Yes, erase everything and restart',()=>{this.erased=true;eraseAll();location.reload()}]]);
+    (this.modal!.getData('choices')[0][0] as Phaser.GameObjects.Rectangle).setFillStyle(0xb3261e);
     this.focusChoice(this.modal!,1);
   }
   /** The bag from the top band (or X): tickets and wallet, over the paused scene. */
@@ -959,8 +962,12 @@ class Journey extends Phaser.Scene {
   /** A random trip: in from an exit, the bottom of the concourse, off a train through the gates or out of the shop, maybe a stop at a free machine, counter or spot to look around,
    * then out through the gates, into the shop or out by an exit. */
   private planTrip(c:Commuter){
+    // Enough people about for the hour: out of sight until there is room (crowd.ts).
+    if(this.commuters.filter(o=>o!==c&&(o.image.alpha>0||o.queue)).length>=this.crowd()){c.image.setAlpha(0);c.steps=[{wait:between(2000,6000),face:'down'}];return}
     if(this.place==='corridor'){this.corridorTrip(c);return}
     if(this.place==='platform'){this.platformTrip(c);return}
+    if(this.place==='town'){this.streetTrip(c);return}
+    if(this.place==='home-street'){this.laneTrip(c);return}
     // The far right of the concourse: the Shinkansen transfer gates, or the shop's door, where people vanish inside.
     const far=this.right(this.place as Hub);
     const end=(kind:string)=>{
@@ -1012,6 +1019,32 @@ class Journey extends Phaser.Scene {
     const start=end(from),finish=end(to);c.image.setPosition(start.outer.x,start.outer.y).setAlpha(0);c.speed=(.045+(c.look*7%5)*.006)*(looks[c.look].pace??1)*between(.85,1.15);
     if(stop?.spot)this.spots.add(stop.spot);
     c.steps=[start.inner,...(stop?[...this.route(start.inner,stop),{wait,face,spot:stop.spot},...this.route(stop,finish.inner)]:this.route(start.inner,finish.inner)),finish.outer,{wait:between(500,5000),face:'down'}];
+  }
+  /** A walk through the street: between its ends (on either pavement), the station's entrance while it is open and the konbini's door, over the crossing to change pavements,
+   * maybe a stop at the bus stop, a vending machine, the area map or just to look at a phone. */
+  private streetTrip(c:Commuter){
+    const end=(kind:string)=>{
+      if(kind==='west'||kind==='east'){const y=between(330,372),west=kind==='west';return {outer:{x:west?-24:984,y},inner:{x:west?34:926,y}}}
+      if(kind==='farWest'||kind==='farEast'){const y=between(498,506),west=kind==='farWest';return {outer:{x:west?-24:984,y},inner:{x:west?34:926,y}}}
+      const x=kind==='konbini'?between(684,720):between(400,560);return {outer:{x,y:262,alpha:0},inner:{x,y:292}};
+    };
+    const walk=(a:{x:number;y:number},b:{x:number;y:number})=>{
+      if(a.y>450===b.y>450)return this.route(a,b);
+      const x=between(424,536),[near,far]=a.y>450?[{x,y:500},{x,y:388}]:[{x,y:388},{x,y:500}];return [...this.route(a,near),far,...this.route(far,b)];
+    };
+    const kinds=['west','east','west','east','farWest','farEast','konbini',...(stationOpen()?['station','station','station']:[])],from=pick(kinds),to=pick(kinds.filter(kind=>kind!==from||kind==='station'));
+    const free=(spots:{spot:string;x:number;y:number;face:string}[])=>{const open=spots.filter(({spot})=>!this.spots.has(spot));return open.length?pick(open):null},r=Math.random();
+    const stop=r<.2?free([872,846,820].map((x,i)=>({spot:'bus'+i,x,y:376,face:'down'}))):r<.3?free([{spot:'vendingRed',x:801,y:336,face:'up'},{spot:'vendingBlue',x:845,y:336,face:'up'},{spot:'areaMap',x:270,y:300,face:'up'}]):r<.4?{spot:'',x:between(300,660),y:between(330,372),face:pick(['left','right','down'])}:null;
+    const start=end(from),finish=end(to),wait=stop?.spot.startsWith('bus')?between(6000,16000):between(2000,5000);
+    c.image.setPosition(start.outer.x,start.outer.y).setAlpha(start.outer.alpha??1);c.speed=(.045+(c.look*7%5)*.006)*(looks[c.look].pace??1)*between(.85,1.15);
+    if(stop?.spot)this.spots.add(stop.spot);
+    c.steps=[start.inner,...(stop?[...walk(start.inner,stop),{wait,face:stop.face,spot:stop.spot},...walk(stop,finish.inner)]:walk(start.inner,finish.inner)),finish.outer,{wait:between(500,5000),face:'down'}];
+  }
+  /** Someone going by along the lane to the traveller's home, from one end to the other. */
+  private laneTrip(c:Commuter){
+    const ltr=Math.random()<.5,[from,to]=ltr?[-24,this.mapWidth+24]:[this.mapWidth+24,-24],y=between(252,380);
+    c.image.setPosition(from,y).setAlpha(1);c.speed=(.045+(c.look*7%5)*.006)*(looks[c.look].pace??1)*between(.85,1.15);
+    c.steps=[{x:to,y:y+between(-12,12)},{wait:between(500,5000),face:'down'}];
   }
   /** Moves a commuter `delta` ms along its steps, planning the next trip when they run out. */
   private stepCommuter(c:Commuter,i:number,delta:number){
@@ -1165,15 +1198,13 @@ class Journey extends Phaser.Scene {
       // The outlines over the people, so that a train's doors show theirs; the overhead signs over all.
       this.world.sort('y');if(this.place==='platform')this.world.bringToTop(this.glow);for(const sign of this.overhead)this.world.bringToTop(sign);
     }
+    // In the street and along the lane, the passers-by; Lorenzo's Uber and the lane's sign keep their own order with the traveller (below).
+    if(this.place==='town'||this.place==='home-street'){this.commuters.forEach((commuter,i)=>{commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});this.world.sort('y')}
     // In the apartment, the traveller passes behind the sofa, the island and the fridge.
     if(this.place==='apartment'){this.world.sort('y');this.world.bringToTop(this.glow)}
-    // The street is not depth-sorted: the traveller passes behind Lorenzo's Uber from the pavement, in front of it from across the road.
+    // The traveller passes behind Lorenzo's Uber from the pavement, in front of it from across the road.
     if(this.laneSign)this.player.y<this.laneSign.y?this.world.moveAbove<Phaser.GameObjects.GameObject>(this.laneSign,this.player):this.world.moveBelow<Phaser.GameObjects.GameObject>(this.laneSign,this.player);
     if(this.car)this.player.y<this.car.y+26?this.world.moveAbove<Phaser.GameObjects.GameObject>(this.car,this.player):this.world.moveBelow<Phaser.GameObjects.GameObject>(this.car,this.player);
-    if(isHub(this.place)){
-      const announcements=trainsRun()?['まもなく電車がまいります…','出口 Exit / 乗換 Transfer / 改札 Gates','足元の黄色い線までお下がりください']:['本日の列車はすべて終了しました','まもなくシャッターを閉めます','出口 Exit'];
-      this.announcement.setText(announcements[Math.floor(this.time.now/6500)%announcements.length]);
-    }else if(this.place!=='platform')this.announcement.setText('');
     const pad=this.gamepad();this.lorenzo();
     if(this.place==='corridor'||this.place==='platform'||this.place==='home-street'||this.place==='apartment')this.scroll(Math.min(1,delta/150));
     if(this.modal){this.glow.clear();this.prompt.setVisible(false);this.held.clear();this.pending='';return;}
