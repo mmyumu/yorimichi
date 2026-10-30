@@ -1,4 +1,5 @@
-import { clockBadge, darkness } from './clock';
+import { darkness } from './clock';
+import { connectedPad } from './pad';
 import { fareBetween } from './fares';
 import { box, pixelText } from './hall-scene';
 import { stations, tracksFor, type Hub, type Service } from './network';
@@ -11,8 +12,10 @@ type XY=[number,number];
 export interface View {eye:P;vx:number;vy:number;k:number}
 // The picture is 240 × 150 pixels, scaled up whole. World units are centimetres: x across (the player's lane centred on 0), y up, z forward from the gate's near end.
 const W=240,H=150,cabW=22,cabH=96,cabL=170,pitch=78,ours=pitch/2,wallZ=330;
-// Our lane's cabinet on the right: ticket slot, small screen and exit slot on its lane side, the flaps in the middle.
-const slotX=ours-cabW/2+8,entryZ=[34,44],exitZ=[148,156],flapZ=85;
+// Our lane's cabinet on the right: ticket slot, small screen and exit slot along its middle, the flaps between the cabinets.
+const slotX=ours,entryZ=[34,44],exitZ=[148,156],flapZ=85;
+// A fraction t of the way from z0 to z1 as the eye at ez sees it on a level surface: the slots' slits are centred on the picture, so the nearer end's larger look leaves them in the middle.
+const seen=(ez:number,z0:number,z1:number,t:number)=>ez+1/((1-t)/(z0-ez)+t/(z1-ez));
 // Two still pictures, teleported between: close before the gate, then over the exit slot.
 const views:View[]=[{eye:[0,150,-60],vx:120,vy:20,k:110},{eye:[14,140,105],vx:70,vy:-25,k:110}];
 const gateNames:Record<Service,[string,string]>={local:['中央改札','Central Gate'],shinkansen:['新幹線のりかえ口','Shinkansen Transfer']};
@@ -20,7 +23,7 @@ const gateNames:Record<Service,[string,string]>={local:['中央改札','Central 
  * on the way out (`exit`), the station's entrance hall lies beyond under the hanging signs to its `exits` (left, right), and the gate keeps every ticket it lets through,
  * except one punched at `cancel` (an entry cancelled: it comes back out). */
 export interface GateSide {ja:string;en:string;accent:string;hub?:Hub;exit?:boolean;exits?:[string,string];cancel?:Hub}
-const C={ink:'#1d2622',body:'#2f3634',greenBright:'#55cf5f',green:'#3ea84b',greenDark:'#2a7a35',greenLight:'#7fd08a',top:'#1f2423',topDark:'#181c1b',edge:'#6d7772',grey:'#c9cdc5',greyDark:'#9aa29a',kick:'#59625e',housing:'#3b4341',floorA:'#ddd5c4',floorB:'#c4bdaf',wall:'#e6e3d8',wallLine:'#cbc7b9',ceiling:'#e9eae2',light:'#ffffff',yellow:'#f2c230',yellowDark:'#c9a020',slot:'#e2c234',slit:'#0d1211',icPad:'#cfe7f1',icRing:'#3d9fd3',lcd:'#173a57',lcdNg:'#b8332b',red:'#d6402e',white:'#f4f4ee',orange:'#e8853a',board:'#121614',amber:'#f29a2e',concourseA:'#e2d6bd',concourseB:'#cdbf9f',hallWall:'#e9e2cf',sky:'#d8ecf4',skyLow:'#bcdbe8',pavement:'#c9c7b8',tree:'#6f9c6a',trunk:'#6b5a46',frame:'#4c5f5c',lintel:'#5d6a62',pillar:'#ddd5bf',pillarSide:'#c4bba2',pillarEdge:'#a99f85'};
+const C={ink:'#1d2622',body:'#2f3634',greenBright:'#55cf5f',green:'#3ea84b',greenDark:'#2a7a35',greenLight:'#7fd08a',top:'#1f2423',topDark:'#181c1b',edge:'#6d7772',grey:'#c9cdc5',greyDark:'#9aa29a',kick:'#59625e',housing:'#3b4341',floorA:'#ddd5c4',floorB:'#c4bdaf',wall:'#e6e3d8',wallLine:'#cbc7b9',ceiling:'#e9eae2',light:'#ffffff',yellow:'#f2c230',yellowDark:'#c9a020',slot:'#e2c234',slit:'#0d1211',icPad:'#cfe7f1',icRing:'#3d9fd3',lcd:'#173a57',lcdNg:'#b8332b',red:'#d6402e',white:'#f4f4ee',orange:'#e8853a',board:'#121614',amber:'#f29a2e',floorTile:'#d6cfc0',grout:'#c9c1b0',floorShadow:'#aaa392',skirting:'#7d7a70',lcdBlack:'#090b0a',concourseA:'#e2d6bd',concourseB:'#cdbf9f',hallWall:'#e9e2cf',sky:'#d8ecf4',skyLow:'#bcdbe8',pavement:'#c9c7b8',tree:'#6f9c6a',trunk:'#6b5a46',frame:'#4c5f5c',lintel:'#5d6a62',pillar:'#ddd5bf',pillarSide:'#c4bba2',pillarEdge:'#a99f85'};
 // 4 × 4 ordered dither, for the fade of the teleport.
 const bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const clamp01=(v:number)=>Math.max(0,Math.min(1,v));
@@ -40,6 +43,34 @@ export function paintTicket(g:CanvasRenderingContext2D,w:number,h:number,ticket:
   if(ticket.punched)for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const d=Math.hypot(dx,dy),x=Math.round(w/2)+dx,y=46+dy;if(d<=4.6)g.clearRect(x,y,1,1);else if(d<=6.2)box(g,x,y,1,1,d<=5.4?'#3d3a30':'#8a8270')}
 }
 
+// How strongly the lettering's edges glow, 0 to 255: dark ink, on a light ground, takes a softness that reads well; light ink, on a dark one, only the faintest, as more turns to haze.
+const glowDark=84,glowLight=30;
+const inks=new Map<string,HTMLCanvasElement>();
+/** What was painted on a transparent canvas, leaving a pixel free all round, in `color` as whole pixels, each dot on or off with the faint glow on the pixels beside it. */
+export function harden(ink:HTMLCanvasElement,color:string){
+  const c=ink.getContext('2d',{willReadFrequently:true})!,image=c.getImageData(0,0,ink.width,ink.height),d=image.data;c.clearRect(0,0,ink.width,ink.height);c.fillStyle=color;c.fillRect(0,0,1,1);const [r,gr,b]=c.getImageData(0,0,1,1).data;
+  const w=ink.width,glow=.3*r+.59*gr+.11*b<128?glowDark:glowLight,on=Array.from({length:d.length/4},(_,i)=>d[i*4+3]>=128);
+  on.forEach((dot,i)=>{const beside=on[i-w]||on[i+w]||(i%w>0&&on[i-1])||(i%w<w-1&&on[i+1]);d[i*4]=r;d[i*4+1]=gr;d[i*4+2]=b;d[i*4+3]=dot?255:beside?glow:0});
+  c.putImageData(image,0,0);
+}
+/** Lettering in whole pixels at the context's font, top left at x, y (`harden`): browsers may smooth the bitmap font's edges anyway, unevenly, which shows as a haze on a dark ground. Each text and colour is inked once. */
+export function crispText(g:CanvasRenderingContext2D,text:string,x:number,y:number,color:string){
+  const key=`${g.font}|${color}|${text}`;let ink=inks.get(key);
+  if(!ink){
+    ink=document.createElement('canvas');ink.width=Math.max(1,Math.ceil(g.measureText(text).width))+2;ink.height=Math.ceil(parseFloat(g.font)*1.4)+2;
+    const c=ink.getContext('2d',{willReadFrequently:true})!;c.font=g.font;c.textBaseline='top';c.fillStyle=color;c.fillText(text,1,1);harden(ink,color);
+    if(document.fonts?.check(g.font))inks.set(key,ink);
+  }
+  g.drawImage(ink,Math.round(x)-1,Math.round(y)-1);
+}
+
+/** Centres a picture in its viewport, scaled by a whole number of the screen's own pixels as soon as it is twice its size (smaller screens get what fits), and placed on them: a display zoom of 125 or 150% makes those differ from CSS pixels, and a dot that spans 4.5 of them or starts on half of one reads as blur. */
+export function fitPicture(canvas:HTMLCanvasElement,viewport:HTMLElement,w:number,h:number){
+  const ratio=devicePixelRatio||1,fit=Math.min(viewport.clientWidth/w,viewport.clientHeight/h)*ratio,scale=(fit>=2?Math.floor(fit):fit)/ratio;
+  const place=(room:number,size:number)=>Math.round((room-size)/2*ratio)/ratio+'px';
+  canvas.style.width=w*scale+'px';canvas.style.height=h*scale+'px';canvas.style.left=place(viewport.clientWidth,w*scale);canvas.style.top=place(viewport.clientHeight,h*scale);
+}
+
 /** Flat polygons projected and filled whole pixel by whole pixel (no anti-aliasing), outlined, with bitmap lettering: the gate (and the ticket hall's pixel view) as pixel art. */
 export class Picture {
   constructor(private g:CanvasRenderingContext2D,private v:View,private w=W,private h=H){}
@@ -50,18 +81,22 @@ export class Picture {
     points.forEach((a,i)=>{const b=points[(i+1)%points.length],ain=a[2]>=near,bin=b[2]>=near;if(ain)out.push(a);if(ain!==bin){const t=(near-a[2])/(b[2]-a[2]);out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,near])}});
     return out;
   }
-  /** Fills a screen polygon by scanlines through pixel centres; `alt` checkers it in a second colour. */
-  fill(points:XY[],color:string,alt?:string){
-    const g=this.g,ys=points.map(p=>p[1]);g.fillStyle=color;
+  /** Fills a screen polygon by scanlines through pixel centres; `alt` checkers it in a second colour, `line` outlines it on its own edge pixels (so what is drawn inside it stays centred). */
+  fill(points:XY[],color:string,alt?:string,line?:string){
+    const g=this.g,ys=points.map(p=>p[1]),spans=new Map<number,[number,number][]>();g.fillStyle=color;
     for(let y=Math.max(0,Math.ceil(Math.min(...ys)-.5));y<=Math.min(this.h-1,Math.floor(Math.max(...ys)-.5));y++){
       const sy=y+.5,xs:number[]=[];
       points.forEach(([ax,ay],i)=>{const [bx,by]=points[(i+1)%points.length];if((ay<=sy)!==(by<=sy))xs.push(ax+(sy-ay)*(bx-ax)/(by-ay))});
       xs.sort((a,b)=>a-b);
       for(let i=0;i+1<xs.length;i+=2){
         const a=Math.max(0,Math.round(xs[i])),b=Math.min(this.w,Math.round(xs[i+1]));if(b<=a)continue;
+        if(!spans.has(y))spans.set(y,[]);spans.get(y)!.push([a,b]);
         g.fillStyle=color;g.fillRect(a,y,b-a,1);if(alt){g.fillStyle=alt;for(let x=a+((a+y)&1);x<b;x+=2)g.fillRect(x,y,1,1)}
       }
     }
+    if(!line)return;g.fillStyle=line;
+    const filled=(x:number,y:number)=>!!spans.get(y)?.some(([a,b])=>x>=a&&x<b);
+    for(const [y,row] of spans)for(const [a,b] of row)for(let x=a;x<b;x++)if(x===a||x===b-1||!filled(x,y-1)||!filled(x,y+1))g.fillRect(x,y,1,1);
   }
   /** One-pixel outline, Bresenham. */
   outline(points:XY[],color:string){
@@ -73,7 +108,7 @@ export class Picture {
     });
   }
   /** A world polygon: clipped, projected, filled and optionally outlined. Returns its screen points. */
-  face(points:P[],color:string,line?:string,alt?:string){const xy=this.clip(points).map(p=>this.project(p));if(xy.length<3)return xy;this.fill(xy,color,alt);if(line)this.outline(xy,line);return xy}
+  face(points:P[],color:string,line?:string,alt?:string){const xy=this.clip(points).map(p=>this.project(p));if(xy.length<3)return xy;this.fill(xy,color,alt,line);return xy}
   edge(points:P[],line:string){const xy=this.clip(points).map(p=>this.project(p));if(xy.length>2)this.outline(xy,line)}
   quad(x0:number,x1:number,y0:number,y1:number,z0:number,z1:number){
     // A rectangle on one of the three planes: whichever extent is zero.
@@ -83,7 +118,7 @@ export class Picture {
   }
   /** A disc lying on a horizontal or upright plane, as a 16-gon. */
   disc(cx:number,cy:number,cz:number,r:number,flat:boolean){return Array.from({length:16},(_,i)=>{const a=i*Math.PI/8;return (flat?[cx+Math.cos(a)*r,cy,cz+Math.sin(a)*r]:[cx+Math.cos(a)*r,cy+Math.sin(a)*r,cz]) as P})}
-  text(text:string,[x,y]:XY,color:string,size=10){const g=this.g;g.font=`${size}px "Yorimichi Bitmap"`;g.textBaseline='top';g.fillStyle=color;g.fillText(text,Math.round(x-g.measureText(text).width/2),Math.round(y-size/2))}
+  text(text:string,[x,y]:XY,color:string,size=10){const g=this.g;g.font=`${size}px "Yorimichi Bitmap"`;crispText(g,text,x-g.measureText(text).width/2,y-size/2,color)}
   visible(p:P){return p[2]-this.v.eye[2]>6}
   /** Fades to black through the ordered dither, `level` 0 to 16. */
   fade(level:number){if(level<=0)return;this.g.fillStyle=C.ink;for(let y=0;y<this.h;y++)for(let x=0;x<this.w;x++)if(bayer[(y&3)*4+(x&3)]<level)this.g.fillRect(x,y,1,1)}
@@ -97,8 +132,6 @@ export class TicketGate {
   private g=this.canvas.getContext('2d')!;
   private inventory=document.createElement('aside');
   private pocket=document.createElement('section');
-  private position=document.createElement('span');
-  private status=document.createElement('span');
   // The hall, floor and far wall of each picture, painted once.
   private backdrops:HTMLCanvasElement[]=[];
   private lcd:'idle'|'ok'|'ng'='idle';
@@ -127,16 +160,13 @@ export class TicketGate {
   private lastStick=0;
   private dropHover=false;
   private justDragged=0;
-  private lastPadButtons:boolean[]=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];
+  private lastPadButtons:boolean[]=connectedPad()?.buttons.map(b=>b.pressed)??[];
   private previousFocus=document.activeElement as HTMLElement|null;
   constructor(private side:GateSide,private service:Service,tickets:TravelTicket[],private wallet:Wallet,private refuse:(ticket:TravelTicket)=>string,private done:{pass:(ticket:TravelTicket)=>void;leave:()=>void}){
     this.held=tickets;
     // A JR stop's single gate line has no name of its own.
-    const [ja,en]=side.hub||!side.exit?gateNames[service]:['改札口','Ticket gate'];
+    const [,en]=side.hub||!side.exit?gateNames[service]:['改札口','Ticket gate'];
     this.overlay.className='machine-hall ticket-gate';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label',side.exit?'At the exit gates':'At the ticket gates');
-    const header=this.el(this.overlay,'header','','hall-header');
-    this.el(header,'div',`${side.ja} ${side.en.toUpperCase()} / ${ja}${side.exit?' · 出口':''}`,'hall-heading');header.append(clockBadge());
-    this.button(header,side.exit?'Back to the platforms':'Back to the concourse',()=>this.back(),'hall-exit');
     this.viewport.className='hall-viewport gate-viewport';this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label',`${en} gate. E or A: insert or take the ticket.`);
     this.canvas.width=W;this.canvas.height=H;this.canvas.className='gate-picture';this.viewport.append(this.canvas);
     this.inventory.className='gate-inventory';this.el(this.inventory,'h2','持ち物 / INVENTORY');
@@ -145,8 +175,6 @@ export class TicketGate {
     const pieces=this.el(purse,'div','','gate-pieces');
     for(const value of [...notes,...coins])if(wallet[value]){const piece=this.el(pieces,'span','','gate-piece'+(isCoin(value)?' coin':''));piece.title='¥'+value.toLocaleString('en-US');const image=this.el(piece,'img') as HTMLImageElement;image.src=pieceArt(value);image.alt='¥'+value;this.el(piece,'span','×'+wallet[value])}
     this.overlay.append(this.viewport,this.inventory);
-    const bottom=this.el(this.overlay,'div','','hall-bottom');bottom.append(this.position,this.status);this.position.textContent=`${ja} ${en}`;
-    this.el(this.overlay,'p','Drag a ticket onto the yellow slot, or click it in the inventory (E, A: the chosen one) · Click the ticket at the exit, E or A: take it'+' · B / Esc: back','hall-help');
     this.overlay.addEventListener('keydown',this.keydown);this.overlay.addEventListener('keyup',event=>event.stopPropagation());
     this.viewport.addEventListener('pointermove',event=>{const target=this.pick(event.clientX,event.clientY);this.viewport.style.cursor=target==='ticket'?'pointer':''});
     this.viewport.addEventListener('pointerdown',event=>{this.viewport.focus();const target=this.pick(event.clientX,event.clientY);if(target==='ticket')this.take()});
@@ -156,27 +184,38 @@ export class TicketGate {
   }
   private el(parent:HTMLElement,tag:string,text='',cls=''){const e=document.createElement(tag);e.className=cls;e.textContent=text;parent.append(e);return e;}
   private button(parent:HTMLElement,label:string,action:()=>void,cls=''){const b=document.createElement('button');b.type='button';b.textContent=label;b.className=cls;b.onclick=action;parent.append(b);return b;}
-  /** Whole-pixel scaling as soon as the picture is twice its size; smaller screens get what fits. */
-  private fit(){
-    const fit=Math.min(this.viewport.clientWidth/W,this.viewport.clientHeight/H),scale=fit>=2?Math.floor(fit):fit;
-    this.canvas.style.width=W*scale+'px';this.canvas.style.height=H*scale+'px';
-  }
+    private fit(){fitPicture(this.canvas,this.viewport,W,H)}
   /** The hall around the gate, after the Shinjuku west gate: checked floor, white ceiling with its lights, tiled far wall under the yellow 改札 band, the platform board.
    * On the way out, the station's entrance hall instead (`entrance`). */
   private backdrop(index:number){
     if(this.backdrops[index])return this.backdrops[index];
     const canvas=document.createElement('canvas');canvas.width=W;canvas.height=H;const g=canvas.getContext('2d')!,pic=new Picture(g,views[index]),[ja,en]=gateNames[this.service];
     if(this.side.exit){this.entrance(g,pic);return this.backdrops[index]=canvas}
+    // A polished floor of large pale tiles, the tactile paving leading through the wide lane, and the gates' shadows on it.
     g.fillStyle=C.floorA;g.fillRect(0,0,W,H);
-    for(let x=-420;x<420;x+=30)for(let z=-60;z<wallZ;z+=30)if(((x+z)/30&1)===0)pic.face(pic.quad(x,x+30,0,0,z,z+30),C.floorB);
+    for(let x=-420;x<420;x+=60)for(let z=-60;z<wallZ;z+=60)if(((x+z)/60&1)===0)pic.face(pic.quad(x,x+60,0,0,z,z+60),C.floorTile);
+    for(let x=-420;x<=420;x+=60)pic.outline([pic.project([x,0,-50]),pic.project([x,0,wallZ])],C.grout);
+    for(let z=0;z<wallZ;z+=60)pic.outline([pic.project([-420,0,z]),pic.project([420,0,z])],C.grout);
+    pic.face(pic.quad(-15,15,0,0,cabL+40,wallZ),C.yellow,undefined,C.yellowDark);pic.face(pic.quad(-60,60,0,0,cabL+10,cabL+40),C.yellow,undefined,C.yellowDark);
+    for(const cx of [-3*ours,-ours,ours,3*ours])pic.face(pic.quad(cx-cabW/2-5,cx+cabW/2+5,0,0,-4,cabL+8),C.floorShadow);
     pic.face(pic.quad(-420,420,260,260,-60,wallZ),C.ceiling);
     for(let z=0;z<wallZ;z+=120)for(const x of [-150,90])pic.face(pic.quad(x,x+60,259,259,z,z+14),C.light,C.wallLine);
+    // The far wall: tiles over a dark skirting, two square pillars before it, the yellow 改札 band along its top.
     pic.face(pic.quad(-420,420,0,260,wallZ,wallZ),C.wall);
-    for(let x=-420;x<420;x+=40)pic.outline([pic.project([x,0,wallZ]),pic.project([x,260,wallZ])],C.wallLine);
-    for(let y=0;y<260;y+=40)pic.outline([pic.project([-420,y,wallZ]),pic.project([420,y,wallZ])],C.wallLine);
-    pic.face(pic.quad(-420,420,174,216,wallZ-2,wallZ-2),C.yellow,C.yellowDark);
-    pic.text(`${ja}  ${en}`,pic.project([0,195,wallZ-2]),C.ink);
-    pic.face(pic.quad(-190,190,122,162,wallZ-4,wallZ-4),C.board,C.kick);pic.text(`${tracksFor(this.side.hub!,this.service)}番線 のりば`,pic.project([0,142,wallZ-4]),C.amber);
+    for(let x=-420;x<420;x+=40)pic.outline([pic.project([x,16,wallZ]),pic.project([x,260,wallZ])],C.wallLine);
+    for(let y=56;y<260;y+=40)pic.outline([pic.project([-420,y,wallZ]),pic.project([420,y,wallZ])],C.wallLine);
+    pic.face(pic.quad(-420,420,0,16,wallZ-.1,wallZ-.1),C.skirting);
+    for(const s of [-1,1]){
+      const x0=s*250,x1=s*300,[a,b]=s<0?[x1,x0]:[x0,x1],inner=s<0?x1:x0;
+      pic.face(pic.quad(inner,inner,0,260,wallZ-40,wallZ),C.pillarSide,C.pillarEdge);pic.face(pic.quad(a,b,0,260,wallZ-40,wallZ-40),C.pillar,C.pillarEdge);pic.face(pic.quad(a,b,0,12,wallZ-40.2,wallZ-40.2),C.skirting);
+    }
+    pic.face(pic.quad(-420,420,174,216,wallZ-41,wallZ-41),C.yellow,C.yellowDark);
+    pic.text(`${ja}  ${en}`,pic.project([0,195,wallZ-41]),C.ink);
+    // The platforms' board hanging from the ceiling on its rods, in amber LED lettering.
+    const boardZ=wallZ-80;
+    for(const x of [-180,180])pic.face(pic.quad(x-1.5,x+1.5,160,260,boardZ+1,boardZ+1),C.edge);
+    pic.face(pic.quad(-190,190,124,162,boardZ,boardZ),C.board,C.kick);pic.face(pic.quad(-186,186,128,158,boardZ-.1,boardZ-.1),C.lcdBlack,undefined,C.board);
+    pic.text(`${tracksFor(this.side.hub!,this.service,'–')}番線 のりば`,pic.project([0,143,boardZ-.2]),C.amber);
     return this.backdrops[index]=canvas;
   }
   /** On the way out, the station's entrance hall beyond the gates: a wide concourse floor running on to the far wall, 7 m off, glazed from the floor
@@ -186,6 +225,7 @@ export class TicketGate {
     const far=700,signZ=420,[left,right]=this.side.exits??['← 出口 Exit','出口 Exit →'];
     g.fillStyle=C.hallWall;g.fillRect(0,0,W,H);
     for(let x=-1200;x<1200;x+=60)for(let z=-60;z<far;z+=60)pic.face(pic.quad(x,x+60,0,0,z,z+60),((x+z)/60&1)===0?C.concourseB:C.concourseA);
+    for(const cx of [-3*ours,-ours,ours,3*ours])pic.face(pic.quad(cx-cabW/2-5,cx+cabW/2+5,0,0,-4,cabL+8),C.floorShadow);
     // The glazed front: daylight (or the night, on the journey's clock), the pavement and a street tree outside, mullions, the transom and the doors in the middle; the lintel and the name board above.
     const night=darkness()>.5,sky=night?'#1f2a48':C.sky,skyLow=night?'#2c3a5c':C.skyLow,tree=night?'#22382c':C.tree,trunk=night?'#2c2620':C.trunk;
     pic.face(pic.quad(-1200,1200,0,600,far,far),C.hallWall);
@@ -208,7 +248,7 @@ export class TicketGate {
       pic.face(pic.quad(x0,x1,176,230,signZ,signZ),C.yellow,C.yellowDark);pic.text(text,pic.project([(x0+x1)/2,203,signZ-.2]),C.ink);
     }
   }
-  /** A gate cabinet centred on x: green and grey sides, its near end with the direction display and IC mark, and on its top, on the side of the lane it serves (its left), the IC reader, ticket slot, screen and exit slot. */
+  /** A gate cabinet centred on x: green and grey sides, its near end with the direction display and IC mark, and along the middle of its top the IC reader, ticket slot, screen and exit slot. */
   private cabinet(pic:Picture,view:View,cx:number){
     // After the JR East gates at Shinjuku: a charcoal body with green flanks and a bright panel near the end, a black top sloping down at the near end into a hood that carries the small screen.
     const x0=cx-cabW/2,x1=cx+cabW/2,[ex,ey,ez]=view.eye,hood=cabH-8,hz=14,ours_=cx===ours;
@@ -217,6 +257,8 @@ export class TicketGate {
       pic.face([[x,hood,0],[x,hood,cabL],[x,cabH,cabL],[x,cabH,hz]],C.top);
       pic.face(pic.quad(x,x,58,82,5,30),C.greenBright,C.greenDark);
       pic.face(pic.quad(x,x,52,hood,flapZ-14,flapZ+14),C.housing);
+      // A steel trim between the body and the green band, and the joints of the side panels.
+      pic.face(pic.quad(x,x,49,53,0,cabL),C.grey,undefined,C.greyDark);for(const z of [42,128])pic.face(pic.quad(x,x,10,49,z,z+1.5),C.ink);
       pic.edge([[x,0,0],[x,0,cabL],[x,cabH,cabL],[x,cabH,hz],[x,hood,0]],C.ink);
     }
     if(ez<0){
@@ -237,7 +279,8 @@ export class TicketGate {
       if(lcd==='ng')for(const [a,b,c,d] of [[[u0+.12,v0+.1],[u0+.22,v0+.1],[u1-.12,v1-.1],[u1-.22,v1-.1]],[[u1-.12,v0+.1],[u1-.22,v0+.1],[u0+.12,v1-.1],[u0+.22,v1-.1]]])pic.face([at(a[0],a[1]),at(b[0],b[1]),at(c[0],c[1]),at(d[0],d[1])],C.red);
       // Let through: a green arrow pointing on, through the gate (up the hood is forward).
       else if(lcd==='ok')pic.face([[.5,v1-.06],[.72,.56],[.58,.56],[.58,v0+.08],[.42,v0+.08],[.42,.56],[.28,.56]].map(([u,v])=>at(u,v)),C.greenBright);
-      else pic.face([at(.3,.45),at(.7,.45),at(.7,.6),at(.3,.6)],C.white);
+      // Waiting: a ticket and an IC card, what it takes.
+      else{pic.face([at(.22,.36),at(.5,.36),at(.5,.66),at(.22,.66)],C.white);pic.face([at(.22,.5),at(.5,.5),at(.5,.56),at(.22,.56)],C.kick);pic.face([at(.56,.32),at(.8,.32),at(.8,.7),at(.56,.7)],C.icPad);pic.face([at(.63,.44),at(.73,.44),at(.73,.58),at(.63,.58)],C.icRing)}
     }
     if(ey>cabH){
       pic.face(pic.quad(x0,x1,cabH,cabH,hz,cabL),C.top,C.ink,C.topDark);
@@ -245,11 +288,11 @@ export class TicketGate {
       pic.face(pic.quad(x0+2,x0+20,cabH,cabH,16,30),C.icPad,C.icRing);pic.face(pic.disc(x0+11,cabH,23,5.5,true),C.icRing);pic.face(pic.disc(x0+11,cabH,23,4,true),C.icPad);
       const blink=ours_&&this.state==='ready'&&!!this.held.length&&Math.floor(performance.now()/350)%2===0;
       for(const [z0,z1] of [entryZ,exitZ]){
-        const rim=pic.face(pic.quad(x0+1,x0+15,cabH,cabH,z0,z1),z0===entryZ[0]&&(blink||(ours_&&this.dropHover))?C.white:C.slot,C.yellowDark);
-        pic.face(pic.quad(x0+3,x0+13,cabH,cabH,z0+(z1-z0)*.4,z0+(z1-z0)*.6),C.slit);
+        const rim=pic.face(pic.quad(cx-7,cx+7,cabH,cabH,z0,z1),z0===entryZ[0]&&(blink||(ours_&&this.dropHover))?C.white:C.slot,C.yellowDark);
+        pic.face(pic.quad(cx-5,cx+5,cabH,cabH,seen(ez,z0,z1,1/3),seen(ez,z0,z1,2/3)),C.slit);
         if(ours_&&z0===entryZ[0]&&rim.length){const xs=rim.map(p=>p[0]),ys=rim.map(p=>p[1]);this.slotRect=[Math.min(...xs)-6,Math.min(...ys)-6,Math.max(...xs)+6,Math.max(...ys)+6]}
       }
-      if(view===views[1])pic.text('出口',pic.project([x0+8,cabH,exitZ[0]-7]),C.white);
+      if(view===views[1])pic.text('出口',pic.project([cx,cabH,exitZ[0]-7]),C.white);
     }
   }
   private drawn='';
@@ -267,7 +310,7 @@ export class TicketGate {
       const inner=side*(ours-cabW/2),tip=inner-side*27*this.flaps,[a,b]=side<0?[inner,tip]:[tip,inner];
       pic.face(pic.quad(a,b,52,88,flapZ-1.5,flapZ-1.5),C.green,C.greenDark);pic.face(pic.disc((a+b)/2,70,flapZ-1.6,Math.min(7,(b-a)/2-1),false),C.red);pic.face(pic.quad((a+b)/2-4,(a+b)/2+4,68.5,71.5,flapZ-1.7,flapZ-1.7),C.white);
     }
-    const zm=(z[0]+z[1])/2;
+    const zm=seen(view.eye[2],z[0],z[1],.5);
     if(out>0&&this.inGate&&pic.visible([slotX,cabH,zm])){
       const paper=ticketPaper(this.inGate);
       const top=cabH+5*out,xy=pic.face(pic.quad(slotX-5,slotX+5,cabH,top,zm,zm),paper[0],'#8a8270');
@@ -358,7 +401,7 @@ export class TicketGate {
   private tick=(time:number)=>{
     if(this.disposed)return;
     const dt=Math.min((time-this.previousTime)/1000||0,.25);this.previousTime=time;this.since+=dt;const t=this.since;
-    const pad=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected);
+    const pad=connectedPad();
     if(pad){
       const pressed=pad.buttons.map(b=>b.pressed),previous=this.lastPadButtons,edge=(i:number)=>pressed[i]&&!previous[i];this.lastPadButtons=pressed;
       // D-pad or left stick: one step per push through the tickets.
@@ -376,7 +419,6 @@ export class TicketGate {
     const closed=this.state==='refused'||(this.state==='reading'&&!!this.reason&&t>.7);
     this.flaps+=((closed?1:0)-this.flaps)*Math.min(1,dt*18);
     this.draw();
-    this.status.textContent={ready:this.held.length>1?'Choose a ticket (D-pad, stick, arrows) · A / E puts it in, or drag one onto the yellow slot':this.held.length?'Drag your ticket onto the yellow きっぷ slot · or click it in the inventory, E or A':this.side.exit?'No ticket · the way out needs the one you came in with':'No ticket · the ticket machines are on the back wall',reading:'The gate reads your ticket…',passing:'The gate lets you through',out:'Your ticket comes out at the exit · click it, E or A to take it',refused:'Ticket refused · take it back from the slot (click, E or A)',gone:this.kept?'Through the gate · it keeps the ticket':'Through the gate'}[this.state];
     this.frame=requestAnimationFrame(this.tick);
   };
   destroy(){if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.frame);this.resize.disconnect();this.overlay.remove();this.previousFocus?.focus()}

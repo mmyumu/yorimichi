@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { connectedPad } from './pad';
 import './style.css';
 import { apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, homeLights, homeStreetWidth, homeWindows, doorMarks, makeArt, makeAreaMap, makeBoard, makeCorridor, makeHub, makePlatform, makeTown, makeTrain, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
 import { vivid } from './palette';
@@ -7,8 +8,12 @@ import { MachineHall } from './machine-hall';
 import { TicketGate } from './ticket-gate';
 import { openInventory } from './inventory';
 import { Atm } from './atm';
+import { Shop, type Chain } from './konbini';
+import { Vending } from './vending';
+import { Pigeons } from './pigeons';
+import type { Item, VendorId } from './goods';
 import { Phone, askLorenzo, callLorenzo, contacts, playFlight, type Contact } from './phone';
-import { loadSave, writeSave } from './save';
+import { loadSave, eraseAll, writeSave } from './save';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
 import { addMinutes, clockMs, darkness, dayLabel, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
@@ -19,15 +24,17 @@ import { looks, type Figure } from './people';
 import { home, places, konbiniFor, isHub, hasShinkansen, platformsAt, stationAt, stationOf, stations, trackOf, tracksFor, type Hub, type Place, type Service, type Side } from './network';
 import { firstLegs, linesAt, railLine, type RailLine } from './rail';
 // Highlight frames around the hotspots of nearby(), in scene pixels (art × 2), shown while the player is in range.
-const hotspotFrames:Record<string,[number,number,number,number]>={staff:[0,130,124,92],ticket:[336,150,288,94],local:[124,132,136,100],shinkansen:[724,132,236,100],shop:[724,130,236,92],westExit:[14,444,162,64],eastExit:[778,444,168,64],photo:[682,376,56,58],return:[96,336,116,58],'return-town':[332,128,296,96],areaMap:[228,208,84,84],atm:[868,156,48,66],uber:[576,386,124,62],
-  lane:[0,272,96,90],'return-home-street':[1336,196,104,200],home:[84,146,44,96],'return-apartment':[404,760,60,56],bed:[156,120,52,112]};
+const hotspotFrames:Record<string,[number,number,number,number]>={staff:[0,130,124,92],ticket:[336,150,288,94],local:[124,132,136,100],shinkansen:[724,132,236,100],shop:[724,130,236,92],westExit:[14,444,162,64],eastExit:[778,444,168,64],photo:[682,376,56,58],return:[96,336,116,58],'return-town':[332,176,296,96],areaMap:[228,208,84,84],atm:[868,204,48,66],konbini:[676,208,52,70],uber:[576,386,124,62],
+  lane:[0,272,96,90],'return-home-street':[1336,196,104,200],home:[84,146,44,96],'return-apartment':[404,760,60,56],bed:[156,120,52,112],
+  'vending-town-red':[780,266,42,58],'vending-town-blue':[824,266,42,58],'vending-home-red':[522,158,42,76],'vending-home-white':[476,158,42,76]};
 // Where a click on a hotspot walks to when its frame's centre lies inside an obstacle, out of reach (the area map: the spot in front of it).
-const approach:Record<string,[number,number]>={areaMap:[270,300]};
+const approach:Record<string,[number,number]>={areaMap:[270,300],'vending-town-red':[801,336],'vending-town-blue':[845,336],'vending-home-red':[543,250],'vending-home-white':[497,250]};
 // The hotspots' silhouettes in art px (rectangles from art.ts, unioned), outlined a pixel wide: faintly always, lit when in reach.
 const hotspotShapes:Record<string,[number,number,number,number][]>={staff:[[0,56,62,52]],ticket:[[170,76,140,44]],local:[[64,70,52,45]],shinkansen:[[370,70,96,45]],shop:[[362,52,118,56]],westExit:[[8,231,68,24]],eastExit:[[390,231,68,24]],
   photo:[[345,195,20,15],[348,192,7,3],[352,210,3,7]],return:[[49,171,58,16],[58,187,3,8]],
-  'return-town':[[166,64,148,26],[176,90,128,6],[190,96,100,16]],areaMap:[[118,108,34,28],[118,136,2,8],[150,136,2,8]],atm:[[438,81,17,6],[440,86,13,22]],uber:[...Array.from({length:7},(_,y):[number,number,number,number]=>[306-y,193+y,26+2*y,1]),[290,200,59,6],[288,206,62,10],[296,216,11,7],[331,216,11,7]],
-  lane:[[1,140,44,13],[10,153,2,25]],'return-home-street':[[670,100,48,13],[692,113,2,6]],home:[[46,82,14,30],[48,74,10,6]],'return-apartment':[[206,402,26,6]],bed:[[78,60,26,56]]};
+  'return-town':[[166,88,148,26],[176,114,128,6],[190,120,100,19]],areaMap:[[118,108,34,28],[118,136,2,8],[150,136,2,8]],atm:[[438,105,17,6],[440,110,13,22]],konbini:[[338,104,26,35]],uber:[...Array.from({length:7},(_,y):[number,number,number,number]=>[306-y,193+y,26+2*y,1]),[290,200,59,6],[288,206,62,10],[296,216,11,7],[331,216,11,7]],
+  lane:[[1,140,44,13],[10,153,2,25]],'return-home-street':[[670,100,48,13],[692,113,2,6]],home:[[46,82,14,30],[48,74,10,6]],'return-apartment':[[206,402,26,6]],bed:[[78,60,26,56]],
+  'vending-town-red':[[390,133,20,29]],'vending-town-blue':[[412,133,20,29]],'vending-home-red':[[261,79,21,35]],'vending-home-white':[[238,79,21,35]]};
 /** The art pixels just outside a shape (4-neighbours, so the corners come out rounded), as [x, y] pairs. */
 function outline(shape:[number,number,number,number][]){
   const inside=(x:number,y:number)=>shape.some(([l,t,w,h])=>x>=l&&x<l+w&&y>=t&&y<t+h),pixels:[number,number][]=[];
@@ -94,6 +101,8 @@ class Journey extends Phaser.Scene {
   private hall:MachineHall|null=null;
   private gate:TicketGate|null=null;
   private atm:Atm|null=null;
+  private shopView:Shop|null=null;
+  private vendingView:Vending|null=null;
   private machineId:string|null=null;
   private machine:TicketMachine|null=null;
   private modal:Phaser.GameObjects.Container|null=null;
@@ -139,6 +148,7 @@ class Journey extends Phaser.Scene {
   private pane:Phaser.GameObjects.Graphics|null=null;
   // The traveller's phone (phone.ts): its conversations and Lorenzo's trip, saved with the journey; taken out over the scene (`phoneUi`), and Lorenzo's flight while it is shown.
   private phone=loadSave().phone;
+  private groceries=loadSave().groceries;
   private phoneUi:Phone|null=null;
   private flight:{skip:()=>void}|null=null;
   // When Lorenzo's next move is due (his OK, then his flight), in scene ms.
@@ -149,6 +159,9 @@ class Journey extends Phaser.Scene {
   private badgeText!:Phaser.GameObjects.Text;
   // Lorenzo's Uber in the street of the station he waits at (`parked` once it has pulled up).
   private car:Phaser.GameObjects.Image|null=null;
+  private pigeons:Pigeons|null=null;
+  // Set on restarting: nothing is saved again on the way out of the page.
+  private erased=false;
   constructor(){super('Journey')}
   create(){
     makeArt(this);vivid(this);startClock(loadSave().clock);
@@ -159,14 +172,16 @@ class Journey extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE,()=>{if(this.player)this.nightfall()});
     this.input.addPointer(3);
     this.keys=this.input.keyboard!.createCursorKeys();
-    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyP'&&!event.repeat)this.openPhone()});
+    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
     this.input.keyboard!.on('keyup',(event:KeyboardEvent)=>this.held.delete(event.code));
     this.game.events.on('blur',()=>this.held.clear());
     // Back where the traveller last stood (waking up at home the first time: out of the apartment is the lane to Higashi-Nakano's west exit).
-    const at=loadSave().at;this.outside=at?at.outside:{from:home.hub,side:home.side};this.gateway=at?.gate??null;
+    const at=loadSave().at;this.outside=at?at.outside:null;this.gateway=at?.gate??null;
     // Only on the paid side does the ticket that took the traveller there stay punched: anywhere else, a reload gives it back.
     const paid=at?.place==='corridor',inside=paid&&this.tickets.some(ticket=>ticket.punched||ticket.kind==='adjust');if(!paid)for(const ticket of this.tickets)delete ticket.punched;
-    if(at?.place==='corridor'&&!inside)this.loadPlace(this.gateway!.hub);else this.loadPlace(at?.place??'apartment',at);
+    if(at?.place==='corridor'&&!inside)this.loadPlace(this.gateway!.hub);else this.loadPlace(at?.place??stationAt('東京')!,at);
+    // A new journey: just off the train from the airport.
+    if(!at)this.dialog('Welcome to Tokyo','You have just arrived at Tokyo Station from Haneda Airport. Your rental is waiting for you in Higashi-Nakano: it is up to you to find your way there.\n\nYour travel journal is still empty. There are memories to find all over Japan: collect them all to fill it.');
     // Saved on each move (throttled in update) and when the page is hidden or closed.
     document.addEventListener('visibilitychange',()=>this.keep());addEventListener('pagehide',()=>this.keep());
     // A click or tap on a hotspot uses it, walking there first if needed; elsewhere it walks.
@@ -184,7 +199,7 @@ class Journey extends Phaser.Scene {
   private label(x:number,y:number,text:string,size=16,color='#283d3c',container=this.world){const t=this.add.text(x,y,text,{fontFamily:'monospace',fontSize:size,color,lineSpacing:5});container.add(t);return t}
   /** Builds `place`, the player at `at` if given and walkable (a reload), else at the way in. */
   private loadPlace(place:Place,at?:{x:number;y:number}){
-    this.machine?.destroy();this.machine=null;this.hall?.destroy();this.hall=null;this.gate?.destroy();this.gate=null;this.atm?.destroy();this.atm=null;this.bag?.destroy();this.bag=null;this.phoneUi?.destroy();this.phoneUi=null;this.machineId=null;this.departures?.destroy();this.departures=null;
+    this.machine?.destroy();this.machine=null;this.hall?.destroy();this.hall=null;this.gate?.destroy();this.gate=null;this.atm?.destroy();this.atm=null;this.shopView?.destroy();this.shopView=null;this.vendingView?.destroy();this.vendingView=null;this.bag?.destroy();this.bag=null;this.phoneUi?.destroy();this.phoneUi=null;this.machineId=null;this.departures?.destroy();this.departures=null;
     if(place!=='corridor'&&place!=='platform')this.gateway=null;
     // Back inside from the street or an exit's map: at that exit.
     const back=this.outside?.from===place?this.outside:null;if(isHub(place))this.outside=null;
@@ -214,7 +229,7 @@ class Journey extends Phaser.Scene {
       hotspotFrames.downL=[0,256,232,128];hotspotShapes.downL=[[0,128,80,64]];hotspotFrames.downR=[w-232,256,232,128];hotspotShapes.downR=[[w/2-80,128,80,64]];outlines.downL=outline(hotspotShapes.downL);outlines.downR=outline(hotspotShapes.downR);
       this.doorXs().forEach((x,k)=>{for(const track of [0,1]){const spot=`door${track}-${k}`;hotspotFrames[spot]=[x-30,track?372:186,60,84];hotspotShapes[spot]=[[x/2-4,track?239:77,8,4]];outlines[spot]=outline(hotspotShapes[spot])}});
     }
-    if(place==='town')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,154),new Phaser.Geom.Rectangle(780,224,84,48),new Phaser.Geom.Rectangle(732,224,40,20),new Phaser.Geom.Rectangle(236,228,68,60),new Phaser.Geom.Rectangle(152,300,56,20),new Phaser.Geom.Rectangle(600,300,56,20),new Phaser.Geom.Rectangle(900,360,12,14),new Phaser.Geom.Rectangle(0,524,960,116),...townLights.map(x=>new Phaser.Geom.Rectangle(x*2-2,510,10,14)));
+    if(place==='town')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,202),new Phaser.Geom.Rectangle(780,272,84,48),new Phaser.Geom.Rectangle(314,248,22,40),new Phaser.Geom.Rectangle(8,244,140,44),new Phaser.Geom.Rectangle(732,272,40,20),new Phaser.Geom.Rectangle(236,228,68,60),new Phaser.Geom.Rectangle(152,300,56,20),new Phaser.Geom.Rectangle(600,300,56,20),new Phaser.Geom.Rectangle(900,360,12,14),new Phaser.Geom.Rectangle(0,524,960,116),...townLights.map(x=>new Phaser.Geom.Rectangle(x*2-2,510,10,14)));
     // The home street: the far side's walls and houses, the near side's wall and roofs (the side street ends there too). The apartment: its walls
     // and its furniture (apartmentSolids), the sofa, the island and the fridge standing in the room, sorted with the traveller (see makeApartment).
     if(place==='home-street')this.solids.push(new Phaser.Geom.Rectangle(0,0,this.mapWidth,234),new Phaser.Geom.Rectangle(0,396,this.mapWidth,244));
@@ -257,11 +272,11 @@ class Journey extends Phaser.Scene {
       }
     }
     // The station's shutters, ribbed, over the glazed entrance (makeTown).
-    if(place==='town'){const g=this.shutter=this.add.graphics();g.fillStyle(0x8d938c).fillRect(380,192,200,32);g.fillStyle(0x6f766f);for(let y=194;y<224;y+=4)g.fillRect(380,y,200,2);g.fillStyle(0x4c5550).fillRect(380,222,200,2);this.world.add(g)}
+    if(place==='town'){const g=this.shutter=this.add.graphics();g.fillStyle(0x8d938c).fillRect(380,240,200,38);g.fillStyle(0x6f766f);for(let y=242;y<278;y+=4)g.fillRect(380,y,200,2);g.fillStyle(0x4c5550).fillRect(380,276,200,2);this.world.add(g)}
     // At night in the street, some of the station's windows are lit (makeTown's rows), some in the backs of the shops across the road, and the street lights' lamps.
     if(place==='town'){
       const g=this.neon=this.add.graphics().setAlpha(0);this.over.add(g);g.fillStyle(0xf2cf7c,.85);
-      for(const y of [46,66])for(let x=4;x<320;x+=24)if((y===46||x<150||x>320)&&(x*13+y*7)%5<2)g.fillRect((x+1)*2,(y+1)*2,28,20);
+      for(const y of [46,66,88])for(let x=4;x<320;x+=24)if((y<88||x<150||x>320)&&(x*13+y*7)%5<2)g.fillRect((x+1)*2,(y+1)*2,28,20);
       for(const [x,y,w,h] of townWindows)if(x*13%5<3)g.fillRect(x*2,y*2,w*2,h*2);
       g.fillStyle(0xfff6d0);for(const x of townLights)g.fillRect(x*2+14,430,12,2);
     }
@@ -270,12 +285,13 @@ class Journey extends Phaser.Scene {
     if(place==='apartment'){const g=this.pane=this.add.graphics().setAlpha(0);g.fillStyle(0x1c2448);for(const [x,y,w,h] of apartmentWindows)g.fillRect(x*2,y*2,w*2,h*2);this.world.add(g)}
     // The way home's sign, at the foot of its post (art.ts makeTown): the traveller passes under its board.
     if(place==='town'&&this.homeTown()){this.laneSign=this.add.image(0,356,'lane-sign').setOrigin(0,1);this.world.add(this.laneSign)}
+    this.pigeons=place==='town'?new Pigeons(this,this.world):null;
     // Lorenzo's Uber, waiting in the street of the station he is at.
     if(place==='town'&&this.phone.lorenzo.state==='here'&&this.phone.lorenzo.at===this.townId())this.parkCar();
     // Out of doors, the outlines stay lit over the night.
     this.glow=this.add.graphics();(this.outdoors()?this.over:this.world).add(this.glow);
     this.marker=this.add.circle(0,0,9,0xf3d28e,.35).setStrokeStyle(2,0xffedb9).setVisible(false);this.world.add(this.marker);
-    this.player=this.add.container(...(back?[back.side==='west'?150:810,520]:[480,isHub(place)?490:place==='town'?280:place==='corridor'?this.corridor().gates*2-56:place==='platform'?320:410]) as [number,number]);if(at&&this.canWalk(at.x,at.y))this.player.setPosition(at.x,at.y);this.world.add(this.player);
+    this.player=this.add.container(...(back?[back.side==='west'?150:810,520]:[480,isHub(place)?490:place==='town'?328:place==='corridor'?this.corridor().gates*2-56:place==='platform'?320:410]) as [number,number]);if(at&&this.canWalk(at.x,at.y))this.player.setPosition(at.x,at.y);this.world.add(this.player);
     if(place==='home-street'&&!at)this.player.setPosition(1310,340);if(place==='apartment'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(438,780);
     if(place==='corridor'||place==='home-street'||place==='apartment')this.scroll();
     this.sprite=this.add.image(0,0,'traveller-down-0').setOrigin(.5,.85).setScale(2);this.player.add(this.sprite);
@@ -292,6 +308,7 @@ class Journey extends Phaser.Scene {
     // The journey's clock, top left: the date over the time (kept up in update).
     this.day=this.label(24,10,'',11,'#b6bd98',this.hud);this.clockText=this.label(22,26,'',26,'#f3dfb1',this.hud).setInteractive({useHandCursor:true}).on('pointerdown',()=>this.debugTime());
     this.purse=this.label(404,14,'',12,'#e6ce98',this.hud);this.refreshPurse();
+    this.button(290,14,84,40,'Menu',()=>this.menu(),this.hud);
     this.button(548,14,108,40,'Inventory',()=>this.inventory(),this.hud);
     this.label(676,26,`${this.collected.size}/2 memories`,12,'#cfceaa',this.hud);
     this.button(833,14,104,40,'Journal',()=>this.album(),this.hud);
@@ -329,7 +346,7 @@ class Journey extends Phaser.Scene {
   private shapeKey(spot:string){return (spot==='return'||spot==='adjust'||spot==='window')&&['town','corridor','home-street','apartment'].includes(this.place)?spot+'-'+this.place:spot}
   private frameFor(spot:string){return hotspotFrames[this.shapeKey(spot)]}
   /** Every hotspot of the current place. */
-  private hotspots(){return isHub(this.place)?['staff','ticket','local',this.right(this.place),'westExit','eastExit']:this.place==='town'?['return','atm','areaMap',...(this.homeTown()?['lane']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='home-street'?['return','home']:this.place==='apartment'?['return','bed']:this.place==='corridor'?['return','adjust','window',...this.corridorPlatforms().flatMap((_,i)=>[`stairs${i}L`,`stairs${i}R`])]:this.place==='platform'?['downL','downR','route',...this.openDoors()]:['return','photo']}
+  private hotspots(){return isHub(this.place)?['staff','ticket','local',this.right(this.place),'westExit','eastExit']:this.place==='town'?['return','konbini','atm','vending-town-red','vending-town-blue','areaMap',...(this.homeTown()?['lane']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='home-street'?['return','home','vending-home-red','vending-home-white']:this.place==='apartment'?['return','bed']:this.place==='corridor'?['return','adjust','window',...this.corridorPlatforms().flatMap((_,i)=>[`stairs${i}L`,`stairs${i}R`])]:this.place==='platform'?['downL','downR','route',...this.openDoors()]:['return','photo']}
   private hotspotAt(x:number,y:number){
     // A standing train is clicked anywhere along it, at its nearest door (the door marks themselves are not clickable).
     const train=this.place==='platform'&&this.trains.find(train=>(train.phase==='alight'||train.phase==='board')&&(train.track?y>=470&&y<540:y>=96&&y<176));
@@ -359,14 +376,17 @@ class Journey extends Phaser.Scene {
       if(Math.abs(doors[k]-x)<34&&(y<270||y>370))return `door${y<270?0:1}-${k}`;
     }else if(this.place==='town'){
       if(this.car?.getData('parked')&&Phaser.Math.Distance.Between(x,y,638,417)<84)return 'uber';
-      if(x>380&&x<580&&y<262)return 'return';
-      if(x>850&&x<945&&y<275)return 'atm';
+      if(x>380&&x<580&&y<310)return 'return';
+      if(x>850&&x<945&&y<323)return 'atm';
+      if(x>650&&x<760&&y<323)return 'konbini';
+      if(x>760&&x<880&&y>300&&y<362)return x<823?'vending-town-red':'vending-town-blue';
       // In front of the area map or beside it (between it and the planter on its left, out of the path grid's reach of its front).
       if(x>196&&x<344&&y>230&&y<340)return 'areaMap';
       if(this.homeTown()&&x<96&&y>270&&y<400)return 'lane';
     }else if(this.place==='home-street'){
       if(x>1330)return 'return';
       if(x>60&&x<150&&y<320)return 'home';
+      if(x>470&&x<570&&y<280)return x<520?'vending-home-white':'vending-home-red';
     }else if(this.place==='apartment'){
       if(y>740&&x>396&&x<480)return 'return';
       if(x>140&&x<260&&y<280)return 'bed';
@@ -378,6 +398,7 @@ class Journey extends Phaser.Scene {
   }
   /** The corridor's prompts: each staircase names its track and line, and the way back is through the gates. */
   private promptFor(spot:string){
+    if(spot.startsWith('vending'))return 'Vending machine';
     if(spot==='return'&&this.place==='home-street')return 'To the station →';
     if(spot==='return'&&this.place==='apartment')return 'Go out';
     // An exit, with its name where it has one (Marunouchi, Komachi…).
@@ -389,6 +410,18 @@ class Journey extends Phaser.Scene {
   }
   /** What stands on the right of a hub's concourse: the Shinkansen transfer gates, or a shop where there is no Shinkansen. */
   private right(hub:Hub){return hasShinkansen(hub)?'shinkansen':'shop'}
+  /** Through the konbini's door (the street's, or the NewDays in a concourse), before its shelves in first person; the scene waits under it. */
+  private konbini(chain:Chain){
+    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
+    this.shopView=new Shop(chain,this.wallet,()=>this.refreshPurse(),this.stash,()=>{this.shopView=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
+  }
+  /** What was bought goes into the bag. */
+  private stash=(goods:Item[])=>{this.groceries.push(...goods.map(([ja,en]):[string,string]=>[ja,en]));this.keep()};
+  /** Before a street vending machine, in first person; the scene waits under it. */
+  private vending(vendor:VendorId){
+    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
+    this.vendingView=new Vending(vendor,this.wallet,()=>this.refreshPurse(),this.stash,()=>{this.vendingView=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
+  }
   private dialog(title:string,body:string,choices:[string,()=>void][]=[]){
     this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);const c=this.add.container(0,0).setDepth(20);this.modal=c;
     const shade=this.rect(0,70,960,570,0x142e35,c).setAlpha(.76).setInteractive(),panel=this.rect(200,145,560,365,0xf0e6cb,c);this.rect(200,145,560,7,0xba654c,c);
@@ -437,11 +470,11 @@ class Journey extends Phaser.Scene {
   }
   /** Gamepad outside the ticket hall (which reads the pad itself): walking, A to act, X ticket, Y journal, RB phone, and the dialogs and departures board. Returns the stick/d-pad direction. */
   private gamepad(){
-    const pad=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected),dead=(v=0)=>Math.abs(v)>.3?v:0;
+    const pad=connectedPad(),dead=(v=0)=>Math.abs(v)>.3?v:0;
     const state=pad?.buttons.map(b=>b.pressed)??[],ax=dead(pad?.axes[0]),ay=dead(pad?.axes[1]);
     state[20]=!!state[12]||ay<-.5;state[21]=!!state[13]||ay>.5;
     const prev=this.padPrev,edge=(i:number)=>state[i]&&!prev[i];this.padPrev=state;
-    if(!pad||this.hall||this.machine||this.gate||this.atm)return {x:0,y:0};
+    if(!pad||this.hall||this.machine||this.gate||this.atm||this.shopView||this.vendingView)return {x:0,y:0};
     const step=edge(20)?-1:edge(21)?1:0;
     if(this.bag){if(edge(0)||edge(1)||edge(2))this.bag.close()}
     else if(this.phoneUi){if(edge(5))this.phoneUi.close();else this.phoneUi.pad(step||(edge(14)?-1:edge(15)?1:0),edge(0),edge(1))}
@@ -457,19 +490,20 @@ class Journey extends Phaser.Scene {
       if(step)this.focusChoice(c,c.getData('focus')+step);
       if(edge(0))choices[c.getData('focus')][1]();else if(edge(1))choices[choices.length-1][1]();
     }else{
-      if(edge(0))this.interact();else if(edge(2))this.inventory();else if(edge(3))this.album();else if(edge(5))this.openPhone();
+      if(edge(0))this.interact();else if(edge(2))this.inventory();else if(edge(3))this.album();else if(edge(5))this.openPhone();else if(edge(9))this.menu();
       return {x:state[14]?-1:state[15]?1:ax,y:state[12]?-1:state[13]?1:ay};
     }
     return {x:0,y:0};
   }
   private interact(){
     if(this.modal)return;
-    const near=this.nearby();if(near.startsWith('stairs')){this.climb(Number(near.slice(6,-1)),near.endsWith('L'));return}if(!near&&(this.place==='corridor'||this.place==='platform'))return;if(near.startsWith('door')){this.tryBoard(near);return}
+    const near=this.nearby();if(near.startsWith('stairs')){this.climb(Number(near.slice(6,-1)),near.endsWith('L'));return}if(!near&&(this.place==='corridor'||this.place==='platform'))return;if(near.startsWith('door')){this.tryBoard(near);return}if(near.startsWith('vending')){this.vending(near.split('-')[2] as VendorId);return}
     switch(near){
       case 'ticket':this.ticketTerminal();break;
       case 'local':case 'shinkansen':this.ticketGate(this.nearby() as Service);break;
       case 'staff':this.stationHelp();break;
-      case 'shop':this.dialog('NewDays / ニューデイズ','The station’s convenience store: onigiri, ekiben, drinks and snacks.\nShopping, and spending those ¥1 and ¥5 coins, will come in a later version.');break;
+      case 'shop':this.konbini('newdays');break;
+      case 'konbini':this.konbini(konbiniFor(this.townId()));break;
       case 'westExit':case 'eastExit':{
         // Straight out to the exit's own map where it has one, the generic street otherwise.
         const side:Side=this.nearby()==='westExit'?'west':'east',hub=this.place as Hub;
@@ -494,8 +528,8 @@ class Journey extends Phaser.Scene {
         // Home: from the apartment out to its door, from the lane back to the station's street by its sign.
         if(this.place==='apartment'){this.loadPlace('home-street',{x:106,y:300});break}
         if(this.place==='home-street'){this.loadPlace('town',{x:60,y:330});break}
-        // From the street or an exit's own map, straight back in through the doors, unless the shutters are down: waiting for them is up to the traveller.
-        if(!stationOpen()){this.dialog('シャッター / Station closed',`The station is closed for the night. Its shutters go up at ${hhmm(opens)}, before the first trains.${this.place==='town'?'\nThe konbini next door stays open around the clock.':''}`,[[`Wait until ${hhmm(opens)}`,()=>{skipTo(opens);this.modal?.destroy(true);this.modal=null}]]);break}
+        // From the street or an exit's own map, straight back in through the doors, unless the shutters are down.
+        if(!stationOpen()){this.dialog('シャッター / Station closed',`The station is closed for the night. Its shutters go up at ${hhmm(opens)}, before the first trains.${this.place==='town'?'\nThe konbini next door stays open around the clock.':''}`);break}
         this.loadPlace(this.outside?.from??stationOf(this.place));break;
       }
       case 'photo':this.collected.add(this.place);localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]));this.dialog('A memory for your journal',`${places[this.place]}\n\nPlaceholder for your future travel photo.\nThe memory is saved on this device.`);break;
@@ -802,16 +836,23 @@ class Journey extends Phaser.Scene {
   /** Saves the tickets and where the traveller stands. On a platform or a train, the traveller is kept at the foot of the stairs they would take down, in the corridor;
    * off the Shinkansen, already out of its transfer gates: in the concourse before them, the ticket of a trip that ended there kept by the gates. */
   private keep(){
-    if(!this.player)return;
+    if(!this.player||this.erased)return;
     const deck=this.place==='platform'?this.deck:null,out=deck?.service==='shinkansen'?deck.hub:undefined;
     const at=!deck?{place:this.place,x:Math.round(this.player.x),y:Math.round(this.player.y)}:out?{place:out as Place,x:836,y:262}:{place:'corridor' as Place,...this.stairsSpot(deck)};
-    writeSave({tickets:out?this.tickets.filter(t=>!t.punched||t.punched===out):this.tickets,at:{...at,outside:this.outside,gate:this.gateway},clock:clockMs(),phone:this.phone});this.kept=this.time.now;
+    writeSave({tickets:out?this.tickets.filter(t=>!t.punched||t.punched===out):this.tickets,at:{...at,outside:this.outside,gate:this.gateway},clock:clockMs(),phone:this.phone,groceries:this.groceries});this.kept=this.time.now;
+  }
+  /** The menu from the top band (or Esc, or the pad's Start). */
+  private menu(){if(!this.modal)this.dialog('Menu','',[['Restart from zero',()=>this.confirmRestart()]])}
+  /** Asked once more, the pad's focus starting on Close so that A, A cannot erase a journey. */
+  private confirmRestart(){
+    this.dialog('Restart from zero?','Your whole journey will be erased: position, tickets, money, groceries, memories and messages. You start again at Tokyo Station with the starting purse. This cannot be undone.',[['Yes, erase everything and restart',()=>{this.erased=true;eraseAll();location.reload()}]]);
+    this.focusChoice(this.modal!,1);
   }
   /** The bag from the top band (or X): tickets and wallet, over the paused scene. */
   private inventory(){
     if(this.modal)return;
     this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
-    this.bag=openInventory(this.tickets,this.wallet,()=>{this.bag=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
+    this.bag=openInventory(this.tickets,this.groceries,this.wallet,()=>{this.bag=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
   }
   private stationHelp(){
     const hub=isHub(this.place)?this.place:'tokyo';
@@ -848,7 +889,7 @@ class Journey extends Phaser.Scene {
     },hallView);
   }
   private refreshPurse(){const heavy=walkFactor(this.wallet)<1;this.purse.setText(`◉ ${coinCount(this.wallet)} coins${heavy?' · heavy':''}\n¥${walletTotal(this.wallet).toLocaleString('en-US')}`).setColor(heavy?'#ffb35a':'#e6ce98');}
-  private album(){this.dialog('My travel journal',`MEMORIES COLLECTED · ${this.collected.size}/2\n\n${this.collected.has('kamakura-trail')?'●':'○'} Kamakura · The temple cherry trees\n${this.collected.has('arashiyama')?'●':'○'} Arashiyama · The bamboo path\n\nReal photos will be added in a future version.`);}
+  private album(){this.dialog('My travel journal',`Arrived at Tokyo Station from Haneda. Rental in Higashi-Nakano. Memories to find all over Japan.\n\nMEMORIES COLLECTED · ${this.collected.size}/2\n\n${this.collected.has('kamakura-trail')?'●':'○'} Kamakura · The temple cherry trees\n${this.collected.has('arashiyama')?'●':'○'} Arashiyama · The bamboo path\n\nReal photos will be added in a future version.`);}
   private canWalk(x:number,y:number){
     // Down to the canvas edge, feet still in view (the hub's world sits 24px lower).
     return x>18&&x<this.mapWidth-18&&y>88&&y<(this.place==='corridor'||this.place==='apartment'?this.mapHeight:628-this.world.y)&&!this.solids.some(r=>Phaser.Geom.Intersects.RectangleToRectangle(r,new Phaser.Geom.Rectangle(x-10,y-10,20,25)));
@@ -1074,7 +1115,7 @@ class Journey extends Phaser.Scene {
     if(this.place==='platform')return Array.from({length:Math.ceil(this.mapWidth/160)},(_,k):Lamp=>[80+k*160,320,190,0xf4f8ff]);
     if(this.place==='town'){
       const warm=0xfff1cc,cool=0xe4f4ff,lights=townLights.flatMap((x):Lamp[]=>[[x*2+20,428,14,0xfff6d0],[x*2+20,510,70,warm,.7,.45]]);
-      return [...lights,[720,190,40,cool,.7],[810,190,40,cool,.7],[900,190,40,cool,.7],[810,236,110,cool,.8,.35],[800,236,26,cool,.8],[844,236,26,cool,.8],[822,282,50,cool,.6,.4],[912,276,28,cool,.8],...(stationOpen()?[[480,214,70,warm],[480,250,110,warm,.5,.4],[480,154,100,cool,.8]] as Lamp[]:[]),
+      return [...lights,[720,238,40,cool,.7],[810,238,40,cool,.7],[900,238,40,cool,.7],[810,284,110,cool,.8,.35],[800,284,26,cool,.8],[844,284,26,cool,.8],[822,330,50,cool,.6,.4],[912,276,28,cool,.8],...(stationOpen()?[[480,262,70,warm],[480,298,110,warm,.5,.4],[480,202,100,cool,.8]] as Lamp[]:[]),
         // Lorenzo's Uber, its headlights on and lighting the road ahead, its tail lights red.
         ...(this.car?[[this.car.x+60,this.car.y,22,0xfff4c0],[this.car.x+104,this.car.y+8,48,0xfff1cc,.55],[this.car.x-62,this.car.y,12,0xff4a3a,.8]] as Lamp[]:[])];
     }
@@ -1105,6 +1146,7 @@ class Journey extends Phaser.Scene {
     // Closing time: once nobody is on a train, the staff see the traveller out.
     if(!stationOpen()&&(isHub(this.place)||this.place==='corridor'||this.place==='platform'&&!this.trains.some(train=>train.player))){this.closeStation();return}
     if(this.place==='platform')this.runTrains(delta);
+    this.pigeons?.update(Math.min(delta,100),this.player.x,this.player.y);
     if(isHub(this.place)||this.place==='corridor'||this.place==='platform'){
       // The spot the player has taken: a machine of the bank, or the corridor's fare adjustment machine or staffed window.
       const ahead=this.machineAhead(),near=this.place==='corridor'?this.nearby():'';
@@ -1150,7 +1192,7 @@ class Journey extends Phaser.Scene {
     const was=this.moving;this.moving=!!(x||y);if(this.moving)this.stayed=-1;this.walk+=delta;if(this.moving?this.time.now-this.kept>1000:was)this.keep();
     if(this.moving)this.facing=Math.abs(x)>Math.abs(y)?(x<0?'left':'right'):(y<0?'up':'down');
     this.sprite.setTexture(`traveller-${this.facing}-${this.moving?Math.floor(this.walk/75)%3:0}`);
-    const messages:Record<string,string>={adjust:'Fare adjustment',window:'Staff window',ticket:'Buy a ticket',local:'Ticket gates',shinkansen:'Shinkansen gates',shop:'NewDays',staff:'Staff',exit:'Exit',areaMap:'Area map',atm:'ATM',lane:'← The way home',home:'102 · Home',bed:'Bed',uber:'Uber · Lorenzo',return:stationOpen()||this.place==='corridor'?'Back to the station':'Closed',photo:'Keep a memory'};
+    const messages:Record<string,string>={adjust:'Fare adjustment',window:'Staff window',ticket:'Buy a ticket',local:'Ticket gates',shinkansen:'Shinkansen gates',shop:'NewDays',staff:'Staff',exit:'Exit',areaMap:'Area map',atm:'ATM',konbini:'Konbini',lane:'← The way home',home:'102 · Home',bed:'Bed',uber:'Uber · Lorenzo',return:stationOpen()||this.place==='corridor'?'Back to the station':'Closed',photo:'Keep a memory'};
     const near=this.nearby();
     // Reaching a door's queue keeps walking to its end, the traveller boarding when their turn comes (boardAt); leaving the queue gives up. Standing still in a queue, however they got there, boards too.
     if(this.pending.startsWith('door')&&near===this.pending){this.boardAt=near;this.pending=''}
@@ -1174,5 +1216,5 @@ class Journey extends Phaser.Scene {
 }
 // Started once the pixel font is in: the map lettering is painted into textures with it.
 document.fonts.load('10px "Yorimichi Bitmap"').catch(()=>{}).finally(()=>new Phaser.Game({type:Phaser.AUTO,parent:'game',width:960,height:640,backgroundColor:'#91ab78',pixelArt:true,antialias:false,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:Journey}));
-// No browser menu on right click, over the scene or the hall and kiosk overlays.
+// No browser menu on right click, over the scene or the hall and kiosk overlays: the right button is B (pad.ts).
 document.addEventListener('contextmenu',e=>e.preventDefault());

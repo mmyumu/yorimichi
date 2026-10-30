@@ -21,6 +21,12 @@ export function makeChange(amount:number){
   for(const value of [5000,1000,500,100,50,10,5,1])while(amount>=value){pieces.push(value);amount-=value;}
   return pieces;
 }
+/** Where the i-th coin lies in a loose heap: x and y from -1 to 1 across the heap, the turn in degrees (a quarter turn at a time, so it stays crisp). Fixed for a coin, so a heap does not shuffle when redrawn. */
+export function heapSpot(value:number,i:number){
+  const noise=(k:number)=>{const s=Math.sin((i+1)*12.9898+value*.37+k*78.233)*43758.5453;return s-Math.floor(s)};
+  const far=Math.sqrt((i%14+.5)/14)*(.75+noise(0)*.25),angle=i*2.4+noise(1)*1.5;
+  return {x:far*Math.cos(angle),y:far*Math.sin(angle),turn:Math.floor(noise(2)*4)*90};
+}
 
 const coinStyle:Record<number,[string,string,string,boolean]>={1:['#e3e6e8','#a8b0b5','#fff',false],5:['#d8b444','#9c7a22','#f6e08a',true],10:['#bd6c3c','#7c4122','#e59a68',false],50:['#e1e3e1','#9da2a0','#fff',true],100:['#d0d4d3','#8f9696','#f4f6f6',false],500:['#d6c27a','#9a8746','#f1e3a8',false]};
 const noteStyle:Record<number,[string,string]>={1000:['#86a6cc','#4a6c96'],5000:['#b69bc9','#76598d'],10000:['#c9a679','#8a6a42']};
@@ -48,8 +54,8 @@ export function pieceArt(value:number){
 }
 
 let audio:AudioContext|null=null;
-/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message. */
-export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'){
+/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message, a till's scanner, a can landing in a machine's hatch. */
+export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'|'scan'|'can'){
   try{
     audio??=new AudioContext();const now=audio.currentTime,gain=audio.createGain();gain.connect(audio.destination);
     const tone=(freq:number,start:number,length:number,type:OscillatorType='sine',volume=.08)=>{
@@ -60,6 +66,8 @@ export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'
     else if(kind==='drop'){tone(1700,0,.12);tone(2600,.09,.12,'sine',.05);tone(1500,.2,.15,'sine',.04);}
     // The gates' refusal: two short high beeps.
     else if(kind==='beep'){tone(2300,0,.09,'square',.04);tone(2300,.16,.09,'square',.04);}
+    else if(kind==='can'){tone(150,0,.16,'square',.09);tone(90,.05,.22,'sine',.14);tone(620,.03,.08,'triangle',.05);}
+    else if(kind==='scan')tone(2900,0,.1,'square',.03);
     else if(kind==='message'){tone(1320,0,.12,'sine',.06);tone(1760,.11,.2,'sine',.06);}
     else if(kind==='note'){for(let i=0;i<6;i++)tone(140+i*12,i*.05,.06,'square',.025);}
     else tone(110,0,.25,'sawtooth',.05);

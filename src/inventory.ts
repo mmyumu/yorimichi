@@ -1,10 +1,11 @@
+import { goodNamed, paintCloseUp } from './goods';
 import { stations } from './network';
 import { paintTicket } from './ticket-gate';
 import type { TravelTicket } from './ticket-machine';
 import { coinCount, coins, isCoin, notes, pieceArt, walkFactor, walletTotal, type Wallet } from './wallet';
 
-/** The traveller's bag, opened from the top band: the tickets carried, drawn as at the gates (punched ones with their hole), and the wallet. */
-export function openInventory(tickets:TravelTicket[],wallet:Wallet,close:()=>void){
+/** The traveller's bag, opened from the top band: the tickets carried, drawn as at the gates (punched ones with their hole), what was bought at the konbini, and the wallet. */
+export function openInventory(tickets:TravelTicket[],groceries:[string,string][],wallet:Wallet,close:()=>void){
   const el=(parent:HTMLElement,tag:string,text='',cls='')=>{const e=document.createElement(tag);e.className=cls;e.textContent=text;parent.append(e);return e};
   const previous=document.activeElement as HTMLElement|null;
   const overlay=el(document.body,'div','','bag-overlay');overlay.setAttribute('role','dialog');overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Inventory');
@@ -20,6 +21,17 @@ export function openInventory(tickets:TravelTicket[],wallet:Wallet,close:()=>voi
     image.alt=image.title=(ticket.kind==='route'?`${stations[ticket.from].en} → ${stations[ticket.to].en}, ${ticket.line}, ¥${ticket.fare}`:ticket.kind==='adjust'?`Fare adjustment ticket, ${stations[ticket.from].en} → ${ticket.toEn}, ¥${ticket.fare} paid`:`Fare ticket from ${stations[ticket.from].en}, ¥${ticket.fare}`)+(ticket.punched?', punched':'');
   }
   if(!tickets.length)el(list,'p','No ticket','gate-empty');
+  if(groceries.length){
+    const goods=el(panel,'section','','gate-pocket');el(goods,'span',`買い物 / GROCERIES  ${groceries.length}`,'gate-label');
+    const shelf=el(goods,'div','','bag-goods'),counts=new Map<string,{en:string;n:number}>();
+    for(const [ja,en] of groceries){const count=counts.get(ja);if(count)count.n++;else counts.set(ja,{en,n:1})}
+    for(const [ja,{en,n}] of counts){
+      const cell=el(shelf,'figure','','bag-good'),item=goodNamed(ja);cell.title=`${ja} · ${en}`;
+      // The drawing the basket shows, painted again once the bitmap font is in; something no longer sold keeps its name only.
+      if(item){const canvas=el(cell,'canvas') as HTMLCanvasElement;canvas.width=120;canvas.height=94;const paint=()=>{const g=canvas.getContext('2d')!;g.clearRect(0,0,120,94);paintCloseUp(g,item,0,0,120,94)};paint();document.fonts?.load('10px "Yorimichi Bitmap"').then(paint).catch(()=>{})}
+      el(cell,'figcaption',n>1?`${ja} ×${n}`:ja);
+    }
+  }
   const purse=el(panel,'section','','gate-purse'),factor=walkFactor(wallet);
   el(purse,'span',`財布 / WALLET  ¥${walletTotal(wallet).toLocaleString('en-US')} · ${coinCount(wallet)} coins${factor<1?` · walking at ${Math.round(factor*100)}%`:''}`,'gate-label');
   const pieces=el(purse,'div','','gate-pieces');

@@ -1,9 +1,9 @@
 import { fareMapHeight, fareMapWidth, renderTokyoFareMap, onTokyoBoard } from './tokyo-fares';
-import { clockBadge } from './clock';
+import { connectedPad } from './pad';
 import { HallScene } from './hall-scene';
 import { HallPicture } from './hall-picture';
 import { HallVoxels } from './hall-voxels';
-import { leftInTray, trayKey, type MachineKind } from './ticket-machine';
+import type { MachineKind } from './ticket-machine';
 import { machineKinds, stations, type Hub, type Service } from './network';
 import type { Figure } from './people';
 
@@ -26,8 +26,6 @@ export class MachineHall {
   private viewport=document.createElement('div');
   private scene:HallScene|HallPicture|HallVoxels;
   private pixel:boolean;
-  private position=document.createElement('span');
-  private status=document.createElement('span');
   private keys=new Set<string>();
   private frame=0;
   private previousTime=0;
@@ -44,10 +42,9 @@ export class MachineHall {
   private distance=760;
   // Seconds spent still stepping back once as far back as the hall allows, or sideways past the end of the bank: past backOut, the player turns back to the concourse.
   private backing=0;
-  private sideways=false;
   private drag:{id:number;x:number;y:number;startX:number;startY:number;moved:boolean;device?:string}|null=null;
   // Starts with the buttons already held, so the A press that opened the hall does not also use a machine.
-  private lastPadButtons:boolean[]=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];
+  private lastPadButtons:boolean[]=connectedPad()?.buttons.map(b=>b.pressed)??[];
   private previousFocus=document.activeElement as HTMLElement|null;
   // The machine the player stands at (index in devices), told to the concourse so its commuters leave it free.
   private standing=-1;
@@ -61,13 +58,8 @@ export class MachineHall {
     // Facing the machine the player walked up to on the map.
     if(crowd?.start!==undefined&&crowd.start>=0)this.x=this.targetX=devices[crowd.start].x+250;
     this.overlay.className='machine-hall';this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','In front of the ticket machines');
-    const header=this.el(this.overlay,'header','','hall-header');
-    this.el(header,'div',`${stations[hub].ja} ${stations[hub].en.toUpperCase()} / きっぷうりば`,'hall-heading');header.append(clockBadge());
-    this.button(header,'Back to the hall',()=>this.close(),'hall-exit');
     this.viewport.className='hall-viewport'+(pixel?' is-pixel':'');this.viewport.tabIndex=0;this.viewport.setAttribute('aria-label',pixel?'Left and right arrows to walk from machine to machine, up to look at the board.':'Drag to look around. Left and right arrows to move sideways, up and down to step closer or back.');
     this.overlay.append(this.viewport);this.scene=pixel?new HallPicture(this.viewport,hub,devices,crowd?.figures):view==='voxel'?new HallVoxels(this.viewport,hub,devices,crowd?.figures):new HallScene(this.viewport,hub,devices,crowd?.figures);
-    const bottom=this.el(this.overlay,'div','','hall-bottom');bottom.append(this.position,this.status);
-    this.el(this.overlay,'p',pixel?`Click a machine${onTokyoBoard(stations[hub].ja)?' or the map':''} · ← / → or D-pad: walk from machine to machine · ↑ / ↓: ${onTokyoBoard(stations[hub].ja)?'wall map':'station board'} · E or A: use · B / Esc: back`:'Drag or R / F: look around · Arrows / WASD: move · Wheel: distance · Click, E or A: use · Gamepad: sticks · B / Esc: back','hall-help');
     this.overlay.addEventListener('keydown',this.keydown);this.overlay.addEventListener('keyup',this.keyup);
     this.overlay.addEventListener('focusout',()=>this.keys.clear());
     window.addEventListener('blur',this.blur);
@@ -153,7 +145,7 @@ export class MachineHall {
   /** Pixel view: arrived in front of the machine walked to, so a held key or stick walks on. */
   private arrived(){return Math.abs(this.x-this.targetX)<30}
   pause(){this.paused=true;this.overlay.hidden=true;this.keys.clear();this.drag=null;}
-  resume(map=false){if(this.disposed)return;this.paused=false;this.overlay.hidden=false;this.lastPadButtons=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected)?.buttons.map(b=>b.pressed)??[];if(map){this.lookAtMap();this.viewport.focus();this.openMapDetail();if(this.mapDetail)this.mapFrom=this.nearest();}else{this.lookAtMachines();this.viewport.focus();}}
+  resume(map=false){if(this.disposed)return;this.paused=false;this.overlay.hidden=false;this.lastPadButtons=connectedPad()?.buttons.map(b=>b.pressed)??[];if(map){this.lookAtMap();this.viewport.focus();this.openMapDetail();if(this.mapDetail)this.mapFrom=this.nearest();}else{this.lookAtMachines();this.viewport.focus();}}
   destroy(){if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.frame);this.scene.dispose();window.removeEventListener('blur',this.blur);this.overlay.remove();this.previousFocus?.focus();}
   private close(){this.destroy();this.exit();}
   private blur=()=>{this.keys.clear();this.drag=null;};
@@ -195,14 +187,14 @@ export class MachineHall {
     const device=this.devices.find(d=>d.id===id);if(!device)return;
     if(this.nearest().id===id&&this.arrived())this.focusDevice(device);else{this.targetX=device.x+250;this.yaw=0;this.pitch=-5}
   }
-  private wheel=(event:WheelEvent)=>{event.preventDefault();if(this.pixel)return;if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY)){const delta=event.deltaX||event.deltaY;if((delta<0&&this.targetX<=650||delta>0&&this.targetX>=3250)&&!this.mapDetail&&!this.paused){this.backing+=Math.min(.2,Math.abs(delta)/500);this.sideways=true}this.targetX=clamp(this.targetX+delta*1.4,650,3250)}else{if(event.deltaY>0&&this.distance>=maxDistance&&!this.mapDetail&&!this.paused)this.backing+=Math.min(.2,event.deltaY/500);this.distance=clamp(this.distance+event.deltaY*.6,minDistance,maxDistance)}};
+  private wheel=(event:WheelEvent)=>{event.preventDefault();if(this.pixel)return;if(event.shiftKey||Math.abs(event.deltaX)>Math.abs(event.deltaY)){const delta=event.deltaX||event.deltaY;if((delta<0&&this.targetX<=650||delta>0&&this.targetX>=3250)&&!this.mapDetail&&!this.paused){this.backing+=Math.min(.2,Math.abs(delta)/500)}this.targetX=clamp(this.targetX+delta*1.4,650,3250)}else{if(event.deltaY>0&&this.distance>=maxDistance&&!this.mapDetail&&!this.paused)this.backing+=Math.min(.2,event.deltaY/500);this.distance=clamp(this.distance+event.deltaY*.6,minDistance,maxDistance)}};
   private tick=(time:number)=>{
     if(this.disposed)return;
     const dt=Math.min((time-this.previousTime)/1000||0,.04);this.previousTime=time;
     if(!this.paused){
       let strafe=(this.keys.has('right')?1:0)-(this.keys.has('left')?1:0);
       let vertical=(this.keys.has('up')?1:0)-(this.keys.has('down')?1:0);
-      const pad=Array.from(navigator.getGamepads?.()??[]).find(p=>p?.connected);
+      const pad=connectedPad();
       if(pad){
         const dead=(v:number)=>Math.abs(v)>.18?v:0;
         if(!this.mapDetail){strafe+=dead(pad.axes[0]??0);vertical-=dead(pad.axes[1]??0);if(!this.pixel)this.yaw=clamp(this.yaw+dead(pad.axes[2]??0)*65*dt,-35,35);this.pitch=clamp(this.pitch-dead(pad.axes[3]??0)*55*dt,-20,30)}
@@ -227,7 +219,6 @@ export class MachineHall {
       this.x+=(this.targetX-this.x)*Math.min(1,dt*(this.pixel?6:14));
       // Keeping on stepping back from the farthest spot leaves the machines, like the Back button; letting go slowly forgets it.
       const back=vertical<0&&this.distance>=maxDistance,side=strafe<0&&this.targetX<=650||strafe>0&&this.targetX>=3250;
-      if(back||side)this.sideways=side&&!back;
       this.backing=(back||side)&&!this.mapDetail?this.backing+dt:Math.max(0,this.backing-dt*.5);
       if(this.backing>=backOut){this.close();return;}
       // The camera rotates; translation remains the player's body position along the wall.
@@ -235,8 +226,6 @@ export class MachineHall {
       if(this.devices.indexOf(nearest)!==this.standing){this.standing=this.devices.indexOf(nearest);this.crowd?.standAt(this.standing)}
       const free=!this.mapDetail;
       this.scene.render(this.x,this.yaw,this.pitch,this.distance,free&&this.facingMap()?'map':free&&this.facingMachines()?nearest.id:null);
-      this.position.textContent=nearest.label;
-      this.status.textContent=this.backing>0&&this.sideways?'Keep going sideways to return to the hall':this.distance>=maxDistance&&this.backing>0?'Keep stepping back to return to the hall':this.crowd?.busy(this.devices.indexOf(nearest))&&!this.facingMap()&&this.pitch<=10?'Someone is using this machine · wait for them or take another':this.facingMap()?'Wall map · click, E or A: read the stations':this.pitch>10?(this.pixel?'Station board · ↓: back to the machines':'Wall map · move sideways to follow the lines'):nearest.kind==='charge'?'IC card needed · you have none':leftInTray(trayKey(this.hub,nearest.id))?'Something was left in the outlets · E / A: use the machine':this.pixel?`Click a machine or E / A: use · ← / →: walk along · ↑: ${onTokyoBoard(stations[this.hub].ja)?'wall map':'station board'}`:'Click the machine or E / A: use · drag to look around';
       this.overlay.dataset.machine=nearest.id;this.overlay.dataset.x=this.x.toFixed(1);this.overlay.dataset.pitch=this.pitch.toFixed(1);this.overlay.dataset.yaw=this.yaw.toFixed(1);
       this.overlay.dataset.mapDetail=String(this.pitch>10&&this.distance<=700);
     }

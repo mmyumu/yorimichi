@@ -1,9 +1,10 @@
 import { routes, stations, type Hub, type Route, type Service } from './network';
+import { connectedPad } from './pad';
 import { paintTicket } from './ticket-gate';
 import { fareBetween, faresFrom, shinkansenMinutes } from './fares';
 import { railLine } from './rail';
 import { onTokyoBoard, renderTokyoFareMap } from './tokyo-fares';
-import { accepted, coinCount, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
+import { accepted, coinCount, heapSpot, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
 
 // `punched` with the hub whose gate let it through on the way in: the gate's punch leaves a hole in it, and the ticket knows where its trip began.
 export interface RouteTicket extends Route { kind:'route'; reservation?: { day:string; train:string; seat:string }; punched?:Hub }
@@ -86,7 +87,7 @@ export class TicketMachine {
     this.overlay.addEventListener('pointerdown',()=>this.overlay.classList.remove('pad-nav'));this.overlay.addEventListener('pointermove',event=>{if(event.movementX||event.movementY)this.overlay.classList.remove('pad-nav')});
     this.overlay.addEventListener('keydown',this.onKey);this.padPrevious=this.currentPad()?.buttons.map(b=>b.pressed)??[];this.render();this.padFrame=requestAnimationFrame(this.pollPad);
   }
-  private currentPad(){return Array.from(navigator.getGamepads?.()??[]).find(pad=>pad?.connected);}
+  private currentPad(){return connectedPad();}
   private pollPad=(time:number)=>{
     if(this.disposed)return;
     const pad=this.currentPad();
@@ -94,7 +95,7 @@ export class TicketMachine {
       const pressed=pad.buttons.map(b=>b.pressed);
       const dx=(pressed[15]?1:0)-(pressed[14]?1:0)+(Math.abs(pad.axes[0]??0)>.5?Math.sign(pad.axes[0]):0);
       const dy=(pressed[13]?1:0)-(pressed[12]?1:0)+(Math.abs(pad.axes[1]??0)>.5?Math.sign(pad.axes[1]):0);
-      if(dx||dy||pressed.some((p,i)=>p&&!this.padPrevious[i]))this.overlay.classList.add('pad-nav');
+      if(pad.id!=='mouse'&&(dx||dy||pressed.some((p,i)=>p&&!this.padPrevious[i])))this.overlay.classList.add('pad-nav');
       if((dx||dy)&&time-this.lastNavigation>180){this.moveFocus(dx,dy);this.lastNavigation=time;}
       if(pressed[0]&&!this.padPrevious[0]){
         const active=document.activeElement as HTMLElement;
@@ -168,8 +169,10 @@ export class TicketMachine {
     this.adjusting={ticket,fare,due};this.fareAmount=due;this.keepWallet();this.go('adjust');
   }
   private take(index:number){
-    const [item]=this.tray.splice(index,1);if(!item)return;
-    if(item.value==='ticket'){if(item.ticket)this.issue(item.ticket);}else this.wallet[item.value]=(this.wallet[item.value]??0)+1;
+    const item=this.tray[index];if(!item)return;
+    if(item.value==='ticket'){this.tray.splice(index,1);if(item.ticket)this.issue(item.ticket);}
+    // One grab takes every coin, or every note, in the outlet.
+    else{const coin=isCoin(item.value);for(let i=this.tray.length-1;i>=0;i--){const {value}=this.tray[i];if(value!=='ticket'&&isCoin(value)===coin){this.wallet[value]=(this.wallet[value]??0)+1;this.tray.splice(i,1)}}}
     this.keepWallet();machineSound('drop');
     // Everything taken: the machine thanks you and the traveller steps away.
     if(this.step==='issued'&&!this.tray.length){this.render();setTimeout(()=>{if(!this.disposed)this.close()},650);return;}
@@ -264,20 +267,27 @@ export class TicketMachine {
     }
     for(const [name,ja,en,ticket] of [['ticket','きっぷ','Ticket',true],['change','おつり','Change',false]] as const){
       const box=this.element(cash,'div','','outlet outlet-'+name+' pay-control');this.element(box,'span',ja+' '+en,'slot-label');
-      const items=this.element(box,'div','','outlet-items');
+      // The change comes out in two bins, the notes' and the coins'; a click on either takes all it holds.
+      const pair=ticket?box:this.element(box,'div','','outlet-bins'),items=this.element(pair,'div','','outlet-items'),coinBin=ticket?items:this.element(pair,'div','','outlet-items');let stacked=0,heaped=0;
+      if(!ticket)for(const [bin,coin] of [[items,false],[coinBin,true]] as const)bin.addEventListener('click',event=>{if(event.target!==bin)return;const index=this.tray.findIndex(item=>item.value!=='ticket'&&isCoin(item.value)===coin);if(index>=0)this.take(index)});
       this.tray.forEach((item,index)=>{
         if((item.value==='ticket')!==ticket)return;
-        const button=this.button(items,'',()=>this.take(index),'tray-item'+(item.fresh?' fresh':'')+(item.value==='ticket'?' tray-ticket':isCoin(item.value)?' coin':' note'));button.dataset.key='tray-'+name;
+        const button=this.button(item.value!=='ticket'&&isCoin(item.value)?coinBin:items,'',()=>this.take(index),'tray-item'+(item.fresh?' fresh':'')+(item.value==='ticket'?' tray-ticket':isCoin(item.value)?' coin':' note'));button.dataset.key='tray-'+name;
         if(item.value==='ticket'){
           // The real card, as the gates and the bag draw it, painted again once the Japanese font is in.
           const image=this.element(button,'img') as HTMLImageElement,ticket=item.ticket;image.draggable=false;image.alt=button.title=this.tr('きっぷを取る','Take the ticket');
           const paint=()=>{if(!ticket)return;const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;paintTicket(canvas.getContext('2d')!,128,64,ticket);image.src=canvas.toDataURL()};
           paint();document.fonts?.load('16px "Yorimichi JP"').then(paint).catch(()=>{});
         }
-        else{const image=this.element(button,'img') as HTMLImageElement;image.src=pieceArt(item.value);image.alt='¥'+item.value;image.draggable=false;button.title=this.tr('取る','Take')+' ¥'+item.value.toLocaleString('en-US');}
+        else{
+          // The notes in a neat stack, the coins in a loose heap.
+          if(isCoin(item.value)){const {x,y,turn}=heapSpot(item.value,heaped++);button.style.cssText=`left:${50+x*32}%;top:${50+y*26}%;rotate:${turn}deg`}
+          else{const step=Math.min(stacked++,5);button.style.cssText=`left:calc(50% + ${step*2-5}px);top:calc(50% + ${5-step*2}px)`}
+          const image=this.element(button,'img') as HTMLImageElement;image.src=pieceArt(item.value);image.alt='¥'+item.value;image.draggable=false;button.title=isCoin(item.value)?this.tr('硬貨を取る','Take the coins'):this.tr('お札を取る','Take the notes');
+        }
         item.fresh=false;
       });
-      if(items.childElementCount)box.classList.add('lit');
+      for(const bin of [items,coinBin])if(bin.childElementCount)bin.classList.add('lit');
     }
     const keypad=this.element(cash,'div','','keypad');for(const key of '123456789*0#')this.element(keypad,'span',key);
     const purse=this.element(this.design,'div','','machine-wallet pay-control');

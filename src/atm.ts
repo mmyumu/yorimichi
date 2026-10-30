@@ -1,4 +1,5 @@
 import { receiptDate } from './clock';
+import { connectedPad } from './pad';
 import type { Konbini } from './network';
 import { coinCount, coins, machineSound, notes, pieceArt, saveWallet, walletTotal, type Wallet } from './wallet';
 
@@ -74,14 +75,14 @@ export class Atm {
   }
   private close(){this.destroy();this.dismiss();}
   private tr(ja:string,en:string){return this.lang==='ja'?ja:en;}
-  private currentPad(){return Array.from(navigator.getGamepads?.()??[]).find(pad=>pad?.connected);}
+  private currentPad(){return connectedPad();}
   private pollPad=(time:number)=>{
     if(this.disposed)return;
     const pad=this.currentPad();
     if(pad){
       const pressed=pad.buttons.map(b=>b.pressed),edge=(i:number)=>pressed[i]&&!this.padPrevious[i];
       const dx=(pressed[15]?1:0)-(pressed[14]?1:0)+(Math.abs(pad.axes[0]??0)>.5?Math.sign(pad.axes[0]):0),dy=(pressed[13]?1:0)-(pressed[12]?1:0)+(Math.abs(pad.axes[1]??0)>.5?Math.sign(pad.axes[1]):0);
-      if(dx||dy||pressed.some((_,i)=>edge(i)))this.overlay.classList.add('pad-nav');
+      if(pad.id!=='mouse'&&(dx||dy||pressed.some((_,i)=>edge(i))))this.overlay.classList.add('pad-nav');
       if((dx||dy)&&time-this.lastNavigation>180){this.moveFocus(dx,dy);this.lastNavigation=time}
       if(edge(0)){const active=document.activeElement as HTMLElement;if(this.overlay.contains(active))active.click()}
       // B is とりけし, or leaves from the first screen.
