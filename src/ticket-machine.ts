@@ -268,13 +268,14 @@ export class TicketMachine {
     for(const [name,ja,en,ticket] of [['ticket','きっぷ','Ticket',true],['change','おつり','Change',false]] as const){
       const box=this.element(cash,'div','','outlet outlet-'+name+' pay-control');this.element(box,'span',ja+' '+en,'slot-label');
       // The change comes out in two bins, the notes' and the coins'; a click on either takes all it holds.
-      const pair=ticket?box:this.element(box,'div','','outlet-bins'),items=this.element(pair,'div','','outlet-items'),coinBin=ticket?items:this.element(pair,'div','','outlet-items');let stacked=0,heaped=0;
+      const pair=ticket?box:this.element(box,'div','','outlet-bins'),items=this.element(pair,'div','','outlet-items'),coinBin=ticket?items:this.element(pair,'div','','outlet-items');let stacked=0,heaped=0,cards=0;
       if(!ticket)for(const [bin,coin] of [[items,false],[coinBin,true]] as const)bin.addEventListener('click',event=>{if(event.target!==bin)return;const index=this.tray.findIndex(item=>item.value!=='ticket'&&isCoin(item.value)===coin);if(index>=0)this.take(index)});
       this.tray.forEach((item,index)=>{
         if((item.value==='ticket')!==ticket)return;
         const button=this.button(item.value!=='ticket'&&isCoin(item.value)?coinBin:items,'',()=>this.take(index),'tray-item'+(item.fresh?' fresh':'')+(item.value==='ticket'?' tray-ticket':isCoin(item.value)?' coin':' note'));button.dataset.key='tray-'+name;
         if(item.value==='ticket'){
-          // The real card, as the gates and the bag draw it, painted again once the Japanese font is in.
+          // The real card, as the gates and the bag draw it, painted again once the Japanese font is in; several lie stacked, the bin keeping its size.
+          {const step=Math.min(cards++,4);button.style.cssText=`left:calc(50% + ${step*3-6}px);top:calc(50% + ${step*2-4}px)`}
           const image=this.element(button,'img') as HTMLImageElement,ticket=item.ticket;image.draggable=false;image.alt=button.title=this.tr('きっぷを取る','Take the ticket');
           const paint=()=>{if(!ticket)return;const canvas=document.createElement('canvas');canvas.width=128;canvas.height=64;paintTicket(canvas.getContext('2d')!,128,64,ticket);image.src=canvas.toDataURL()};
           paint();document.fonts?.load('16px "Yorimichi JP"').then(paint).catch(()=>{});

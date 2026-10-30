@@ -395,7 +395,8 @@ export class TicketGate {
       if(event.shiftKey&&document.activeElement===all[0]){event.preventDefault();all.at(-1)?.focus()}else if(!event.shiftKey&&document.activeElement===all.at(-1)){event.preventDefault();all[0]?.focus()}return;
     }
     if(event.key==='Escape'){event.preventDefault();this.back();return}
-    if(['KeyE','Space','Enter'].includes(event.code)&&!(event.target as HTMLElement).closest('button')){event.preventDefault();if(!event.repeat)this.act()}
+    // On a focused ticket Space and Enter click it; E has no such default, and the pocket takes the focus on opening.
+    if(event.code==='KeyE'||(['Space','Enter'].includes(event.code)&&!(event.target as HTMLElement).closest('button'))){event.preventDefault();if(!event.repeat)this.act()}
     const step={ArrowLeft:-1,ArrowUp:-1,KeyA:-1,KeyW:-1,ArrowRight:1,ArrowDown:1,KeyD:1,KeyS:1}[event.code];if(step){event.preventDefault();this.select(step)}
   };
   private tick=(time:number)=>{

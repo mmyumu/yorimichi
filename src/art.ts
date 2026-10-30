@@ -794,7 +794,7 @@ export function makeBoard(scene:Phaser.Scene,key:string,track:number,up:boolean)
   texture.refresh();
 }
 /** An island platform from above, `platformWidth` long between its two tracks (the first at the top, 44–88; the second at the bottom, 232–276): each edge with its white line
- * and yellow tactile strip, the 乗車位置 marks where the doors stop (doorMarks: a lane either side of each door, x ±4–18, 98–125 and 196–223), a stairwell down at each end (0–80 and 880–960 × 128–192, open towards the middle), the station
+ * and yellow tactile strip, the 乗車位置 marks where the doors stop (doorMarks: a lane either side of each door, x ±6–20, 98–125 and 196–223), a stairwell down at each end (0–80 and 880–960 × 128–192, open towards the middle), the station
  * sign in the middle (駅名標: the station, the stops either side on `color`, its line's, and their English; 406–554 × 128–188 with its posts), and the shadows of the departure
  * boards hanging over each edge near the stairwells (platformBoards). In art px; main.ts (solids, hotspots, queues) relies on these. */
 export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:string;tracks:[number,number];color:string;prev:string;next:string;prevEn:string;nextEn:string;service:Service}){
@@ -808,11 +808,11 @@ export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:strin
   r(0,88,W,144,'#cfcab4');for(let y=88;y<232;y+=16)for(let x=0;x<W;x+=16){r(x,y,16,1,'#c2bda6');r(x,y,1,16,'#c2bda6')}
   r(0,86,W,2,'#8d8a7a');r(0,88,W,3,'#efeee4');r(0,229,W,3,'#efeee4');r(0,232,W,2,'#8d8a7a');
   for(const y of [94,223]){r(0,y,W,3,'#e8c440');for(let x=1;x<W;x+=3)r(x,y+1,1,1,'#cfa72c')}
-  // At each door, as on Japanese platforms, two lanes running back from the edge either side of it (the queues' two lines, main.ts slot: door ±11, three rows), the middle kept clear
+  // At each door, as on Japanese platforms, two lanes running back from the edge either side of it (the queues' two lines, main.ts slot: door ±13, three rows), the middle kept clear
   // for those getting off; a pale green, quiet beside the tactile strip and clear of the yellow highlights. In each lane a pair of footprints per row, toes to the track.
   for(const x of doorMarks(o.service))for(const top of [true,false]){
-    for(const dx of [-18,-4,3,17])r(x+dx,top?98:196,1,27,'#8fc078');
-    for(const row of [0,1,2])for(const lane of [-13,8]){const y=top?99+row*9:217-row*9;for(const foot of [0,3]){r(x+lane+foot,top?y:y+2,2,3,'#8fc078');r(x+lane+foot,top?y+4:y,2,1,'#8fc078')}}
+    for(const dx of [-20,-6,5,19])r(x+dx,top?98:196,1,27,'#8fc078');
+    for(const row of [0,1,2])for(const lane of [-15,10]){const y=top?99+row*9:217-row*9;for(const foot of [0,3]){r(x+lane+foot,top?y:y+2,2,3,'#8fc078');r(x+lane+foot,top?y+4:y,2,1,'#8fc078')}}
   }
   // A stairwell at each end: steps going down towards the end, darker as they go, railed on three sides, the yellow sign over the mouth.
   for(const left of [true,false]){

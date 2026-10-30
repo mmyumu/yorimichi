@@ -45,7 +45,8 @@ function outline(shape:[number,number,number,number][]){
 const outlines=Object.fromEntries(Object.entries(hotspotShapes).map(([spot,shape])=>[spot,outline(shape)]));
 // The ticket hall in pixel art (HallPicture); ?hall=3d brings back the first-person three.js hall (HallScene), ?hall=voxel the same hall built of voxels (HallVoxels).
 const hallParam=new URLSearchParams(location.search).get('hall'),hallView=hallParam==='3d'||hallParam==='voxel'?hallParam:'pixel';
-type Step={x:number;y:number;alpha?:number}|{wait:number;face:string;spot?:string};
+// `off`: the track and door someone getting off a train is stepping away from, until past the queues' lanes.
+type Step={x:number;y:number;alpha?:number;off?:[number,number]}|{wait:number;face:string;spot?:string};
 // `queue`: the track, door mark and place (slot) a commuter waits at on a platform.
 type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:number;face?:string;bump?:number;queue?:[number,number,number]};
 /** A train on one track of the platform, through its cycle: away (`gap`, until it pulls in to leave on time), arriving, doors open for those getting off (`alight`) then the queues (`board`),
@@ -56,6 +57,8 @@ type Train={track:0|1;line:RailLine;run:Run;due:number;phase:'gap'|'arrive'|'ali
 const corridorCrowd=8,platformCrowd=24;
 /** A train's ms from pulling in to the earliest its doors close (arriving, those getting off, a moment's boarding): its time on the boards is when it leaves, that long after it starts pulling in. */
 const dwell=6000+2600+4000;
+/** How long (ms) someone getting off leaves the traveller standing in their way dazed. */
+const stunned=1400;
 /** Lights at night, in scene px: x, y, radius, colour and strength. */
 /** A light at night: x, y and radius in scene px, its colour, its strength, and how flat its pool lies on the ground (its height over its width, round when left out). */
 type Lamp=[number,number,number,number,number?,number?];
@@ -126,6 +129,9 @@ class Journey extends Phaser.Scene {
   private hallSpot='';
   // Jostling: brushing past someone slows the walk for a moment (see update).
   private bump=1;
+  // Ms left dazed, knocked by someone getting off: no walking, no boarding, stars over the head (`dizzy`).
+  private stun=0;
+  private dizzy!:Phaser.GameObjects.Graphics;
   private announcement!:Phaser.GameObjects.Text;
   // Only places that still exist: memories from removed trips (Kawaguchiko) are dropped, and the Kamakura one, kept before the station, is the temple trail's.
   private collected=new Set<string>((JSON.parse(localStorage.getItem('yorimichi-memories')||'[]') as string[]).map(place=>place==='kamakura'?'kamakura-trail':place).filter(place=>place==='kamakura-trail'||place==='arashiyama'));
@@ -193,7 +199,8 @@ class Journey extends Phaser.Scene {
       const frame=spot?this.frameFor(spot):null,end=spot.startsWith('door')?this.queueEnd(spot):null;this.pending=spot;
       const to=approach[spot];this.navigate(end?end.x:to?to[0]:frame?frame[0]+frame[2]/2:x,end?end.y:to?to[1]:frame?frame[1]+frame[3]/2:y);
     });
-    this.input.on('pointermove',(pointer:Phaser.Input.Pointer)=>this.input.setDefaultCursor(!this.modal&&this.hotspotAt(pointer.x-this.world.x,pointer.y-this.world.y)?'pointer':''));
+    // Over an interactive object Phaser has set its cursor: setting the default now would wipe it.
+    this.input.on('pointermove',(pointer:Phaser.Input.Pointer,over:Phaser.GameObjects.GameObject[])=>{if(!over.some(object=>object.input?.cursor))this.input.setDefaultCursor(!this.modal&&this.hotspotAt(pointer.x-this.world.x,pointer.y-this.world.y)?'pointer':'')});
   }
   private rect(x:number,y:number,w:number,h:number,color:number,container=this.world){const r=this.add.rectangle(x,y,w,h,color).setOrigin(0);container.add(r);return r}
   private label(x:number,y:number,text:string,size=16,color='#283d3c',container=this.world){const t=this.add.text(x,y,text,{fontFamily:'monospace',fontSize:size,color,lineSpacing:5});container.add(t);return t}
@@ -205,7 +212,7 @@ class Journey extends Phaser.Scene {
     const back=this.outside?.from===place?this.outside:null;if(isHub(place))this.outside=null;
     if(isHub(place))makeHub(this,place);
     this.modal?.destroy();this.modal=null;this.world?.destroy(true);this.hud?.destroy(true);this.over.removeAll(true);this.shutter=this.neon=this.pane=this.laneSign=null;this.car=null;
-    this.place=place;this.boardAt='';this.stayed=-1;this.overhead=[];this.commuters=[];this.spots.clear();this.playerSpot=this.hallSpot='';this.bump=1;this.path=[];this.solids=[];this.direction={x:0,y:0};
+    this.place=place;this.boardAt='';this.stayed=-1;this.overhead=[];this.commuters=[];this.spots.clear();this.playerSpot=this.hallSpot='';this.bump=1;this.stun=0;this.path=[];this.solids=[];this.direction={x:0,y:0};
     // The stations sit lower under the top band, leaving the back wall room for the station's name.
     this.world=this.add.container(0,isHub(place)?24:0);this.hud=this.add.container(0,0).setDepth(10);
     this.world.add(this.add.image(0,0,place==='town'?this.townMap():place==='corridor'?this.corridorMap():place==='platform'?this.platformMap():'map-'+place).setOrigin(0));this.mapWidth=place==='platform'?platformWidth*2:place==='home-street'?homeStreetWidth*2:960;this.mapHeight=place==='corridor'?this.corridor().height*2:place==='apartment'?832:640;
@@ -227,7 +234,7 @@ class Journey extends Phaser.Scene {
       const w=this.mapWidth;this.solids.push(new Phaser.Geom.Rectangle(0,0,w,180),new Phaser.Geom.Rectangle(0,462,w,200),new Phaser.Geom.Rectangle(0,256,160,128),new Phaser.Geom.Rectangle(w-160,256,160,128),new Phaser.Geom.Rectangle(w/2-140,350,280,26));
       {const {x,y,w}=routeBoard;this.solids.push(new Phaser.Geom.Rectangle(x*2,y*2,w*2,24));hotspotFrames.route=[x*2-10,y*2-20,w*2+20,64];hotspotShapes.route=[[x,y,w,12]];outlines.route=outline(hotspotShapes.route)}
       hotspotFrames.downL=[0,256,232,128];hotspotShapes.downL=[[0,128,80,64]];hotspotFrames.downR=[w-232,256,232,128];hotspotShapes.downR=[[w/2-80,128,80,64]];outlines.downL=outline(hotspotShapes.downL);outlines.downR=outline(hotspotShapes.downR);
-      this.doorXs().forEach((x,k)=>{for(const track of [0,1]){const spot=`door${track}-${k}`;hotspotFrames[spot]=[x-30,track?372:186,60,84];hotspotShapes[spot]=[[x/2-4,track?239:77,8,4]];outlines[spot]=outline(hotspotShapes[spot])}});
+      this.doorXs().forEach((x,k)=>{for(const track of [0,1]){const spot=`door${track}-${k}`;hotspotFrames[spot]=[x-36,track?372:186,72,84];hotspotShapes[spot]=[[x/2-4,track?239:77,8,4]];outlines[spot]=outline(hotspotShapes[spot])}});
     }
     if(place==='town')this.solids.push(new Phaser.Geom.Rectangle(0,70,960,202),new Phaser.Geom.Rectangle(780,272,84,48),new Phaser.Geom.Rectangle(314,248,22,40),new Phaser.Geom.Rectangle(8,244,140,44),new Phaser.Geom.Rectangle(732,272,40,20),new Phaser.Geom.Rectangle(236,228,68,60),new Phaser.Geom.Rectangle(152,300,56,20),new Phaser.Geom.Rectangle(600,300,56,20),new Phaser.Geom.Rectangle(900,360,12,14),new Phaser.Geom.Rectangle(0,524,960,116),...townLights.map(x=>new Phaser.Geom.Rectangle(x*2-2,510,10,14)));
     // The home street: the far side's walls and houses, the near side's wall and roofs (the side street ends there too). The apartment: its walls
@@ -294,7 +301,7 @@ class Journey extends Phaser.Scene {
     this.player=this.add.container(...(back?[back.side==='west'?150:810,520]:[480,isHub(place)?490:place==='town'?328:place==='corridor'?this.corridor().gates*2-56:place==='platform'?320:410]) as [number,number]);if(at&&this.canWalk(at.x,at.y))this.player.setPosition(at.x,at.y);this.world.add(this.player);
     if(place==='home-street'&&!at)this.player.setPosition(1310,340);if(place==='apartment'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(438,780);
     if(place==='corridor'||place==='home-street'||place==='apartment')this.scroll();
-    this.sprite=this.add.image(0,0,'traveller-down-0').setOrigin(.5,.85).setScale(2);this.player.add(this.sprite);
+    this.sprite=this.add.image(0,0,'traveller-down-0').setOrigin(.5,.85).setScale(2);this.player.add(this.sprite);this.dizzy=this.add.graphics();this.player.add(this.dizzy);
     // Up the stairs, out of the stairwell's mouth; on a train pulling in, out of sight until its doors open (alight), nothing to do meanwhile.
     // Up the stairs on the side of the corridor's stairs taken: out of that end's stairwell. On a train pulling in, behind one of its doors near the middle, out of sight until they open.
     if(place==='platform'){
@@ -585,12 +592,10 @@ class Journey extends Phaser.Scene {
     this.machine=new TicketMachine(hub,'adjust',ticket=>{this.tickets.push(ticket);this.keep()},()=>{this.machine=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()},
       {fixedService:true,wallet:this.wallet,onWallet:()=>this.refreshPurse(),trayKey:trayKey(hub,'adjust'),adjust:{ja:station.ja,en:station.en,pocket:()=>this.tickets,hand:ticket=>{this.tickets=this.tickets.filter(t=>t!==ticket);this.keep()}}});
   }
-  /** Up the stairs of platform `i` (the left ones on the side of its first track): onto the platform, if the punched ticket's trip starts here. Which train to take is up to the traveller. */
+  /** Up the stairs of platform `i` (the left ones on the side of its first track): onto the platform, with a punched ticket, wherever it was punched: changing lines is free, the fare is settled on the way out. Which train to take is up to the traveller. */
   private climb(i:number,left:boolean){
     const {hub}=this.gateway!,platform=this.corridorPlatforms()[i],ticket=this.tickets.find(t=>t.punched),title=`${platform.tracks[left?0:1]}番線 · ${platform.lines.map(line=>line.ja).join('・')}`;
     if(!ticket){this.dialog(title,`${lineNames(platform.lines)}, tracks ${platform.tracks.join(' and ')}.`);return}
-    // A ticket punched at another station has made its trip: off the train, the way on is out through the gates.
-    if(ticket.kind==='adjust'||ticket.punched!==hub){this.dialog(title,`Your ticket's trip ends at ${stations[hub].en}.\nThe way out is through the gates, past the fare adjustment machine.`);return}
     this.toPlatform({...deckFor(stations[hub].ja,platform.lines[0],left?0:1),arriving:undefined});
   }
   private toPlatform(deck:Deck){this.deck=deck;this.gateway={hub:deck.hub,service:deck.service};this.loadPlace('platform')}
@@ -607,8 +612,12 @@ class Journey extends Phaser.Scene {
   private doorPoint(track:number,k:number){return {x:this.doorXs()[k],y:track?470:186}}
   /** As at Japanese platforms, two lines at each door, one either side of its mark: place `i` is on the left when even, on the right when odd, a row further back every two.
    * The middle stays clear for those getting off (exitPoint). */
-  private slot(track:number,k:number,i:number){const row=Math.min(i>>1,2);return {x:this.doorXs()[k]+(i%2?22:-22),y:track?444-row*18:202+row*18}}
+  private slot(track:number,k:number,i:number){const row=Math.min(i>>1,2);return {x:this.doorXs()[k]+(i%2?26:-26),y:track?444-row*18:202+row*18}}
   private exitPoint(track:number,k:number){return {x:this.doorXs()[k],y:track?426:220}}
+  /** Past the back of the queues' lanes, straight out of door `k`: how far those getting off keep to the middle. */
+  private clearPoint(track:number,k:number){return {x:this.doorXs()[k],y:track?392:254}}
+  /** Whether someone is still getting off at that track's door `k`, or at any of its doors. */
+  private alighting(track:number,k?:number){return this.commuters.some(c=>c.steps.some(s=>'off' in s&&s.off?.[0]===track&&(k===undefined||s.off[1]===k)))}
   /** The first place nobody holds in the queue at door `k`. */
   private freeSlot(track:number,k:number){const held=new Set(this.queues[track][k].map(c=>c.queue![2]));let i=0;while(held.has(i))i++;return i}
   /** The train on `track`: the one the traveller arrives on, pulling in, or none yet, the first one due soon on the side they came up. */
@@ -656,7 +665,7 @@ class Journey extends Phaser.Scene {
       if(train.phase==='gap'){if(minutes()>train.due-dwell/minuteMs+1)train.due=this.dueIn(dwell)}else if(into<dwell){const earliest=minutes()+(dwell-into)/minuteMs;if(earliest>train.due+1)train.due=Math.ceil(earliest)}
       if(train.phase==='gap'){train.body.setVisible(false);if(minutes()>=train.due-dwell/minuteMs)this.phase(train,'arrive')}
       else if(train.phase==='arrive'){const p=Math.min(1,train.t/6000);train.body.setVisible(true).x=stop+from*far*(1-p)**2;if(p>=1){this.phase(train,'alight');this.alight(train)}}
-      else if(train.phase==='alight'){open=Math.min(1,train.t/400);if(train.t>=2600)this.phase(train,'board')}
+      else if(train.phase==='alight'){open=Math.min(1,train.t/400);if(train.t>=2600||train.to&&!this.alighting(train.track))this.phase(train,'board')}
       else if(train.phase==='board'){open=1;this.boarding(train,delta)}
       // Pulling out, the boards turn to the next train, due once this one is out and the next has come in (a moment's gap between them).
       else if(train.phase==='close'){open=Math.max(0,1-train.t/500);if(train.t>=(train.player==='on'?500:1400)){this.phase(train,'leave');train.due=this.dueIn(6000+2500+dwell)}}
@@ -679,8 +688,8 @@ class Journey extends Phaser.Scene {
   private alight(train:Train){
     const free=this.commuters.filter(c=>!c.queue&&c.image.alpha===0&&!!c.steps[0]&&'wait' in c.steps[0]),doors=this.doorXs();
     for(const c of free.slice(0,Math.floor(between(2,6)))){
-      const k=Math.floor(Math.random()*doors.length),door=this.doorPoint(train.track,k),out=this.exitPoint(train.track,k),y=between(300,340),{mouth,end}=this.stairwell(door.x);c.image.setPosition(door.x,door.y).setAlpha(0);
-      c.steps=[{wait:between(0,1500),face:train.track?'up':'down'},{...out,alpha:1},...this.route(out,{x:mouth,y}),{x:end,y,alpha:0},{wait:between(4000,12000),face:'down'}];
+      const k=Math.floor(Math.random()*doors.length),door=this.doorPoint(train.track,k),out=this.clearPoint(train.track,k),y=between(300,340),{mouth,end}=this.stairwell(door.x);c.image.setPosition(door.x,door.y).setAlpha(0);
+      c.steps=[{wait:between(0,800),face:train.track?'up':'down'},{...out,alpha:1,off:[train.track,k]},...this.route(out,{x:mouth,y}),{x:end,y,alpha:0},{wait:between(4000,12000),face:'down'}];
     }
     if(train.player==='off')this.stepOff(train);
   }
@@ -730,7 +739,8 @@ class Journey extends Phaser.Scene {
   private openDoors(){return this.trains.flatMap(train=>train.phase==='alight'||train.phase==='board'?this.doorXs().map((_,k)=>`door${train.track}-${k}`):[])}
   /** How many wait in the queue at door `k` before the traveller (those nearer the edge). */
   private ahead(track:number,k:number){const edge=track?464:176,mine=Math.abs(this.player.y-edge);return this.queues[track][k].filter(c=>c.image.alpha>.5&&Math.abs(c.image.y-edge)<mine).length}
-  private boardable(spot:string){const [track,k]=spot.slice(4).split('-').map(Number);return this.trains[track]?.phase==='board'&&!this.ahead(track,k)}
+  /** The traveller's turn at that door: its train's doors open, nobody getting off through it, nobody ahead in its queue. */
+  private boardable(spot:string){const [track,k]=spot.slice(4).split('-').map(Number),train=this.trains[track];return !this.stun&&(train?.phase==='board'||train?.phase==='alight'&&train.t>=400)&&!this.alighting(track,k)&&!this.ahead(track,k)}
   /** Where the traveller joins the queue at a door: the first free place in its two lines. */
   private queueEnd(spot:string){const [track,k]=spot.slice(4).split('-').map(Number);return this.slot(track,k,this.freeSlot(track,k))}
   /** Into the train at that door, once it is the traveller's turn: they choose where to get off (lineMap), the doors held open meanwhile, then ride it out of the station. */
@@ -745,7 +755,7 @@ class Journey extends Phaser.Scene {
   private lineMap(train:Train){
     const {line,run}=train,deck=this.deck!,c=this.add.container(0,0).setDepth(20),color=Phaser.Display.Color.HexStringToColor(line.color).color,stops=run.ahead;this.modal?.destroy(true);this.modal=c;
     // Chosen, the map goes and the doors shut at once (the traveller, out of sight, rides out); staying, the traveller steps back out and the train goes on as usual.
-    const go=(ja:string)=>{train.to={...deckFor(ja,line,run.dir<0?0:1),arriving:line};train.wait=train.t+200;c.destroy(true);this.modal=this.add.container(0,0)},stay=()=>{c.destroy(true);this.modal=this.add.container(0,0);this.stepOff(train)};
+    const go=(ja:string)=>{train.to={...deckFor(ja,line,run.dir<0?0:1),arriving:line};train.wait=train.phase==='board'?train.t+200:200;c.destroy(true);this.modal=this.add.container(0,0)},stay=()=>{c.destroy(true);this.modal=this.add.container(0,0);this.stepOff(train)};
     this.dismissible(this.rect(0,70,960,570,0x142e35,c).setAlpha(.76).setInteractive(),this.rect(40,92,880,520,0xf0e6cb,c),stay);this.rect(40,92,880,7,color,c);
     this.label(64,112,`${line.ja}  ${run.dest}${line.loop?'':'行'}`,22,'#294a48',c);this.label(64,146,`${line.en}, for ${run.destEn} · Where do you get off?`,14,'#475b50',c);
     // A loop goes round: its ring, the stops to choose round it in the order the train reaches them.
@@ -1169,12 +1179,20 @@ class Journey extends Phaser.Scene {
     if(this.modal){this.glow.clear();this.prompt.setVisible(false);this.held.clear();this.pending='';return;}
     let x=pad.x||this.direction.x,y=pad.y||this.direction.y;if(this.keys.left.isDown)x=-1;if(this.keys.right.isDown)x=1;if(this.keys.up.isDown)y=-1;if(this.keys.down.isDown)y=1;
     if(this.held.has('KeyA'))x=-1;if(this.held.has('KeyD'))x=1;if(this.held.has('KeyW'))y=-1;if(this.held.has('KeyS'))y=1;
+    this.stun=Math.max(0,this.stun-delta);this.dizzy.clear();
+    if(this.stun){
+      // Dazed: stars circling over the head, every order dropped.
+      x=y=0;this.stopNavigation();this.pending=this.boardAt='';
+      for(let i=0;i<4;i++){const a=this.time.now/130+i*Math.PI/2,sx=Math.round(Math.cos(a)*22),sy=Math.round(-62+Math.sin(a)*7);this.dizzy.fillStyle(0x1d2622).fillRect(sx-2,sy-6,4,12).fillRect(sx-6,sy-2,12,4).fillStyle(0xf2c230).fillRect(sx-1,sy-5,2,10).fillRect(sx-5,sy-1,10,2)}
+    }
     if(x||y){this.stopNavigation();this.pending=''}
     // Jostling rather than solid people: brushing past someone slows both for a moment, and a walking player is nudged aside. One check per commuter, however crowded.
     this.bump=Math.min(1,this.bump+delta/700);
     for(const c of this.commuters){
       const dx=this.player.x-c.image.x,dy=(this.player.y-c.image.y)*1.6,d=Math.hypot(dx,dy);if(d>=18||c.image.alpha<.5)continue;
       this.bump=Math.min(this.bump,.35);c.bump=Math.min(c.bump??1,.4);
+      // Standing in the middle, where people get off: shoved aside and left dazed, every order dropped and no boarding on their own afterwards (`stayed`): it takes another click, or E.
+      const step=c.steps[0];if(!this.stun&&step&&'off' in step&&step.off){const to=this.player.x+(dx<0?-1:1)*18;this.stun=stunned;this.stayed=step.off[0];x=y=0;this.stopNavigation();this.pending=this.boardAt='';if(this.canWalk(to,this.player.y))this.tweens.add({targets:this.player,x:to,duration:120})}
       const push=(18-d)*.25/(d||1),nx=this.player.x+dx*push,ny=this.player.y+dy/1.6*push;if((x||y||this.path.length)&&d&&this.canWalk(nx,ny))this.player.setPosition(nx,ny);
     }
     const speed=380*walkFactor(this.wallet)*this.bump*Math.min(delta,40)/1000;
