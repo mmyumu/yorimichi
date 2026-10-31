@@ -7,7 +7,7 @@ export const minuteMs=60000/speed;
 /** As at JR East's stations, minutes of the day: the shutters go up at 4:30 and down at 1:00, the first trains are due from 4:40 and the last ones by 0:45
  * (the Yamanote Line's run from about 4:26 to about 1:04). */
 export const opens=270,closes=60,firstTrain=280,lastTrain=45;
-/** After a night in bed (Journey.sleep in main.ts) the traveller gets up at 9:00, the time a new journey starts. */
+/** When a new journey starts, and what the bedside alarm (alarm.ts) is set to until it is turned. */
 export const wake=540;
 let now=0,shown='',last=performance.now();
 /** The clock in minutes from the epoch (a day is 1440): the trains' times are counted in these. */

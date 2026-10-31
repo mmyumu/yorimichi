@@ -1,4 +1,4 @@
-import { fareMapHeight, fareMapWidth, renderTokyoFareMap, onTokyoBoard } from './tokyo-fares';
+import { fareMapHeight, fareMapWidth, renderFareMap } from './tokyo-fares';
 import { connectedPad } from './pad';
 import { HallScene } from './hall-scene';
 import { HallPicture } from './hall-picture';
@@ -77,8 +77,8 @@ export class MachineHall {
   private focusDevice(device:Device){this.x=this.targetX=device.x+250;this.yaw=0;this.pitch=-5;this.activate();}
   /** Whether A / E would use the nearest machine rather than turn back towards the machines. */
   private facingMachines(){return this.pitch<=10&&Math.abs(this.yaw)<=18}
-  /** Whether the head is raised to the Tokyo fare map: it is highlighted and A / E / a click reads it. */
-  private facingMap(){return onTokyoBoard(stations[this.hub].ja)&&this.pitch>10&&Math.abs(this.yaw)<=25}
+  /** Whether the head is raised to the fare map: it is highlighted and A / E / a click reads it. */
+  private facingMap(){return this.pitch>10&&Math.abs(this.yaw)<=25}
   private activate(){
     if(this.paused)return;
     if(this.facingMap()){this.openMapDetail();return;}
@@ -89,7 +89,7 @@ export class MachineHall {
     this.pause();this.open(device.kind,device.id);
   }
   private openMapDetail(){
-    if(this.mapDetail||!onTokyoBoard(stations[this.hub].ja))return;
+    if(this.mapDetail)return;
     this.keys.clear();
     const detail=this.el(this.overlay,'section','','hall-map-detail');
     detail.setAttribute('role','dialog');detail.setAttribute('aria-modal','true');detail.setAttribute('aria-label','Detailed JR map');
@@ -99,7 +99,7 @@ export class MachineHall {
     this.el(toolbar,'span','Wheel, pinch or LT / RT: zoom · drag or sticks: move','hall-map-selected');
     const viewport=this.el(detail,'div','','hall-map-canvas');viewport.tabIndex=0;
     viewport.setAttribute('aria-label','JR map, drag horizontally and vertically');
-    const diagram=renderTokyoFareMap(stations[this.hub].ja);viewport.append(diagram);
+    const diagram=renderFareMap(stations[this.hub].ja);viewport.append(diagram);
     // Zooming out stops once the whole map fits; the point under the cursor (or the centre) stays in place.
     let zoom=1;
     const size=()=>{diagram.style.width=`${fareMapWidth*zoom}px`;diagram.style.height=`${fareMapHeight*zoom}px`};

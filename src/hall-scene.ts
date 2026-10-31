@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
-import { renderWallFareMap, onTokyoBoard } from './tokyo-fares';
-import { boardLines, hasShinkansen, stations, type Hub } from './network';
+import { renderWallFareMap } from './tokyo-fares';
+import { exitName, hasShinkansen, inKyoto, stations, type Hub } from './network';
 import { looks, type Figure, type Look } from './people';
 
 /** Machines as the hall knows them; x is the left edge in wall pixels. */
@@ -83,8 +83,12 @@ function paintHanging(g:CanvasRenderingContext2D,w:number,h:number,o:{ja:string;
   pixelText(g,o.ja,x,h*.36,Math.round(h*.4),ink,'left',true);pixelText(g,o.en,x,h*.78,Math.round(h*.25),ink,'left',true);
   if(o.arrow==='→')pixelText(g,'→',w-8-s/2,h/2,s,ink,'center',true);
 }
+/** The destinations on the hall's light-box posters. */
+export type Poster='kamakura'|'nikko'|'arashiyama'|'inari';
+/** The posters either side of the bank and the one by the office: Kyoto's stations advertise their own. */
+export const hallPosters=(hub:Hub):[Poster,Poster,Poster]=>inKyoto(hub)?['arashiyama','inari','kamakura']:['kamakura','nikko','arashiyama'];
 /** Light-box travel posters for the game's own destinations. */
-export function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'kamakura'|'nikko'|'arashiyama'){
+export function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:Poster){
   let seed=place.length*977;const rand=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
   const ih=h-36;
   if(place==='kamakura'){
@@ -108,6 +112,11 @@ export function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'
     for(let x=cx-24;x<cx+24;x+=8)box(g,x,ground-78,4,16,'#d8b04a');
     for(let i=0;i<12;i++)box(g,cx-30-i*2,ground-98+i,60+i*4,1,'#2f3a36');box(g,cx-54,ground-87,108,1,'#d8b04a');
     box(g,cx-30,ground-100,60,2,'#2f3a36');box(g,cx-33,ground-102,3,4,'#d8b04a');box(g,cx+30,ground-102,3,4,'#d8b04a');
+  }else if(place==='inari'){
+    // Fushimi Inari's tunnel of vermilion torii, closing in on the light at its end.
+    box(g,0,0,w,ih,'#2c1a14');box(g,Math.round(w/2)-10,Math.round(ih*.42),20,Math.round(ih*.3),'#e9d9a8');
+    for(let i=9;i>=0;i--){const inset=i*6,l=inset,r=w-inset,top=4+Math.round(i*ih*.04),c=i%2?'#c8352b':'#d2402e';box(g,l,top,r-l,7,'#2c1a14');box(g,l,top+7,r-l,6,c);box(g,l+3,top+13,8,ih-top-13-i*2,c);box(g,r-11,top+13,8,ih-top-13-i*2,c)}
+    box(g,0,ih-12,w,12,'#7d7666');
   }else{
     box(g,0,0,w,ih,'#b9d8a0');
     for(let x=0;x<w;){const sw=3+Math.round(rand()*2),color=['#4f8a4a','#6fa863','#3f6f3e'][Math.floor(rand()*3)];box(g,x,0,sw,ih,color);for(let y=Math.round(rand()*18);y<ih;y+=18)box(g,x,y,sw,1,'#a9cf8f');x+=sw+2+Math.round(rand()*5)}
@@ -115,7 +124,7 @@ export function paintPoster(g:CanvasRenderingContext2D,w:number,h:number,place:'
   }
   pixelText(g,'寄り道しよう。',8,12,11,'#283e40','left',true);
   box(g,0,ih,w,h-ih,'#fbfbf6');box(g,0,ih,w,2,'#c9c4a6');
-  const [ja,en]={kamakura:['鎌倉','Kamakura'],nikko:['日光','Nikko'],arashiyama:['嵐山','Arashiyama']}[place];
+  const [ja,en]={kamakura:['鎌倉','Kamakura'],nikko:['日光','Nikko'],arashiyama:['嵐山','Arashiyama'],inari:['伏見稲荷','Fushimi Inari']}[place];
   pixelText(g,ja,8,ih+13,16,C.ink,'left',true);pixelText(g,en,8,ih+28,9,'#65735a','left');pixelText(g,'JR線でどうぞ',w-6,ih+28,8,'#65735a','right');
 }
 /** The ticket office front: green sign band, glazed counters with clerks, an open door (the `door`th bay). */
@@ -284,11 +293,11 @@ export class HallScene {
   }
   /** What surrounds the bank: posters beside it, the ticket office and the central gates on the left, the transfer gates or the shop on the right, overhead signs and commuters. */
   private buildConcourse(){
-    const poster=(x:number,z:number,place:'kamakura'|'nikko'|'arashiyama')=>{
+    const poster=(x:number,z:number,place:Poster)=>{
       const frame=new THREE.Mesh(new THREE.BoxGeometry(600,840,24),this.material(C.steel));frame.position.set(x,-1010,z+12);this.scene.add(frame);
       this.plane(560,800,this.material(this.texture(140,200,(g,w,h)=>paintPoster(g,w,h,place)))).position.set(x,-1010,z+25);
     };
-    poster(-280,0,'kamakura');poster(4080,0,'nikko');poster(9300,officeZ,'arashiyama');
+    const [left,right,far]=hallPosters(this.hub);poster(-280,0,left);poster(4080,0,right);poster(9300,officeZ,far);
     // Automatic ticket gates: grey cabinets with a blue stripe, their ends showing the green go arrow; the central gates on the left, the Shinkansen transfer gates on the right.
     const gateFront=this.material(this.texture(28,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);box(g,0,0,w,10,C.gateTop);box(g,4,14,w-8,12,'#1d2622');pixelText(g,'↑',w/2,20,10,'#57c26a','center',true);box(g,0,h-10,w,10,'#9aa29a')}));
     const gateSide=this.material(this.texture(175,120,(g,w,h)=>{box(g,0,0,w,h,C.gate);dither(g,0,h-14,w,4,C.bodyShade);box(g,0,0,w,10,C.gateTop);box(g,0,26,w,3,'#3a78c2');box(g,0,h-10,w,10,'#9aa29a');box(g,w/2-14,40,28,30,'#c9cdc4',C.bodyEdge)}));
@@ -300,7 +309,7 @@ export class HallScene {
     this.hanging(-1840,gateZ,420,1500,220,(g,w,h)=>paintHanging(g,w,h,{ja:'中央改札',en:'Central Gate',mark:'改',markBg:'#f2c230'}));
     // The yellow exit signs wrap the concourse pillars on either side of the bank, as on the top-down map.
     for(const [{x,z},west] of [[this.exitPillars[0],true],[this.exitPillars[1],false]] as const){
-      const sign=this.material(this.texture(80,64,(g,w,h)=>{box(g,0,0,w,h,'#f2c230');box(g,0,h-3,w,3,'#c9a020');box(g,west?38:10,4,30,30,'#1d2622');pixelText(g,'出',west?53:25,19,24,'#f2c230','center',true);pixelText(g,west?'←':'→',west?20:62,19,24,'#1d2622','center',true);pixelText(g,west?'西口':'東口',w/2,44,14,'#1d2622','center',true);pixelText(g,west?'West Exit':'East Exit',w/2,57,9,'#1d2622','center',true)})),steel=this.material(C.steel);
+      const sign=this.material(this.texture(80,64,(g,w,h)=>{box(g,0,0,w,h,'#f2c230');box(g,0,h-3,w,3,'#c9a020');box(g,west?38:10,4,30,30,'#1d2622');pixelText(g,'出',west?53:25,19,24,'#f2c230','center',true);pixelText(g,west?'←':'→',west?20:62,19,24,'#1d2622','center',true);pixelText(g,exitName(this.hub,west?'west':'east')[0],w/2,44,14,'#1d2622','center',true);pixelText(g,exitName(this.hub,west?'west':'east')[1],w/2,57,9,'#1d2622','center',true)})),steel=this.material(C.steel);
       const band=new THREE.Mesh(new THREE.BoxGeometry(320,256,320),[sign,sign,steel,steel,sign,sign]);band.position.set(x,-880,z);this.scene.add(band);
     }
     this.hanging(-3600,300,560,1300,200,(g,w,h)=>paintHanging(g,w,h,{ja:'みどりの窓口',en:'JR Ticket Office',mark:'み',markBg:'#2c8a4a',markInk:'#fff',arrow:'←'}));
@@ -323,24 +332,12 @@ export class HallScene {
     const nameW=860,nameH=140;
     const station=stations[this.hub];
     this.plane(nameW,nameH,this.material(this.texture(nameW/texel,nameH/texel,(g,cw,ch)=>{box(g,0,0,cw,ch,C.ink);box(g,0,ch-3,cw,3,station.accent);pixelText(g,`${station.ja}  ${station.en.toUpperCase()}`,cw/2,(ch-3)/2,22,'#fffef2','center',true)}))).position.set(cx,-(50+nameH/2),2);
-    // Only the Tokyo map opens in detail, so only it can be highlighted and clicked.
-    if(onTokyoBoard(stations[this.hub].ja)){this.boardFrame=frame;frame.userData.device='map';this.boardMeshes.push(frame)}
-    if(onTokyoBoard(stations[this.hub].ja)){
-      // The fare map is the vector SVG itself, kept sharp to be readable; the WebGL plane only clears its pixels to transparent.
-      const holder=document.createElement('div');holder.className='hall-board';holder.style.width=w+'px';holder.style.height=h+'px';
-      const svg=renderWallFareMap(station.ja);svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));holder.append(svg);
-      const board=new CSS3DObject(holder);board.scale.setScalar(scale);board.position.set(cx,cy,14.5);this.cssScene.add(board);
-      const hole=this.plane(bw,bh,this.hole);hole.position.copy(board.position);hole.userData.device='map';this.boardMeshes.push(hole);
-    }else{
-      const texture=this.texture(w/texel,h/texel,(g,cw,ch)=>{
-        // One line per route from the station, which is marked in red at their left end.
-        box(g,0,0,cw,ch,'#fffef2');pixelText(g,station.ja+'駅 · のりば案内',cw-12,14,14,'#2d563e','right',true);
-        const row=(y:number,line:string,color:string,destination:string)=>{g.fillStyle=color;g.fillRect(70,y,cw-180,4);box(g,58,y-4,12,12,'#d6402e','#fff');box(g,cw-110,y-4,12,12,'#fff',C.ink);pixelText(g,station.ja,40,y+2,13,'#d6402e','center',true);pixelText(g,line,(cw-40)/2,y-12,12,color,'center',true);pixelText(g,destination,cw-92,y+2,13,C.ink,'left')};
-        boardLines(this.hub).forEach((route,i)=>row(70+i*60,`${route.ja} ${route.line.replace(/ Line$/,'').toUpperCase()}`,route.color,route.name.split(' / ')[1]));
-        pixelText(g,`Detailed ${station.en} fare map coming soon.`,12,ch-14,12,'#65735a','left');
-      });
-      const board=this.plane(bw,bh,this.material(texture));board.position.set(cx,cy,14.5);
-    }
+    this.boardFrame=frame;frame.userData.device='map';this.boardMeshes.push(frame);
+    // The fare map is the vector SVG itself, kept sharp to be readable; the WebGL plane only clears its pixels to transparent.
+    const holder=document.createElement('div');holder.className='hall-board';holder.style.width=w+'px';holder.style.height=h+'px';
+    const svg=renderWallFareMap(station.ja);svg.setAttribute('width',String(w));svg.setAttribute('height',String(h));holder.append(svg);
+    const board=new CSS3DObject(holder);board.scale.setScalar(scale);board.position.set(cx,cy,14.5);this.cssScene.add(board);
+    const hole=this.plane(bw,bh,this.hole);hole.position.copy(board.position);hole.userData.device='map';this.boardMeshes.push(hole);
   }
   /** The machine bank: a pale facade standing out from the wall, a lit sign over each machine, the machines set back in their recesses, a steel ledge and a plain cabinet below. */
   private buildBank(devices:HallDevice[]){

@@ -3,7 +3,7 @@ import { connectedPad } from './pad';
 import { paintTicket } from './ticket-gate';
 import { fareBetween, faresFrom, shinkansenMinutes } from './fares';
 import { railLine } from './rail';
-import { onTokyoBoard, renderTokyoFareMap } from './tokyo-fares';
+import { renderFareMap } from './tokyo-fares';
 import { accepted, coinCount, heapSpot, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
 
 // `punched` with the hub whose gate let it through on the way in: the gate's punch leaves a hole in it, and the ticket knows where its trip began.
@@ -359,16 +359,16 @@ export class TicketMachine {
       this.button(grid,'QR Code\n\n▦',()=>{},'',true);
     }else if(this.step==='fares'){
       this.element(body,'div',tr('JR線 きっぷ　　大人片道','JR Tickets · Adult single fare'),'fare-tabs');
-      // Every fare from here by local lines; the Tokyo area's board shows them from this station (in the hall it is on the wall above: looking up is the player's move, not a machine button).
-      const here=stations[this.hub],board=onTokyoBoard(here.ja);
-      if(board&&!this.uiOptions.lookAtWall)this.button(body,tr(here.ja+'駅からの運賃表を見る','View JR fare map from '+here.en),()=>this.go('map'),'open-fare-map');
+      // Every fare from here by local lines; the board shows them from this station (in the hall it is on the wall above: looking up is the player's move, not a machine button).
+      const here=stations[this.hub];
+      if(!this.uiOptions.lookAtWall)this.button(body,tr(here.ja+'駅からの運賃表を見る','View JR fare map from '+here.en),()=>this.go('map'),'open-fare-map');
       const grid=this.element(body,'div','','fare-grid all-fares');
       faresFrom(here.ja).forEach(amount=>this.button(grid,'¥'+amount.toLocaleString('en-US'),()=>{this.route=null;this.fareAmount=amount;this.pay()}));
-      this.element(body,'p',board?tr('運賃表で目的地の金額を調べてからお選びください。','Read the fare map, then choose your amount.'):tr(here.ja+'駅の運賃表は準備中です。運賃は駅員におたずねください。',here.en+' fare map will come later: ask the station staff for a fare.'),'fare-note');
+      this.element(body,'p',tr('運賃表で目的地の金額を調べてからお選びください。','Read the fare map, then choose your amount.'),'fare-note');
     }else if(this.step==='map'){
       const tools=this.element(body,'div','','map-tools');
-      const viewport=this.element(body,'div','','fare-map-viewport');viewport.tabIndex=0;viewport.setAttribute('aria-label','Scrollable Tokyo JR fare map');
-      const diagram=renderTokyoFareMap(stations[this.hub].ja);diagram.style.width=(1500*this.mapZoom)+'px';diagram.style.height=(844*this.mapZoom)+'px';viewport.append(diagram);
+      const viewport=this.element(body,'div','','fare-map-viewport');viewport.tabIndex=0;viewport.setAttribute('aria-label','Scrollable JR fare map');
+      const diagram=renderFareMap(stations[this.hub].ja);diagram.style.width=(1500*this.mapZoom)+'px';diagram.style.height=(844*this.mapZoom)+'px';viewport.append(diagram);
       const zoom=(factor:number)=>{
         const old=this.mapZoom;this.mapZoom=Math.max(.55,Math.min(1.8,old*factor));const ratio=this.mapZoom/old;
         const x=(viewport.scrollLeft+viewport.clientWidth/2)*ratio-viewport.clientWidth/2,y=(viewport.scrollTop+viewport.clientHeight/2)*ratio-viewport.clientHeight/2;

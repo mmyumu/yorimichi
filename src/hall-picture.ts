@@ -1,7 +1,7 @@
-import { C, accents, anchors, box, dither, facadeD, facadeTop, floorY, fromConcourse, housings, machineW, paintPerson, paintPoster, recessBottom, recessD, recessTop, signH, wallL, wallR, type HallDevice } from './hall-scene';
+import { C, accents, anchors, box, dither, facadeD, facadeTop, floorY, fromConcourse, hallPosters, housings, machineW, paintPerson, paintPoster, recessBottom, recessD, recessTop, signH, wallL, wallR, type HallDevice, type Poster } from './hall-scene';
 import { Picture, type View } from './ticket-gate';
-import { renderWallFareMap, onTokyoBoard } from './tokyo-fares';
-import { boardLines, hasShinkansen, stations, type Hub } from './network';
+import { renderWallFareMap } from './tokyo-fares';
+import { hasShinkansen, inKyoto, stations, type Hub } from './network';
 import { looks, type Figure } from './people';
 
 type P=[number,number,number];
@@ -43,7 +43,7 @@ export class HallPicture {
   // One sheet of eight frames per look, drawn at one scale whatever their depth (the strip before the machines is too shallow for a size change to read as distance): 2.5, an adult's height before the machines, 1.5 for a child.
   private sheets=looks.map(look=>{const c=document.createElement('canvas');c.width=160;c.height=48;paintPerson(c.getContext('2d')!,look);return c});
   private posters=new Map<string,HTMLCanvasElement>();
-  // Where each machine (and the Tokyo fare map) is on the picture, for highlights and clicks.
+  // Where each machine (and the fare map) is on the picture, for highlights and clicks.
   private rects=new Map<string,Rect>();
   private hovered:string|null=null;
   private resize=new ResizeObserver(()=>this.fit());
@@ -51,11 +51,9 @@ export class HallPicture {
   constructor(private host:HTMLElement,private hub:Hub,private devices:HallDevice[],private figures:()=>Figure[]=()=>[]){
     this.xAnchors=anchors(hasShinkansen(hub));
     this.canvas.width=this.backdrop.width=W;this.canvas.height=this.backdrop.height=H;this.wrap.className='hall-picture';this.wrap.append(this.canvas);host.append(this.wrap);
-    if(onTokyoBoard(stations[hub].ja)){
-      // The fare map stays the crisp SVG, laid over the picture where its board is.
-      this.map=document.createElement('div');this.map.className='hall-picture-map';
-      const svg=renderWallFareMap(stations[hub].ja);svg.setAttribute('width','100%');svg.setAttribute('height','100%');this.map.append(svg);this.wrap.append(this.map);
-    }
+    // The fare map stays the crisp SVG, laid over the picture where its board is.
+    this.map=document.createElement('div');this.map.className='hall-picture-map';
+    const svg=renderWallFareMap(stations[hub].ja);svg.setAttribute('width','100%');svg.setAttribute('height','100%');this.map.append(svg);this.wrap.append(this.map);
     this.resize.observe(host);this.fit();
     // The posters' lettering uses the bundled Japanese font: painted again once it is ready.
     document.fonts?.load('16px "Yorimichi JP"').then(()=>{this.posters.clear();this.painted=''}).catch(()=>{});
@@ -67,7 +65,7 @@ export class HallPicture {
     const fit=Math.min(this.host.clientWidth/W,this.host.clientHeight/H),scale=fit>=2?Math.floor(fit):fit;
     this.wrap.style.width=W*scale+'px';this.wrap.style.height=H*scale+'px';
   }
-  private poster(place:'kamakura'|'nikko'){
+  private poster(place:Poster){
     let image=this.posters.get(place);if(!image){image=document.createElement('canvas');image.width=140;image.height=200;paintPoster(image.getContext('2d')!,140,200,place);this.posters.set(place,image)}
     return image;
   }
@@ -81,40 +79,35 @@ export class HallPicture {
     // Only what can show either side of the eye.
     const x0=Math.floor((ex-1800)/240)*240,x1=ex+1800;
     // Floor in 120-unit checks, the machines' contact shadow and the tactile paving along them; the ceiling with a light.
-    g.fillStyle=C.floorA;g.fillRect(0,0,W,H);
-    for(let x=x0;x<x1;x+=120)for(let z=0;z<1440;z+=120)if(((x+z)/120&1)===0)flat(x,x+120,floorY,z,z+120,C.floorB);
+    // At Kyoto: stone flags, a timbered ceiling with a row of paper lanterns, white plaster between dark posts.
+    const kyoto=inKyoto(this.hub);
+    g.fillStyle=kyoto?'#bfbaae':C.floorA;g.fillRect(0,0,W,H);
+    for(let x=x0;x<x1;x+=120)for(let z=0;z<1440;z+=120)if(((x+z)/120&1)===0)flat(x,x+120,floorY,z,z+120,kyoto?'#b3aea2':C.floorB);
     const left=Math.min(...this.devices.map(d=>d.x))-120,right=Math.max(...this.devices.map(d=>d.x))+machineW+120;
     flat(left,right,floorY,facadeD,facadeD+60,C.floorLine,C.floorB);
     flat(wallL+300,wallR-300,floorY,528,592,'#e8c440','#cfa72c');
-    flat(x0,x1,0,0,2400,C.ceiling);flat(x0,x1,0,90,130,C.light);
+    flat(x0,x1,0,0,2400,kyoto?'#3e2c20':C.ceiling);if(!kyoto)flat(x0,x1,0,90,130,C.light);
     // Tiled wall, 300 × 176.
-    front(x0,x1,0,floorY,0,C.tile);
-    for(let x=wallL+Math.ceil((x0-wallL)/300)*300;x<x1;x+=300)line(at(x,0,0),at(x,floorY,0),C.grout);
-    for(let y=176;y<floorY;y+=176)line(at(x0,y,0),at(x1,y,0),C.grout);
+    front(x0,x1,0,floorY,0,kyoto?'#efe8d8':C.tile);
+    if(kyoto){for(let x=wallL+Math.ceil((x0-wallL)/600)*600;x<x1;x+=600)front(x-24,x+24,0,floorY,1,'#5a4030');front(x0,x1,960,984,1,'#5a4030')}
+    else{for(let x=wallL+Math.ceil((x0-wallL)/300)*300;x<x1;x+=300)line(at(x,0,0),at(x,floorY,0),C.grout);
+    for(let y=176;y<floorY;y+=176)line(at(x0,y,0),at(x1,y,0),C.grout)}
     // Posters either side of the bank.
-    for(const [x,place] of [[-280,'kamakura'],[4080,'nikko']] as const){
+    const [leftPoster,rightPoster]=hallPosters(this.hub);for(const [x,place] of [[-280,leftPoster],[4080,rightPoster]] as const){
       if(Math.abs(x-ex)>2400)continue;
       front(x-300,x+300,590,1430,24,C.steel);
       const [l,t,r,b]=this.rect(x-280,x+280,610,1410,25);g.drawImage(this.poster(place),l,t,r-l,b-t);
     }
-    // The station's name over the board, then the board: the Tokyo fare map is laid over it, the others list their routes with the station in red.
+    // The station's name over the board, then the board: the fare map is laid over it.
+    if(kyoto)for(let x=Math.floor(x0/600)*600+150;x<x1;x+=600){front(x-5,x+5,0,70,3,'#1f1612');front(x-50,x+50,70,190,3,'#f2e6c8');front(x-50,x+50,70,82,3,'#3a281d');front(x-50,x+50,178,190,3,'#3a281d');front(x-40,x+40,118,142,3,'#c8452e')}
     front(board.cx-plate.w/2,board.cx+plate.w/2,plate.top,plate.top+plate.h,2,C.ink);front(board.cx-plate.w/2,board.cx+plate.w/2,plate.top+plate.h-14,plate.top+plate.h,2,station.accent);
     const [,pt,,pb]=this.rect(0,0,plate.top,plate.top+plate.h-14,2);letter(g,`${station.ja}  ${station.en.toUpperCase()}`,pic.project(at(board.cx,0,2))[0],(pt+pb)/2,'#fffef2');
     front(board.cx-board.w/2-board.border,board.cx+board.w/2+board.border,board.top,board.top+board.h+board.border*2,14,C.frame);
     const inner=this.rect(board.cx-board.w/2,board.cx+board.w/2,board.top+board.border,board.top+board.border+board.h,14.5),[l,t,r,b]=inner;
     front(board.cx-board.w/2,board.cx+board.w/2,board.top+board.border,board.top+board.border+board.h,14.5,'#fffef2');
-    if(!onTokyoBoard(stations[this.hub].ja)){
-      letter(g,`${station.ja}駅 のりば案内`,r-6,t+9,'#2d563e','right');
-      boardLines(this.hub).forEach((route,i)=>{
-        const y=Math.round(t+(b-t)*.4+i*28);
-        letter(g,station.ja,l+8,y,'#d6402e','left');box(g,l+32,y-3,7,7,'#d6402e','#fff');box(g,l+39,y-1,r-l-90,3,route.color);box(g,r-51,y-3,7,7,'#fff',C.ink);
-        letter(g,route.ja,(l+r-12)/2,y-10,route.color);letter(g,route.name.split(' / ')[1],r-40,y,C.ink,'left');
-      });
-      letter(g,station.en+' · '+station.ja,l+8,b-9,'#65735a','left');
-    }
     if(this.map)Object.assign(this.map.style,{left:l/W*100+'%',top:t/H*100+'%',width:(r-l)/W*100+'%',height:(b-t)/H*100+'%'});
     this.rects.clear();
-    if(onTokyoBoard(stations[this.hub].ja))this.rects.set('map',this.rect(board.cx-board.w/2-board.border,board.cx+board.w/2+board.border,board.top,board.top+board.h+board.border*2,14));
+    this.rects.set('map',this.rect(board.cx-board.w/2-board.border,board.cx+board.w/2+board.border,board.top,board.top+board.h+board.border*2,14));
     // The bank: each machine in its recess (housing, side reveals, tilted screen, payment block), then the facade around them, the ledge and the lit signs.
     for(const d of this.devices){
       const x=d.x,back=facadeD-recessD,housing=housings[d.kind]??housings.local,kind=d.kind;

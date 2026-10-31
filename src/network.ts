@@ -6,7 +6,7 @@ import { shinkansenFare } from './fares';
 export type Hub=string;
 /** Beyond the stations: an exit's own map, the street outside (`town`), the corridor behind a station's gates with the stairs up to its platforms
  * (which station and gates: `Journey.gateway`), a platform, and the traveller's home: the lane from the street outside its station (`home-street`) and the apartment at its end. */
-export type Place=Hub|'kamakura-trail'|'arashiyama'|'town'|'corridor'|'platform'|'home-street'|'apartment';
+export type Place=Hub|'kamakura-trail'|'arashiyama'|'town'|'corridor'|'platform'|'home-street'|'kyoto-lane'|'apartment';
 export type Side='west'|'east';
 /** The konbini chains: the shop by a station's street is the same for all, only its sign differs (see makeTown). */
 export type Konbini='seven'|'family'|'lawson';
@@ -18,24 +18,33 @@ export type Service='shinkansen'|'local';
  * leaving from `platform`, the track at the station whose trains run its way (see runOf in platform.ts). Local trips are fare tickets (fares.ts). */
 export interface Route {id:string;from:Hub;to:Hub;service:Service;name:string;lineId:string;line:string;ja:string;color:string;fare:number;platform:string}
 /** The places that are not stations, by name. */
-export const places:Record<string,string>={'kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path',town:'Outside the station',corridor:'To the platforms',platform:'On the platform','home-street':'Higashi-Nakano · The way home',apartment:'Higashi-Nakano · Home'};
+export const places:Record<string,string>={'kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path',town:'Outside the station',corridor:'To the platforms',platform:'On the platform','home-street':'Higashi-Nakano · The way home','kyoto-lane':'Jujo · The way home',apartment:'Higashi-Nakano · Home'};
 /** Where the traveller lives: the street outside this station's exit has a lane at its left end (the 東中野一丁目 sign) to the home street, the apartment at its end. */
 export const home:{hub:Hub;side:Side}={hub:'higashi-nakano',side:'west'};
+/** The rental in Kyoto: the same sign in the street outside Jujo on the Karasuma Line, leading to the lane of its little house (`kyoto-lane`). */
+export const kyotoHome:{hub:Hub;side:Side}={hub:'jujo-kyoto',side:'west'};
+/** What a station's exit is called, in Japanese and English, on its signs. */
+export const exitName=(hub:Hub,side:Side):[string,string]=>stations[hub].exits?.[side]??(side==='west'?['西口','West Exit']:['東口','East Exit']);
+/** The stations in Kyoto itself and just outside it, built in its timber and tile (makeHub, makeTown in art.ts; `paint` in hall-picture.ts): the same layout, dressed otherwise. */
+const kyotoStations=new Set('国際会館 松ヶ崎 北山 北大路 鞍馬口 今出川 丸太町 烏丸御池 四条 五条 九条 十条\u200b くいな橋 竹田 出町柳 神宮丸太町 三条 祇園四条 清水五条 七条 鳥羽街道 伏見稲荷 龍谷大前深草 藤森 墨染 丹波橋 中書島 京都 梅小路京都西 丹波口 二条 円町 花園 太秦 嵯峨嵐山 西大路 桂川 東福寺 稲荷 JR藤森 桃山 六地蔵 黄檗 宇治 山科'.split(' '));
+export const inKyoto=(hub:Hub)=>kyotoStations.has(stations[hub].ja);
 export const isHub=(place:Place):place is Hub=>place in stations;
 
 /** The stations, all laid out alike (see art.ts and hall-scene.ts): what tells them apart is their name, accent colour, exits (`west` and `east`: their name on the signs and
  * what lies that way; empty for a plain 西口 / 東口), and the far right of the concourse, the Shinkansen transfer gates where the station has a Shinkansen platform, a NewDays shop otherwise.
  * An exit listed in `maps` leads to that place's own map; every other one to the generic street outside the station (`town`).
  * `tracks` numbers the two tracks of each line stopping there (rail.ts, by id), lines of one colour sharing a pair, and the routes leave from them; lines sharing a pair share the island platform. */
-export interface Station {id:Hub;ja:string;en:string;accent:string;west:[string,string];east:[string,string];maps?:Partial<Record<Side,Place>>;tracks:Record<string,[number,number]>}
+export interface Station {id:Hub;ja:string;en:string;accent:string;west:[string,string];east:[string,string];maps?:Partial<Record<Side,Place>>;exits?:Record<Side,[string,string]>;tracks:Record<string,[number,number]>}
 /** What sets some stations apart: names for their exits, real-looking track numbers, an exit with its own map. */
 const known:Record<string,Partial<Station>>={
   東京:{accent:'#b66c51',west:['Marunouchi / Bus','Marunouchi and the buses'],east:['Yaesu / Taxi','Yaesu and the taxis'],
     tracks:{'chuo-rapid':[1,2],'keihin-tohoku':[3,4],yamanote:[5,6],utsunomiya:[7,8],takasaki:[7,8],tokaido:[9,10],joban:[11,12],'yokosuka-sobu':[13,14],keiyo:[15,16],'tokaido-shinkansen':[18,19],'tohoku-shinkansen':[20,21]}},
-  京都:{accent:'#608776',west:['Hachijo / Bus','Hachijo and the buses'],east:['Karasuma / Taxi','Karasuma and the taxis'],
-    tracks:{'biwako-kyoto':[4,5],kosei:[6,7],nara:[8,9],sagano:[32,33],'tokaido-shinkansen':[11,12]}},
+  京都:{accent:'#7a4a32',west:['Karasuma / Bus','Karasuma and the bus terminal'],east:['Hachijo / Taxi','Hachijo and the taxis'],exits:{west:['烏丸口','Karasuma Exit'],east:['八条口','Hachijo Exit']},
+    tracks:{'biwako-kyoto':[4,5],kosei:[6,7],nara:[8,9],sagano:[32,33],karasuma:[34,35],'tokaido-shinkansen':[11,12]}},
   鎌倉:{accent:'#3f6f9e',west:['Onari / Enoden','Onari-dori and the Enoden line'],east:['Komachi / Temples','Komachi-dori and the temples'],maps:{east:'kamakura-trail'}},
+  東中野:{west:['1-chome / Home','Higashi-Nakano 1-chome and the way home']},
   嵯峨嵐山:{east:['Bamboo path','the bamboo path and the river'],maps:{east:'arashiyama'}},
+  稲荷:{accent:'#c8452e'},
 };
 const accents=['#b66c51','#608776','#3f6f9e','#8a6a9e','#9e7b3f','#5c7f8f','#a0565f','#6b7f4a'];
 /** The tracks of a station without its own numbering: a pair for each line in board order, local lines first, lines of one colour (Utsunomiya and Takasaki) sharing theirs. */
@@ -45,7 +54,7 @@ function numberTracks(ja:string){
   return tracks;
 }
 export const stations:Record<Hub,Station>=Object.fromEntries([...new Set(railLines.filter(line=>line.service==='local').flatMap(line=>line.stops))].map(ja=>{
-  const en=stopNames[ja],id=en.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const en=stopNames[ja],id=ja==='十条\u200b'?'jujo-kyoto':en.toLowerCase().replace(/[^a-z0-9]+/g,'-');
   return [id,{id,ja,en,accent:accents[hash(id)%accents.length],west:['',''],east:['',''],tracks:numberTracks(ja),...known[ja]} as Station];
 }));
 const byJa=new Map(Object.values(stations).map(station=>[station.ja,station.id]));
@@ -53,8 +62,6 @@ const byJa=new Map(Object.values(stations).map(station=>[station.ja,station.id])
 export const stationAt=(ja:string):Hub|undefined=>byJa.get(ja);
 /** The station an exit's own map lies outside. */
 export const stationOf=(place:Place):Hub=>Object.values(stations).find(station=>Object.values(station.maps??{}).includes(place))!.id;
-/** The lines through a station as its board lists them where it has no fare map: each line's name and colour, and the end of the line it runs to (the other end at a terminus). */
-export const boardLines=(hub:Hub)=>linesAt(stations[hub].ja).map(line=>{const ja=stations[hub].ja,end=line.loop?line.stops[(line.stops.indexOf(ja)+line.stops.length/2)|0]:line.stops.at(-1)===ja?line.stops[0]:line.stops.at(-1)!;return {ja:line.ja,line:line.en,color:line.color,name:`${stopNames[end]} / ${end}`}});
 /** The Shinkansen tickets: between every two stations on a Shinkansen line, from the track running the way of the destination. */
 export const routes:Route[]=railLines.filter(line=>line.service==='shinkansen').flatMap(line=>{
   const at=line.stops.filter(ja=>stationAt(ja));

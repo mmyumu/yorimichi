@@ -1,11 +1,12 @@
 import { fareBetween } from './fares';
+import { kyotoLayout } from './kyoto-fares';
 import { linesAt, railLines, yamanoteStops } from './rail';
 
 /** Paper adult fares transcribed from JR East, 2024-12-06, Fig. 2-1 p.12.
  * These are the proposed 2026 values in that document, not a live fare feed.
  * Metro/private rail and IC fares are deliberately excluded.
  * x/y are positions on the 1920×1080 wall board drawn below; the lines through each come from rail.ts. */
-export interface FareStation {id:string;ja:string;en:string;fare:number;x:number;y:number}
+export interface FareStation {id:string;ja:string;en:string;fare?:number;x:number;y:number}
 export const tokyoStations:FareStation[]=[
 {id:'kumagaya',ja:'熊谷',en:'Kumagaya',fare:1230,x:560,y:130},
 {id:'ageo',ja:'上尾',en:'Ageo',fare:720,x:830,y:130},
@@ -47,18 +48,21 @@ for(const station of tokyoStations)if(fareBetween('東京',station.ja)!==station
 const svgNS='http://www.w3.org/2000/svg';
 export const fareMapWidth=1920,fareMapHeight=1080;
 const font='Yorimichi JP, sans-serif';
-type Side='up'|'down'|'left'|'right';
-type Point=[number,number];
+export type Side='up'|'down'|'left'|'right';
+export type Point=[number,number];
+/** What one fare board adds to rail.ts: where things go. `centre` is the station in the big box at `at`, `brand` the band's colour, `ring` draws the Yamanote loop,
+ * `water` the sea, lakes and rivers under the lines (`river`: a stroke, not a shape), `sights` the places worth a detour (x, y of a tag's top left, its name). */
+export interface Layout {centre:string;at:Point;brand:string;ring?:boolean;stations:FareStation[];pins:Record<string,Point>;pinSides:Record<string,Side>;runs:[string,string,string,Side][];drawnVia:Record<string,string[]>;
+  lineLabels:Record<string,[number,number,string][]>;legendNames:Record<string,string>;cartouche:Record<string,Side|'up-left'|'down-left'|'down-right'>;water:{d:string;river?:boolean}[];waterNames:[number,number,string][];sights?:[number,number,string][];title?:string;scope?:string}
 /** x0, y0, x1, y1. */
 type Box=[number,number,number,number];
-const tokyo:Point=[1220,600];
 const ring={x:1010,y:600,r:210};
 /** The Yamanote loop as the board draws it, from Tokyo; the north half spans 16 steps, the south half 14. */
 const ringAngle=(index:number)=>index<=16?-index*180/16:-180-(index-16)*180/14;
 const onRing=(angle:number,r=ring.r):Point=>[ring.x+r*Math.cos(angle*Math.PI/180),ring.y+r*Math.sin(angle*Math.PI/180)];
 /** The board's layout, which only says where things go: the lines themselves and their stops come from rail.ts.
  * Points are the fare stations (`tokyoStations`), the loop's stations, and `pins`: stations off the fare list where lines meet, and bends (named ↱…, never drawn). */
-const pins:Record<string,Point>={東京:tokyo,御茶ノ水:[1090,525],錦糸町:[1365,600],久里浜:[1125,1000],
+const pins:Record<string,Point>={東京:[1220,600],御茶ノ水:[1090,525],錦糸町:[1365,600],久里浜:[1125,1000],
   '↱赤羽西':[862,420],'↱赤羽東':[1158,420],'↱新宿':[1010,600],'↱秋葉原':[1250,490],'↱錦糸町':[1365,490],'↱日暮里':[1160,365],'↱川崎':[1057,880],'↱横浜':[997,940],'↱京葉1':[1320,725],'↱京葉2':[1320,900]};
 /** Which side the names of pinned stations go. */
 const pinSides:Record<string,Side>={御茶ノ水:'left',錦糸町:'down',久里浜:'down'};
@@ -99,15 +103,15 @@ function join([p,p1]:[Point,Point],[q,q1]:[Point,Point]):Point{
 /** The board worked out from rail.ts and the layout: where every station sits and which side its name goes, the strokes of every local line all of whose stops are placed,
  * each offset into its place among the lines it shares track with, and where each line passes each station it stops at. */
 const board=(()=>{
-  let cached:ReturnType<typeof build>|null=null;return ()=>cached??=build();
-  function build(){
+  const cached=new Map<Layout,ReturnType<typeof build>>();return (layout:Layout)=>{if(!cached.has(layout))cached.set(layout,build(layout));return cached.get(layout)!};
+  function build({ring:loop,pins,stations,runs,drawnVia}:Layout){
     const place=new Map<string,Point>(),side=new Map<string,Side>(),links:Link[]=[];
-    yamanoteStops.forEach((name,i)=>{
+    if(loop)yamanoteStops.forEach((name,i)=>{
       place.set(name,onRing(ringAngle(i)));
       const a0=ringAngle(i),a1=ringAngle(i+1);links.push({a:name,b:yamanoteStops[(i+1)%yamanoteStops.length],pts:[0,1,2,3,4].map(k=>onRing(a0+(a1-a0)*k/4)),away:[ring.x,ring.y],colors:[]});
     });
     for(const [name,point] of Object.entries(pins))place.set(name,point);
-    for(const station of tokyoStations)if(!place.has(station.ja))place.set(station.ja,[station.x,station.y]);
+    for(const station of stations)if(!place.has(station.ja))place.set(station.ja,[station.x,station.y]);
     for(const [from,to,names,s] of runs){
       const p=place.get(from)!,q=place.get(to)!,list=names?names.split(' '):[],chain=[from,...list,to];
       if(!p||!q)throw Error(`Fare board: no place for ${p?to:from}`);
@@ -156,10 +160,14 @@ const board=(()=>{
   }
 })();
 /** Which side of its anchor each fare cartouche sits, away from the small names. */
-const cartouche:Record<string,Side|'up-left'|'down-left'|'down-right'>={kumagaya:'down',ageo:'down',omiya:'up-left',kuki:'down',oyama:'down',tsuchiura:'up',urawa:'left',akabane:'left',toride:'down',kashiwa:'down',ikebukuro:'left',ueno:'right',shinjuku:'down-left',shibuya:'left',shimbashi:'down-right',shinagawa:'down-right',kawasaki:'left',yokohama:'up',ofuna:'up',atami:'up',kichijoji:'down',tachikawa:'down',hachioji:'down',takao:'right',otsuki:'right',kofu:'right',shinkoiwa:'down-right',funabashi:'up',chiba:'left',soga:'right',kamakura:'down'};
+const cartouche:Layout['cartouche']={kumagaya:'down',ageo:'down',omiya:'up-left',kuki:'down',oyama:'down',tsuchiura:'up',urawa:'left',akabane:'left',toride:'down',kashiwa:'down',ikebukuro:'left',ueno:'right',shinjuku:'down-left',shibuya:'left',shimbashi:'down-right',shinagawa:'down-right',kawasaki:'left',yokohama:'up',ofuna:'up',atami:'up',kichijoji:'down',tachikawa:'down',hachioji:'down',takao:'right',otsuki:'right',kofu:'right',shinkoiwa:'down-right',funabashi:'up',chiba:'left',soga:'right',kamakura:'down'};
 
-/** An original wall board in the manner of the JR East 近距離きっぷ運賃表 above ticket machines. */
-function makeTokyoFareMap(label:string,here='東京'):SVGSVGElement{
+const tokyoLayout:Layout={centre:'東京',at:[1220,600],brand:'#008a3e',ring:true,stations:tokyoStations,pins,pinSides,runs,drawnVia,lineLabels,legendNames,cartouche,
+  water:[{d:'M1110 1080 L1110 955 Q1150 900 1225 905 L1290 960 Q1330 1000 1420 990 Q1500 975 1560 1010 L1620 1080Z'}],waterNames:[[1185,1060,'東京湾']]};
+
+/** An original wall board in the manner of the JR East 近距離きっぷ運賃表 above ticket machines, for the region of the station it hangs in. */
+function makeFareMap(here:string):SVGSVGElement{
+  const layout=onTokyoBoard(here)?tokyoLayout:kyotoLayout,{centre,brand,at:hub,stations}=layout,label=`${here}駅からのJR運賃表。主な駅の大人きっぷ運賃。`;
   // Every fare on the board is from the station it hangs in; its own has none.
   const fareOf=(name:string)=>{const fare=fareBetween(here,name);return fare?fare.toLocaleString('en-US'):''};
   const svg=document.createElementNS(svgNS,'svg');
@@ -195,9 +203,9 @@ function makeTokyoFareMap(label:string,here='東京'):SVGSVGElement{
   const away:Record<string,Point>={up:[0,1],down:[0,-1],left:[1,0],right:[-1,0],'up-left':[0,1],'down-left':[0,-1],'down-right':[0,-1]};
 
   el('rect',{x:0,y:0,width:fareMapWidth,height:fareMapHeight,fill:'#fff'});
-  el('path',{d:'M1110 1080 L1110 955 Q1150 900 1225 905 L1290 960 Q1330 1000 1420 990 Q1500 975 1560 1010 L1620 1080Z',fill:'#cfe8f3'});
-  el('text',{x:1185,y:1060,fill:'#8bb8cc','font-size':18,'font-family':font,'letter-spacing':6},'東京湾');
-  const {place,side:sideOf,strokes,stops}=board();
+  for(const {d,river} of layout.water)el('path',{d,fill:river?'none':'#cfe8f3',stroke:river?'#cfe8f3':'none','stroke-width':river?12:0});
+  for(const [x,y,name] of layout.waterNames)el('text',{x,y,fill:'#8bb8cc','font-size':18,'font-family':font,'letter-spacing':6},name);
+  const {place,side:sideOf,strokes,stops}=board(layout);
   const polyline=(points:Point[],closed:boolean)=>points.map(([x,y])=>`${x.toFixed(1)},${y.toFixed(1)}`).join(' ')+(closed?` ${points[0][0].toFixed(1)},${points[0][1].toFixed(1)}`:'');
   for(const casing of [true,false])for(const {line,points} of strokes)el('polyline',{points:polyline(points,!!line.loop),fill:'none',stroke:casing?'#fff':line.color,'stroke-width':casing?12:7,'stroke-linejoin':'round'});
   // A station's mark spans the lines that stop there: a dot on a single line, a pill across several (a square-ended box for the fare stations), its name once beside it.
@@ -209,14 +217,14 @@ function makeTokyoFareMap(label:string,here='東京'):SVGSVGElement{
   };
   // How far the lines spread from a station's place towards where its name goes, so the name clears them.
   const spread=(base:Point,points:Point[],towards:Point)=>Math.max(0,...points.map(p=>dot(minus(p,base),unit(towards))));
-  const ringIndex=new Map(yamanoteStops.map((name,i)=>[name,i]));
+  const ringIndex=new Map(layout.ring?yamanoteStops.map((name,i)=>[name,i]):[]);
   // All the marks first, then the names, which go over the lines and marks they reach.
-  for(const [name,here] of stops)if(name!=='東京')mark(name,[...here.values()],[...here.keys()][0],tokyoStations.some(station=>station.ja===name));
+  for(const [name,here] of stops)if(name!==centre)mark(name,[...here.values()],[...here.keys()][0],stations.some(station=>station.ja===name));
   for(const [name,here] of stops){
-    if(name==='東京')continue;
-    const base=place.get(name)!,points=[...here.values()],fare=tokyoStations.find(station=>station.ja===name);
+    if(name===centre)continue;
+    const base=place.get(name)!,points=[...here.values()],fare=stations.find(station=>station.ja===name);
     if(fare){
-      const s=cartouche[fare.id],[x,y]=plus(base,away[s],-spread(base,points,minus([0,0],away[s]))),w=Math.max(54,name.length*19+14),h=24;
+      const s=layout.cartouche[fare.id],[x,y]=plus(base,away[s],-spread(base,points,minus([0,0],away[s]))),w=Math.max(54,name.length*19+14),h=24;
       const bx=s==='left'?x-12-w:s==='right'?x+12:s==='up-left'?x+12-w:s==='down-left'?x-10-w:s==='down-right'?x+6:x-w/2;
       const by=s==='up'||s==='up-left'?y-12-h*2:s==='down'||s==='down-left'||s==='down-right'?y+12:y-h;
       const data={'data-name':name};claim(bx,by,bx+w,by+h*2,name);
@@ -232,23 +240,25 @@ function makeTokyoFareMap(label:string,here='東京'):SVGSVGElement{
       if(vertical){if(fare)el('text',{x:lx,y:s<0?ly+tall+10:top-3,'text-anchor':'middle',fill:'#123f8c','font-size':10,'font-family':'Arial,sans-serif','font-weight':'bold'},fare);claim(lx-(fare?fare.length*3:7),top-(s>0&&fare?12:0),lx+(fare?fare.length*3:7),top+tall+(s<0&&fare?12:0),name)}
       else{if(fare)inline(node,fare);const w=tall+(fare?fare.length*7+4:0);claim(c<0?lx:lx-w,ly-8,c<0?lx+w:lx,ly+8,name)}
     }else{
-      const s=sideOf.get(name)??pinSides[name]??'up',[x,y]=plus(base,away[s],-spread(base,points,minus([0,0],away[s])));
+      const s=sideOf.get(name)??layout.pinSides[name]??'up',[x,y]=plus(base,away[s],-spread(base,points,minus([0,0],away[s])));
       stopName(x,y,name,s);
     }
   }
-  // The current station is red, like the 現在地 box of the real boards; Tokyo keeps its big name box either way.
-  const atTokyo=here==='東京';const tall=atTokyo?44:56;claim(tokyo[0]-36,tokyo[1]-24,tokyo[0]+36,tokyo[1]-22+tall+2,'東京');
-  el('rect',{x:tokyo[0]-34,y:tokyo[1]-22,width:68,height:tall,fill:atTokyo?'#c8102e':'#fff',stroke:atTokyo?'#fff':'#1d1d1d','stroke-width':3,'data-name':'東京'});
-  el('text',{x:tokyo[0],y:tokyo[1]+(atTokyo?9:6),'text-anchor':'middle',fill:atTokyo?'#fff':'#1d1d1d','font-size':atTokyo?25:23,'font-family':font,'font-weight':'bold','data-name':'東京'},'東京');
-  if(!atTokyo)el('text',{x:tokyo[0],y:tokyo[1]+29,'text-anchor':'middle',fill:'#123f8c','font-size':16,'font-family':'Arial,sans-serif','font-weight':'bold'},fareOf('東京'));
-  if(!atTokyo)svg.querySelectorAll(`[data-name="${here}"]`).forEach(node=>{
+  // The places worth a detour, on tags of their own.
+  for(const [x,y,name] of layout.sights??[]){const w=name.length*14+14;el('rect',{x,y,width:w,height:21,rx:10,fill:'#fbf1e2',stroke:'#b0603c','stroke-width':1.5});el('text',{x:x+w/2,y:y+16,'text-anchor':'middle',fill:'#7a3b1e','font-size':14,'font-family':font},name);claim(x,y,x+w,y+21)}
+  // The current station is red, like the 現在地 box of the real boards; the region's centre keeps its big name box either way.
+  const atCentre=here===centre;const tall=atCentre?44:56;claim(hub[0]-36,hub[1]-24,hub[0]+36,hub[1]-22+tall+2,centre);
+  el('rect',{x:hub[0]-34,y:hub[1]-22,width:68,height:tall,fill:atCentre?'#c8102e':'#fff',stroke:atCentre?'#fff':'#1d1d1d','stroke-width':3,'data-name':centre});
+  el('text',{x:hub[0],y:hub[1]+(atCentre?9:6),'text-anchor':'middle',fill:atCentre?'#fff':'#1d1d1d','font-size':atCentre?25:23,'font-family':font,'font-weight':'bold','data-name':centre},centre);
+  if(!atCentre)el('text',{x:hub[0],y:hub[1]+29,'text-anchor':'middle',fill:'#123f8c','font-size':16,'font-family':'Arial,sans-serif','font-weight':'bold'},fareOf(centre));
+  if(!atCentre)svg.querySelectorAll(`[data-name="${here}"]`).forEach(node=>{
     const fill=node.getAttribute('fill');
     if(node.tagName==='text'){if(fill==='#222'){node.setAttribute('fill','#e60012');node.setAttribute('font-weight','bold')}return}
     if(fill==='#1d2b3a')node.setAttribute('fill','#c8102e');else if(node.getAttribute('stroke')==='#1d2b3a')node.setAttribute('stroke','#c8102e');else{node.setAttribute('fill','#e60012');if(node.tagName==='circle')node.setAttribute('r','6')}
   });
   // Each line's name on a plate of its colour, and the legend: one row per colour drawn, naming its lines.
   const dark=(color:string)=>parseInt(color.slice(1,3),16)*.3+parseInt(color.slice(3,5),16)*.59+parseInt(color.slice(5,7),16)*.11<170;
-  for(const {line} of strokes)for(const [x,y,name] of lineLabels[line.id]??[]){
+  for(const {line} of strokes)for(const [x,y,name] of layout.lineLabels[line.id]??[]){
     el('rect',{x,y,width:name.length*15+16,height:22,fill:line.color,rx:3});
     el('text',{x:x+8,y:y+16,fill:dark(line.color)?'#fff':'#222','font-size':14,'font-family':font,'font-weight':'bold'},name);
     claim(x,y,x+name.length*15+16,y+22);
@@ -281,31 +291,30 @@ function makeTokyoFareMap(label:string,here='東京'):SVGSVGElement{
     }
   }
   // Header and side panel, after the wall boards: white board, green JR band, legend column.
-  el('rect',{x:1440,y:24,width:22,height:22,fill:'#008a3e'});
-  el('text',{x:1472,y:46,fill:'#111','font-size':30,'font-family':font,'font-weight':'bold'},'JR線 近距離きっぷ運賃表');
-  el('rect',{x:1822,y:24,width:22,height:22,fill:'#008a3e'});
+  el('rect',{x:1440,y:24,width:22,height:22,fill:brand});
+  el('text',{x:1472,y:46,fill:'#111','font-size':30,'font-family':font,'font-weight':'bold'},layout.title??'JR線 近距離きっぷ運賃表');
+  el('rect',{x:1822,y:24,width:22,height:22,fill:brand});
   el('text',{x:1472,y:76,fill:'#333','font-size':15,'font-family':font},`${here}駅から · おとな片道（単位：円） こどもは半額`);
   el('text',{x:1472,y:98,fill:'#d0021b','font-size':13,'font-family':font},'ICカードの運賃は異なります。この表はきっぷの運賃です。');
-  el('rect',{x:24,y:24,width:190,height:1032,fill:'#fff',stroke:'#008a3e','stroke-width':5});
-  el('rect',{x:24,y:24,width:190,height:44,fill:'#008a3e'});
+  el('rect',{x:24,y:24,width:190,height:1032,fill:'#fff',stroke:brand,'stroke-width':5});
+  el('rect',{x:24,y:24,width:190,height:44,fill:brand});
   el('text',{x:119,y:53,'text-anchor':'middle',fill:'#fff','font-size':19,'font-family':font,'font-weight':'bold'},'運賃のみかた');
   el('rect',{x:46,y:92,width:70,height:24,fill:'#1d2b3a'});el('text',{x:81,y:110,'text-anchor':'middle',fill:'#fff','font-size':17,'font-family':font},'駅名');
   el('rect',{x:46,y:116,width:70,height:24,fill:'#fff',stroke:'#1d2b3a','stroke-width':1.5});el('text',{x:81,y:135,'text-anchor':'middle',fill:'#123f8c','font-size':18,'font-family':'Arial','font-weight':'bold'},'260');
   el('text',{x:126,y:110,fill:'#333','font-size':13,'font-family':font},'駅名');el('text',{x:126,y:135,fill:'#333','font-size':13,'font-family':font},'運賃（円）');
   el('circle',{cx:52,cy:168,r:4,fill:'#fff',stroke:'#333','stroke-width':2});el('text',{x:64,y:173,fill:'#333','font-size':13,'font-family':font},'駅名');el('text',{x:94,y:173,fill:'#123f8c','font-size':12,'font-family':'Arial,sans-serif','font-weight':'bold'},'210');el('text',{x:46,y:194,fill:'#333','font-size':13,'font-family':font},'その他の駅と運賃');
-  el('text',{x:46,y:236,fill:'#008a3e','font-size':16,'font-family':font,'font-weight':'bold'},'路線');
-  const legend=new Map<string,string[]>();for(const {line} of strokes){const names=legend.get(line.color)??[];names.push(legendNames[line.id]??line.ja);legend.set(line.color,names)}
+  el('text',{x:46,y:236,fill:brand,'font-size':16,'font-family':font,'font-weight':'bold'},'路線');
+  const legend=new Map<string,string[]>();for(const {line} of strokes){const names=legend.get(line.color)??[];names.push(layout.legendNames[line.id]??line.ja);legend.set(line.color,names)}
   [...legend].forEach(([color,names],index)=>{el('rect',{x:46,y:252+index*24,width:34,height:8,fill:color});el('text',{x:88,y:261+index*24,fill:'#222','font-size':13,'font-family':font},names.join('・'))});
-  el('text',{x:46,y:560,fill:'#008a3e','font-size':16,'font-family':font,'font-weight':'bold'},'運賃一覧');
+  if(layout.sights){const y=252+legend.size*24;el('rect',{x:46,y:y-2,width:34,height:14,rx:7,fill:'#fbf1e2',stroke:'#b0603c','stroke-width':1.5});el('text',{x:88,y:y+9,fill:'#222','font-size':13,'font-family':font},'みどころ')}
+  el('text',{x:46,y:560,fill:brand,'font-size':16,'font-family':font,'font-weight':'bold'},'運賃一覧');
   [...new Set([...stops.keys()].map(name=>fareBetween(here,name)??0).filter(fare=>fare>0))].sort((a,b)=>a-b).forEach((fare,index)=>{const x=46+(index%2)*86,y=580+Math.floor(index/2)*30;el('rect',{x,y,width:76,height:24,fill:'#fff',stroke:'#9aa5b1'});el('text',{x:x+38,y:y+18,'text-anchor':'middle',fill:'#123f8c','font-size':16,'font-family':'Arial','font-weight':'bold'},fare.toLocaleString('en-US'))});
-  el('text',{x:46,y:1000,fill:'#666','font-size':12,'font-family':font},'JR線のみ · 一部の駅を掲載');
+  el('text',{x:46,y:1000,fill:'#666','font-size':12,'font-family':font},layout.scope??'JR線のみ · 一部の駅を掲載');
   el('text',{x:46,y:1020,fill:'#666','font-size':12,'font-family':font},'ゲーム用参考図');
   return svg;
 }
 
-export function renderTokyoFareMap(here?:string):SVGSVGElement{
-  return makeTokyoFareMap(`${here??'東京'}駅からのJR運賃表。主な駅の大人きっぷ運賃。`,here);
-}
+export function renderFareMap(here:string):SVGSVGElement{return makeFareMap(here)}
 
 /** The station staff's fare hint: the stations to ask about (`destinations`), each with the local lines through it; choosing one says its fare (`select`). Not a fare lookup at the machines. */
 export function openDepartures(destinations:{ja:string;en:string}[],select:(station:{ja:string;en:string})=>void,close:()=>void){
@@ -322,6 +331,4 @@ export function openDepartures(destinations:{ja:string;en:string}[],select:(stat
 }
 
 /** The same fare data, re-laid out for a wide physical board above the machines. */
-export function renderWallFareMap(here?:string):SVGSVGElement{
-  return makeTokyoFareMap(`${here??'東京'}駅からのJR運賃表。主な駅の大人きっぷ運賃。`,here);
-}
+export function renderWallFareMap(here:string):SVGSVGElement{return makeFareMap(here)}

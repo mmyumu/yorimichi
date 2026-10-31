@@ -2,9 +2,9 @@ import { minuteOfDay, minutes } from './clock';
 import { stopNames } from './rail';
 
 /** Where people walk: a station's concourse, the corridor behind its gates, its platforms, the street outside it, and the lane to the traveller's home. */
-export type Stage='concourse'|'corridor'|'platform'|'town'|'home-street';
+export type Stage='concourse'|'corridor'|'platform'|'town'|'home-street'|'kyoto-lane';
 /** How many people each stage holds at the busiest hour of the busiest station. */
-const peaks:Record<Stage,number>={concourse:40,corridor:24,platform:56,town:30,'home-street':5};
+const peaks:Record<Stage,number>={concourse:40,corridor:24,platform:56,town:30,'home-street':5,'kyoto-lane':4};
 const list=(names:string)=>names.split(' ');
 /** Each station's share of those, roughly by its daily passengers; a station not listed is a suburban one (`usual`). */
 const usual=.35;
@@ -23,7 +23,7 @@ const hours={
   night:[.35,.1,.05,.03,.05,.15,.25,.6,.8,.55,.4,.45,.5,.5,.5,.55,.65,.8,.95,1,.95,.9,.8,.6],
 };
 const days:[keyof typeof hours,string[]][]=[
-  ['leisure',list('原宿 舞浜 鎌倉 北鎌倉 高尾 熱海 湯河原 葛西臨海公園 石和温泉 嵯峨嵐山 稲荷 宇治 奈良 東福寺')],
+  ['leisure',list('原宿 舞浜 鎌倉 北鎌倉 高尾 熱海 湯河原 葛西臨海公園 石和温泉 嵯峨嵐山 稲荷 宇治 奈良 東福寺 保津峡 太秦')],
   ['night',list('新宿 渋谷 池袋 新橋 上野 有楽町 恵比寿 五反田 高田馬場 新大久保 中野 高円寺 吉祥寺 錦糸町 北千住 赤羽 横浜 川崎 大阪')],
 ];
 // Every station named above is a stop of a line (a misspelt one would quietly stay suburban).

@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { CSS3DObject, CSS3DRenderer } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
-import { renderWallFareMap, onTokyoBoard } from './tokyo-fares';
-import { boardLines, hasShinkansen, stations, type Hub } from './network';
+import { renderWallFareMap } from './tokyo-fares';
+import { exitName, hasShinkansen, stations, type Hub } from './network';
 import { looks, type Figure, type Look } from './people';
-import { C, accents, anchors, backZ, centralGates, centralL, eastX, facadeD, facadeTop, floorY, frontZ, fromConcourse, gateZ, housings, machineW, officeL, officeZ, paintPerson, paintPoster, recessBottom, recessTop, shopDoor, shopL, shopR, transferGates, transferR, wallL, wallR, westX, type HallDevice } from './hall-scene';
+import { C, accents, anchors, backZ, centralGates, centralL, eastX, facadeD, facadeTop, floorY, frontZ, fromConcourse, gateZ, housings, machineW, officeL, officeZ, paintPerson, paintPoster, recessBottom, recessTop, shopDoor, shopL, shopR, transferGates, transferR, wallL, wallR, westX, type HallDevice, hallPosters, type Poster } from './hall-scene';
 
 type Block=[number,number,number,number,number,number,string];
 // The hall's own units and layout (hall-scene.ts); here y is given as there, down from the ceiling, and z out of the wall.
@@ -135,7 +135,7 @@ export class HallVoxels {
     exits.forEach(({x,z},i)=>{
       const west=i===0;b.add(x-160,x+160,752,1008,z-160,z+160,'#f2c230');b.add(x-161,x+161,990,1008,z-161,z+161,'#c9a020');
       b.add(x-60,x+60,770,890,z+160,z+164,'#1d2622').text('出',x,830,z+164,10,'#f2c230',4);
-      b.text(west?'← 西口':'東口 →',x,925,z+160,6,'#1d2622',6).text(west?'West Exit':'East Exit',x,968,z+160,4,'#1d2622',4);
+      const [ja,en]=exitName(this.hub,west?'west':'east');b.text(west?`← ${ja}`:`${ja} →`,x,925,z+160,6,'#1d2622',6).text(en,x,968,z+160,4,'#1d2622',4);
     });
   }
   /** A sign hung from the ceiling on two rods: pictogram square, Japanese over English, all in raised voxels. */
@@ -150,7 +150,7 @@ export class HallVoxels {
   private buildConcourse(b:Blocks){
     // Light-box posters, a voxel per pixel of their picture.
     // Their lettering uses the bundled Japanese font: they are built once it is ready.
-    const posters:[number,number,'kamakura'|'nikko'|'arashiyama'][]=[[-280,0,'kamakura'],[4080,0,'nikko'],[9300,officeZ,'arashiyama']];
+    const [left,right,far]=hallPosters(this.hub),posters:[number,number,Poster][]=[[-280,0,left],[4080,0,right],[9300,officeZ,far]];
     for(const [x,z] of posters)b.add(x-300,x+300,590,1430,z,z+24,C.steel);
     const pictures=()=>{if(this.disposed)return;const p=new Blocks();for(const [x,z,place] of posters)p.image(painted(140,200,1,(g,w,h)=>paintPoster(g,w,h,place)),x-280,610,4,z+24,4);this.scene.add(p.mesh(this.material))};
     document.fonts?document.fonts.load('16px "Yorimichi JP"').then(pictures,pictures):pictures();
@@ -195,25 +195,16 @@ export class HallVoxels {
     b.add(shopDoor-dw/2,shopDoor+dw/2,576,floorY,z,z+6,'#4c5f5c').add(shopDoor-9,shopDoor+9,576,floorY,z+6,z+16,'#8f9e8b').text('自動ドア',shopDoor,940,z+6,6,'#e7f1e4',4);
     for(const x of [shopL,shopL+636,shopL+1236,shopL+1620,shopDoor-dw/2,shopDoor+dw/2])b.add(x-9,x+9,576,1602,z,z+18,'#8f9e8b');
   }
-  /** The station's name over the fare map: Tokyo's is the SVG (through a hole), the others list their routes with the station in red. */
+  /** The station's name over the fare map: the SVG, through a hole. */
   private buildBoard(b:Blocks){
     const cx=1950,top=220,bw=1216,bh=684,border=18,station=stations[this.hub],l=cx-bw/2,r=cx+bw/2,t=top+border;
     b.add(cx-430,cx+430,50,190,0,14,C.ink).add(cx-430,cx+430,176,190,14,16,station.accent).text(`${station.ja}  ${station.en.toUpperCase()}`,cx,115,14,9,'#fffef2',8);
     const frame=new Blocks().add(l-border,r+border,top,t+bh+border,0,14,C.frame).mesh(this.material);this.scene.add(frame);
-    if(onTokyoBoard(stations[this.hub].ja)){
-      const holder=document.createElement('div');holder.className='hall-board';holder.style.width='1387px';holder.style.height='780px';
-      const svg=renderWallFareMap(station.ja);svg.setAttribute('width','1387');svg.setAttribute('height','780');holder.append(svg);
-      const board=new CSS3DObject(holder);board.scale.setScalar(.877);board.position.set(cx,-(t+bh/2),14.5);this.cssScene.add(board);
-      const hole=new THREE.Mesh(new THREE.PlaneGeometry(bw,bh),this.hole);hole.position.copy(board.position);this.scene.add(hole);
-      frame.userData.device=hole.userData.device='map';this.pickable.push(frame,hole);this.rim('map',l-border,r+border,top,t+bh+border,16);
-    }else{
-      b.add(l,r,t,t+bh,14,18,'#fffef2').text(`${station.ja}駅 のりば案内`,r-40,t+60,18,6,'#2d563e',4,'right');
-      boardLines(this.hub).forEach((route,i)=>{
-        const y=t+230+i*170;
-        b.text(station.ja,l+40,y,18,8,'#d6402e',6,'left').add(l+220,l+260,y-20,y+20,18,26,'#d6402e').add(l+260,r-300,y-10,y+10,18,24,route.color).add(r-300,r-260,y-20,y+20,18,26,'#ffffff');
-        b.text(route.ja,(l+r-40)/2,y-60,18,6,route.color,4).text(route.name.split(' / ')[1],r-230,y,18,8,C.ink,6,'left');
-      });
-    }
+    const holder=document.createElement('div');holder.className='hall-board';holder.style.width='1387px';holder.style.height='780px';
+    const svg=renderWallFareMap(station.ja);svg.setAttribute('width','1387');svg.setAttribute('height','780');holder.append(svg);
+    const board=new CSS3DObject(holder);board.scale.setScalar(.877);board.position.set(cx,-(t+bh/2),14.5);this.cssScene.add(board);
+    const hole=new THREE.Mesh(new THREE.PlaneGeometry(bw,bh),this.hole);hole.position.copy(board.position);this.scene.add(hole);
+    frame.userData.device=hole.userData.device='map';this.pickable.push(frame,hole);this.rim('map',l-border,r+border,top,t+bh+border,16);
   }
   /** A highlight rim of voxels just proud of the face: fading between white and yellow on every machine, yellow on the one in front, white on the one hovered. */
   private rim(id:string,x0:number,x1:number,y0:number,y1:number,z:number){
