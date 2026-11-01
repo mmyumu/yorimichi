@@ -21,7 +21,7 @@ import { loadSave, eraseAll, writeSave } from './save';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { areaAround, kmApart, onMap, spotOf } from './city-maps';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
-import { addMinutes, clockMs, darkness, dayLabel, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
+import { addMinutes, clockMs, darkness, dayLabel, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, hold, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
 import { openDepartures, onTokyoBoard, tokyoStations } from './tokyo-fares';
 import { carried, feed, filling, needFactor, spend } from './needs';
 import { goodNamed } from './goods';
@@ -185,6 +185,8 @@ class Journey extends Phaser.Scene {
   private flight:{skip:()=>void}|null=null;
   // When Lorenzo's next move is due (his OK, then his flight), in scene ms.
   private phoneDue=0;
+  /** When the menu paused the game (the scene's `time.now`), 0 otherwise. */
+  private pausedAt=0;
   // The phone in the HUD's corner and its badge of unread messages.
   private mini!:Phaser.GameObjects.Container;
   private badge!:Phaser.GameObjects.Container;
@@ -994,12 +996,14 @@ class Journey extends Phaser.Scene {
     const at=!deck?{place:this.place,x:Math.round(this.player.x),y:Math.round(this.player.y)}:out?{place:out as Place,x:836,y:262}:{place:'corridor' as Place,...this.stairsSpot(deck)};
     writeSave({tickets:out?this.tickets.filter(t=>!t.punched||t.punched===out):this.tickets,at:{...at,outside:this.outside,gate:this.gateway},clock:clockMs(),alarm:this.alarm,phone:this.phone,groceries:this.groceries,needs:this.needs});this.kept=this.time.now;if(this.purse?.active)this.refreshPurse();
   }
+  /** The game stops while the menu is open: the journey's clock (`hold`), the needs and all that `update` moves, the scene's timers and tweens, and what is due on `time.now`. */
+  private pause(on:boolean){this.time.paused=on;if(on){this.tweens.pauseAll();this.pausedAt=this.time.now}else{this.tweens.resumeAll();this.phoneDue+=this.time.now-this.pausedAt;this.pausedAt=0}}
   /** The menu from the top band (or Esc, or the pad's Start). */
-  private menu(){if(!this.modal)this.dialog('Menu','',[['Restart from zero',()=>this.confirmRestart()]])}
+  private menu(){if(!this.modal){this.dialog('Menu','',[['Restart from zero',()=>this.confirmRestart()]]);this.modal!.setData('pause',true)}}
   /** Asked once more, the pad's focus starting on Close so that A, A cannot erase a journey. */
   private confirmRestart(){
     this.dialog('Restart from zero?','Your whole journey will be erased: position, tickets, money, groceries, memories and messages. You start again at Tokyo Station with the starting purse. This cannot be undone.',[['Yes, erase everything and restart',()=>{this.erased=true;eraseAll();location.reload()}]]);
-    (this.modal!.getData('choices')[0][0] as Phaser.GameObjects.Rectangle).setFillStyle(0xb3261e);
+    (this.modal!.getData('choices')[0][0] as Phaser.GameObjects.Rectangle).setFillStyle(0xb3261e);this.modal!.setData('pause',true);
     this.focusChoice(this.modal!,1);
   }
   /** The bag from the top band (or X), or at a bin: tickets, groceries and wallet, over the paused scene. */
@@ -1468,6 +1472,8 @@ class Journey extends Phaser.Scene {
   }
   update(_time:number,delta:number){
     if(!this.player)return;
+    const paused=!!this.modal?.getData('pause');if(paused!==!!this.pausedAt)this.pause(paused);
+    if(paused){hold();this.gamepad();return}
     tick();spend(this.needs,Math.max(0,minutes()-this.fedAt));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040)});
     {const time=hhmm(minutes());if(this.clockText.text!==time){this.clockText.setText(time);this.day.setText(dayLabel())}}
     // Closing time: once off the train, the staff see the traveller back through the gates.

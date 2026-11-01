@@ -27,6 +27,8 @@ export function setTimeOfDay(time:string){
 /** On by the real time gone by since the last tick, read from the browser's clock rather than the scene's frame time: Phaser stops in a hidden tab and caps its steps
  * in a throttled one, but the journey's clock keeps going (the trains catch up with it when the scene runs again). */
 export function tick(){const t=performance.now();now+=(t-last)*speed;last=t;refresh()}
+/** While the game is paused (the menu): the time gone by since the last tick is dropped, so the clock stands still, hidden tab included. */
+export const hold=()=>{last=performance.now()};
 export function addMinutes(m:number){now+=m*60000;refresh()}
 /** On to the next `at` (minute of the day). */
 export const skipTo=(at:number)=>addMinutes((at-minuteOfDay()+1440)%1440);
