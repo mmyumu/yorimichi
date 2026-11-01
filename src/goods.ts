@@ -78,6 +78,8 @@ export const vendors:Record<VendorId,Vendor>={
 /** A product by its Japanese name, for what the save keeps of it; undefined once it has left the shelves and the machines. */
 export const goodNamed=(ja:string)=>[...shelfPrices,...Object.values(vendors)].flatMap(aisle=>aisle.rows.flat()).find(item=>item[0]===ja);
 // Food and drink to take away pay the reduced 8% (alcohol the full 10%, `tax`), the yen below dropped: what makes konbini totals so rarely round. Eating in, at 10%, is not a thing here.
+/** A drink, and not a food: from a fridge or a vending machine. */
+export const isDrink=(item:Item)=>[...shelfPrices.filter(aisle=>aisle.fridge),...Object.values(vendors)].some(aisle=>aisle.rows.flat().includes(item));
 export const taxed=(price:number,tax=8)=>Math.floor(price*(100+tax)/100);
 // Each chain prices a product its own way, the same in all its shops: up to ¥20 either side before tax, so the base still ends in 8. Picked from the chain and the product's name, so it never changes.
 const nudge=(chain:string,name:string)=>{let h=7;for(const c of chain+name)h=(h*31+c.charCodeAt(0))>>>0;return [-20,-10,0,0,10,20][(h>>>3)%6]};

@@ -1,4 +1,4 @@
-/** The traveller's purse: real yen pieces, kept between sessions. Coins weigh the player down. */
+/** The traveller's purse: real yen pieces, kept between sessions. Coins weigh the player down, notes hardly. */
 export const coins=[1,5,10,50,100,500],notes=[1000,5000,10000];
 // What JR machines take: no 1 and 5 yen coins (they fall straight into the tray), and no 2,000 yen notes in this game.
 export const accepted=(value:number)=>value>=10;
@@ -14,7 +14,7 @@ export const saveWallet=(wallet:Wallet)=>{try{localStorage.setItem(key,JSON.stri
 export const coinCount=(wallet:Wallet)=>coins.reduce((sum,v)=>sum+(wallet[v]??0),0);
 export const walletTotal=(wallet:Wallet)=>[...coins,...notes].reduce((sum,v)=>sum+v*(wallet[v]??0),0);
 // Eight coins are free; each one more slows the walk by 2.5%, down to 55%.
-export const walkFactor=(wallet:Wallet)=>Math.max(.55,1-Math.max(0,coinCount(wallet)-8)*.025);
+export const walkFactor=(wallet:Wallet,extra=0)=>Math.max(.55,1-Math.max(0,coinCount(wallet)+notes.reduce((sum,v)=>sum+(wallet[v]??0),0)*.1+extra-8)*.025);
 /** Change as a machine gives it: as few pieces as possible. */
 export function makeChange(amount:number){
   const pieces:number[]=[];
