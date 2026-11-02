@@ -9,7 +9,7 @@ const pages={'01 Tokyo - Asakusa':'asakusa','02 Tokyo - Shibuya et Harajuku':'sh
   '15 Osaka - Dotonbori':'dotonbori','15 Osaka - Shinsekai':'shinsekai','16 Lac Biwa':'biwako','16 Otsu':'otsu-shore','17 Nikko - Temples et sanctuaires':'toshogu','18 Nikko - Jardin':'toshogu','19 Nikko - Kanmangafuchi':'kanmangafuchi','20 Nikko - Pont Shinkyo':'shinkyo','21 Nikko - Nature':'kanmangafuchi',
   '22 Kamakura':'kamakura-trail','23 Tokyo - Odaiba':'odaiba','23 Tokyo - Ginza':'ginza','24 Souvenirs':'road'};
 // The photos of a folder that belong on another page of the same place: Heian-jingu's memories are the precincts, the garden and the street with the great torii.
-const moved={'img20261007153615.jpg':'heian-road','img20261007171419.jpg':'heian-road','img20261007163717.jpg':'heian-garden','img20261007163814.jpg':'heian-garden','img20261007164011.jpg':'heian-garden'};
+const moved={'img20261011133555.jpg':'biwako-horai','img20261011133602.jpg':'biwako-horai','img20261011134044.jpg':'biwako-horai','img20261011131045.jpg':'biwako-bridge','img20261011131619.jpg':'biwako-bridge','img20261011134130.jpg':'biwako-horai','img20261007153615.jpg':'heian-road','img20261007171419.jpg':'heian-road','img20261007163717.jpg':'heian-garden','img20261007163814.jpg':'heian-garden','img20261007164011.jpg':'heian-garden'};
 const from=process.argv[2],to='public/photos';if(!from)throw Error('Usage: node scripts/import-photos.mjs <selection folder>');
 rmSync(to,{recursive:true,force:true});const index={};
 for(const folder of readdirSync(from).sort()){

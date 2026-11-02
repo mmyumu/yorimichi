@@ -6,8 +6,8 @@ import { kmBetween } from './fares';
 import { busLines } from './rail';
 
 export type Ground='lawn'|'gravel'|'moss'|'street';
-export type Piece=['temple',string,string]|['gate',string,string]|['pagoda',number,string,string]|['torii',string]|['pavilion',string,string]|['kyotoTower']|['tsutenkaku']|['bridge',string]|['rainbow']|['lake']|['neon',string]|['jizo']|['bamboo'];
-export interface Sight {id:string;ja:string;en:string;at?:LonLat;walk?:string[];foot?:Record<string,number>;ground?:Ground;pieces?:Piece[];garden?:string;parts?:Page[]}
+export type Piece=['temple',string,string]|['gate',string,string]|['pagoda',number,string,string]|['torii',string]|['pavilion',string,string]|['kyotoTower']|['tsutenkaku']|['bridge',string]|['rainbow']|['lake']|['neon',string]|['jizo']|['bamboo']|['ropeway'];
+export interface Sight {id:string;ja:string;en:string;at?:LonLat;walk?:string[];foot?:Record<string,number>;ground?:Ground;pieces?:Piece[];garden?:string;parts?:Page[];ropeway?:boolean}
 /** An album page and memory of its own: every sight has one, and `parts` adds those of a place too large for one (each with its camera, its id the place it stands in). */
 export interface Page {id:string;ja:string;en:string}
 export const sights:Sight[]=[
@@ -28,7 +28,7 @@ export const sights:Sight[]=[
   {id:'rakusai',ja:'洛西竹林公園',en:'Rakusai bamboo park',at:[135.6746,34.9709],ground:'moss',foot:{桂川:3.5,向日町:3.2},pieces:[['bamboo'],['jizo']]},
   {id:'dotonbori',ja:'道頓堀',en:'Dotonbori',at:[135.5013,34.6687],ground:'street',foot:{大阪:3.8},pieces:[['neon','#f0c030']]},
   {id:'shinsekai',ja:'新世界',en:'Shinsekai',at:[135.5063,34.6525],ground:'street',foot:{大阪:5.5},pieces:[['tsutenkaku']]},
-  {id:'biwako',ja:'びわ湖テラス',en:'Biwako Terrace',at:[135.9030,35.2050],foot:{志賀:3.8},pieces:[['lake']]},
+  {id:'biwako',ja:'びわ湖テラス',en:'Biwako Terrace',at:[135.9030,35.2050],foot:{志賀:3.8},pieces:[['lake'],['ropeway']],ropeway:true,garden:'biwako-horai',parts:[{id:'biwako-horai',ja:'蓬莱山',en:'Biwako Terrace · Mt Horai'},{id:'biwako-bridge',ja:'吊橋',en:'Biwako Terrace · The Sky Bridge'}]},
   {id:'otsu-shore',ja:'大津',en:'Otsu',at:[135.8675,35.0085],walk:['大津','膳所'],pieces:[['lake']]},
   {id:'toshogu',ja:'日光東照宮',en:'Nikko Toshogu',at:[139.5991,36.7580],ground:'gravel',foot:{日光:2.2},pieces:[['pagoda',5,'#a83a2c','#3f4a46'],['gate','#e0c070','#2f3a38']]},
   {id:'kanmangafuchi',ja:'憾満ヶ淵',en:'Kanmangafuchi',at:[139.5861,36.7459],ground:'moss',foot:{日光:3.6},pieces:[['bridge',''],['jizo']]},

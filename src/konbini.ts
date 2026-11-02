@@ -231,8 +231,8 @@ export class Shop {
     }else{
       if(shown&&!going){const spot=this.spots[this.aisle].find(s=>s.item===shown);if(spot){const [l,t,r,b]=spot.rect;pic.outline([[l-1,t-1],[r,t-1],[r,b],[l-1,b]],C.selected)}}
       const lit=this.hoveredButton&&!going?this.buttons[this.aisle]?.[this.hoveredButton<0?0:1]:null;if(lit)frame(lit);
-      // The product's name and price, or the shop's word, and the basket.
-      if(this.notice){box(this.g,2,18,W-4,13,'#d2402ee0');write(this.g,this.notice,6,20,'#fffef2')}
+      // The product's name and price, the shop's word under them, and the basket.
+      {const y=shown&&!going?29:18;if(this.notice){box(this.g,2,y,W-4,13,'#d2402ee0');write(this.g,this.notice,6,y+2,'#fffef2')}}
       if(shown&&!going){box(this.g,2,2,W-98,25,'#1d2622');write(this.g,shown[0],6,3,'#fffef2');write(this.g,shown[1],6,14,'#c9d1cc');write(this.g,yen(shown[2]),W-100,3,C.selected,'right')}
       box(this.g,...this.basketButton.slice(0,2) as [number,number],90,14,'#1d2622c0');cartIcon(this.g,W-89,3,lines?C.selected:'#f4f4ee');write(this.g,`${count}点 ${yen(basketTotal(this.basket))}`,W-6,4,lines?C.selected:'#f4f4ee','right');if(this.hoveredBasket)frame(this.basketButton);
     }

@@ -10,7 +10,7 @@ const random=(seed:number)=>()=>(seed=seed*16807%2147483647)/2147483647;
 const flat:View={eye:[0,0,0],vx:0,vy:0,k:1} as View;
 const polygon=(g:CanvasRenderingContext2D,points:[number,number][],color:string,w:number,h:number)=>new Picture(g,flat,w,h).fill(points,color);
 /** Fades to the ink through the ordered dither, `level` 0 to 16: a 4 × 4 tile repeated, as a whole picture of single pixels takes far too long to fill. */
-function fade(g:CanvasRenderingContext2D,level:number){if(level<=0)return;const [tile,t]=sheet(4,4);t.fillStyle=ink;for(let y=0;y<4;y++)for(let x=0;x<4;x++)if(bayer[y*4+x]<level)t.fillRect(x,y,1,1);g.fillStyle=g.createPattern(tile,'repeat')!;g.fillRect(0,0,W,H)}
+export function fade(g:CanvasRenderingContext2D,level:number){if(level<=0)return;const [tile,t]=sheet(4,4);t.fillStyle=ink;for(let y=0;y<4;y++)for(let x=0;x<4;x++)if(bayer[y*4+x]<level)t.fillRect(x,y,1,1);g.fillStyle=g.createPattern(tile,'repeat')!;g.fillRect(0,0,W,H)}
 
 // The map, East Asia from Hainan to the Tsugaru Strait, in degrees: longitude shrunk by the cosine of its middle latitude.
 const west=107.5,east=147.6,north=41.5,south=20;

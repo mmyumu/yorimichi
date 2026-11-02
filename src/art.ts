@@ -74,6 +74,12 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
       if(x+w>196&&x<284){x=284;k++;continue}
       r(x,top,w-2,136-top,['#4a4e56','#5a565e','#44505a'][k%3]);for(let wy=top+24;wy<108;wy+=9)for(let wx=x+5;wx<x+w-9;wx+=8)r(wx,wy,5,5,(wx+wy)%3?'#a8c4cc':'#e8d8a0');r(x+5,top+5,w-12,14,sign);r(x+7,top+7,w-16,2,'#ffffff90');r(x,116,w-2,20,'#2f3a40');r(x+4,120,w-10,14,'#c8dde0');x+=w;k++}
     r(196,74,88,62,'#3a4048');r(204,92,72,44,'#c8dde0');r(238,92,3,44,'#3a4048');r(190,84,100,8,'#23292e');
+  }else if(kind('ropeway')){
+    // The ropeway's foot station across the road from the stop: the mountain straight up behind it, the cable out of its roof with a cabin on the way, the doors in the middle, the ticket windows beside them.
+    treeline(0,480,30,136);for(let i=0;i<46;i++){const rx=7+rand()*9;softCrown(r,rand,rand()*480,36+rand()*92,rx,rx*.7,i%3?['#4a4a2c','#6e5a34','#8a6a40','#a88a58']:['#5a3a26','#7a4a30','#9a6038','#b88048'])}
+    for(let i=0;i<200;i++){const x=240+i*1.2,y=74-i*.37;r(x,y,2,1,'#23292e')}r(350,20,4,18,'#4a3628');r(342,20,20,3,'#5a3e2a');r(330,8+24,1,8,'#23292e');r(322,40,20,13,'#efeee4');r(323,42,18,6,'#a8d4e8');r(322,49,20,2,'#1d5fae');
+    r(150,74,180,62,'#d8d4c4');for(let x=154;x<330;x+=10)r(x,74,1,62,'#c6c2b2');r(142,64,196,11,'#54504a');r(142,74,196,2,'#3a3a38');r(226,50,28,14,'#3a4246');
+    r(206,96,68,40,'#2a3238');r(210,100,28,36,'#a8c4cc');r(242,100,28,36,'#a8c4cc');r(239,100,2,36,'#2a3238');r(158,96,36,20,'#2a3238');r(160,98,14,16,'#c8dde0');r(178,98,14,16,'#c8dde0');r(286,96,36,20,'#2a3238');r(288,98,32,16,'#c8dde0');
   }else if(built&&!torii){
     // A temple's plastered wall under its tiles, the five white lines of its rank, the gate in the middle.
     treeline(0,480,30,84);
@@ -89,7 +95,7 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
   }
   avenue?.dress(g);
   // The name on its board by the way in.
-  {const w=[...sight.ja].length*10+8,x=240-w/2,y=city?76:torii?72:built?88:92;r(x-1,y-1,w+2,14,'#3d2e24');r(x,y,w,12,'#6b4a34');letter(g,x+4,y+1,sight.ja,'#f4e4b8',true)}
+  {const name=kind('ropeway')?'ロープウェイ':sight.ja,w=[...name].length*10+8,x=240-w/2,y=city?76:torii?72:built?88:kind('ropeway')?80:92;r(x-1,y-1,w+2,14,'#3d2e24');r(x,y,w,12,'#6b4a34');letter(g,x+4,y+1,name,'#f4e4b8',true)}
   // The way to the station, on its post.
   r(9,177,4,1,'#00000030');r(10,153,2,25,'#5b6558');r(1,140,44,13,'#fbfbf6');r(1.5,140.5,43,12,'#1d5fae');letter(g,3,141.5,'← 駅','#ffffff');letter(g,5,147,'STATION','#d8e4f4');
   texture.refresh();avenue?.lifted(texture.canvas);
