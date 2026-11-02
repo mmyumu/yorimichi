@@ -1,0 +1,14 @@
+# On the VPS: TAG=041efcc PROXY_NETWORK=<network> docker compose -f compose.yaml up -d
+# Build and push first: docker build -t registry.mmyumu.fr/yorimichi:$TAG . && docker push registry.mmyumu.fr/yorimichi:$TAG
+services:
+  yorimichi:
+    image: registry.mmyumu.fr/yorimichi:${TAG:?set TAG}
+    container_name: yorimichi
+    restart: unless-stopped
+    # no published port: the shared nginx container reaches it as yorimichi:80
+    networks: [proxy]
+networks:
+  proxy:
+    # TO CHECK: the network the existing `nginx` container is on (docker inspect nginx)
+    name: ${PROXY_NETWORK:?set PROXY_NETWORK}
+    external: true
