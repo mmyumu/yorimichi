@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { exitName, hasShinkansen, inKyoto, machineKinds, stations, tracksFor, type Hub, type Konbini, type Platform, type Service } from './network';
+import { loadLook, paintTraveller } from './look';
 import { looks } from './people';
 import { onTokyoBoard } from './tokyo-fares';
 import { type Piece, type Sight } from './sights';
@@ -29,19 +30,9 @@ export function softCrown(r:(x:number,y:number,w:number,h:number,c:string)=>void
 const leafy=['#345d48','#487951','#63905b','#86a367'] as const;
 export function makeArt(scene:Phaser.Scene){
   makeBins(scene);makeNeedIcons(scene);makeCommuters(scene);makePhone(scene);makeCar(scene);makePigeons(scene);makeCat(scene);makeHomeStreet(scene);makeKyotoLane(scene);makeKyotoHouse(scene);makeApartment(scene);
-  // 16×24 traveller sprite, four facings and three animation frames.
-  for(const face of ['down','up','left','right'])for(let frame=0;frame<3;frame++){
-    const t=scene.textures.createCanvas(`traveller-${face}-${frame}`,20,28)!;const g=t.context;
-    const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
-    const bob=frame===1?1:0;
-    r(4,25,12,2,'#00000040');
-    r(6,20+bob,3,5-(frame===1?1:0),'#384d59');r(12,20+bob,3,5-(frame===2?1:0),'#384d59');r(5,24,4,2,'#594c44');r(12,24,4,2,'#594c44');
-    r(5,12+bob,11,9,'#a65f4a');r(6,12+bob,9,7,'#d58b5c');r(4,14+bob,2,6,'#efc08b');r(16,14+bob,2,6,'#efc08b');r(7,8+bob,8,6,'#eac08d');r(6,6+bob,10,4,'#634d3e');
-    if(face==='up'){r(7,10+bob,8,3,'#634d3e');r(7,14+bob,7,7,'#677e67');r(8,15+bob,5,3,'#9eab7c');r(8,19+bob,5,1,'#384f48')}
-    else{r(face==='left'?7:face==='right'?14:8,10+bob,1,1,'#3b4541');if(face==='down')r(13,10+bob,1,1,'#3b4541');r(6,13+bob,1,7,'#785b42');r(14,13+bob,1,7,'#785b42')}
-    r(5,4+bob,12,4,'#d6b77a');r(7,2+bob,8,4,'#f1d8a0');r(4,7+bob,14,2,'#efd4a0');r(7,6+bob,8,1,'#a47b52');
-    t.refresh();
-  }
+  // 16×24 traveller sprite, four facings and three animation frames, as chosen on a new journey (look.ts).
+  const look=loadLook();
+  for(const face of ['down','up','left','right'])for(let frame=0;frame<3;frame++){const t=scene.textures.createCanvas(`traveller-${face}-${frame}`,20,28)!;paintTraveller(t.context,face,frame,look);t.refresh()}
 }
 
 /** The street outside a sight, on first use: its entrance in the middle of the back, on the layout of the street outside a station (makeTown, whose road, crossing, street lights and bus stop are here too, so that main.ts shares them, Lorenzo's Uber included):

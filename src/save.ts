@@ -11,6 +11,7 @@ export interface Spot {place:Place;x:number;y:number;outside:{from:Hub;side:Side
  * more progress joins it as new fields. */
 export interface Save {tickets:TravelTicket[];at?:Spot;clock?:number;alarm?:number;phone:PhoneState;groceries:[string,string][];needs:Needs}
 const key='yorimichi-save',version=1;
+export const hasSave=()=>{try{return localStorage.getItem(key)!==null}catch{return false}};
 // Only tickets for routes and stations that still exist, and a spot whose place (and the station it needs) still exists; a save from another version starts afresh.
 const valid=(at:Spot|undefined)=>!!at&&(at.place in places||at.place in stations)&&Number.isFinite(at.x)&&Number.isFinite(at.y)&&(!at.outside||at.outside.from in stations)
   &&(!['town','home-street','kyoto-lane','kyoto-house','kyoto-upstairs','apartment'].includes(at.place)&&!scenic(at.place)&&!sightOfRoad(at.place)||!!at.outside)&&(at.place!=='corridor'||!!at.gate&&at.gate.hub in stations&&platformsAt(at.gate.hub,at.gate.service).length>0)&&at.place!=='platform';

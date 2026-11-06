@@ -19,6 +19,7 @@ import { playRopeway } from './ropeway';
 import { wakeWheel, type WakeWheel } from './alarm';
 import { Phone, askLorenzo, callLorenzo, contacts, walkTime, type Contact } from './phone';
 import { loadSave, eraseAll, writeSave } from './save';
+import { showTitle } from './title';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { areaAround, kmApart, onMap, spotOf } from './city-maps';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
@@ -1018,7 +1019,7 @@ class Journey extends Phaser.Scene {
     this.flight=playRopeway(up,()=>{this.flight=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();addMinutes(5);if(up)this.loadPlace(sight.id);else this.loadPlace(roadTo(sight.id),{x:480,y:296})});
   }
   /** The menu from the top band (or Esc, or the pad's Start). */
-  private menu(){if(!this.modal){this.dialog('Menu','',[['Restart from zero',()=>this.confirmRestart()]]);this.modal!.setData('pause',true)}}
+  private menu(){if(!this.modal){this.dialog('Menu','',[['Main menu',()=>{this.keep();location.reload()}],['Restart from zero',()=>this.confirmRestart()]]);this.modal!.setData('pause',true)}}
   /** Asked once more, the pad's focus starting on Close so that A, A cannot erase a journey. */
   private confirmRestart(){
     this.dialog('Restart from zero?','Your whole journey will be erased: position, tickets, money, groceries, memories and messages. You start again at Tokyo Station with the starting purse. This cannot be undone.',[['Yes, erase everything and restart',()=>{this.erased=true;eraseAll();location.reload()}]]);
@@ -1574,6 +1575,6 @@ class Journey extends Phaser.Scene {
   }
 }
 // Started once the pixel font is in: the map lettering is painted into textures with it.
-document.fonts.load('10px "Yorimichi Bitmap"').catch(()=>{}).finally(()=>new Phaser.Game({type:Phaser.AUTO,parent:'game',width:960,height:640,backgroundColor:'#91ab78',pixelArt:true,antialias:false,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:Journey}));
+showTitle(()=>document.fonts.load('10px "Yorimichi Bitmap"').catch(()=>{}).finally(()=>new Phaser.Game({type:Phaser.AUTO,parent:'game',width:960,height:640,backgroundColor:'#91ab78',pixelArt:true,antialias:false,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},scene:Journey})));
 // No browser menu on right click, over the scene or the hall and kiosk overlays: the right button is B (pad.ts).
 document.addEventListener('contextmenu',e=>e.preventDefault());
