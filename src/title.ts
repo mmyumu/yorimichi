@@ -39,7 +39,7 @@ function backdrop(){
   for(let x=0;x<W;x++){const t=Math.round(118+Math.sin(x*.03)*5+Math.sin(x*.11+1)*2);r(x,t,1,140-t,'#3a3462')}
   for(let x=0;x<W;){const w=6+Math.floor(rand()*10),h=6+Math.floor(rand()*rand()*22);r(x,138-h,w,h,'#262548');for(let y=140-h;y<136;y+=3)for(let k=x+1;k<x+w-1;k+=2)if(rand()<.3)r(k,y,1,1,rand()<.8?'#ffd98a':'#fff6d0');x+=w+Math.floor(rand()*2)}
   // A five-storey pagoda over the roofs.
-  r(72,72,1,10,'#1a1932');for(let i=0;i<5;i++){const w=26-i*4,y=128-i*11;r(73-w/2+2,y-6,w-4,7,'#1f1d3a');r(73-w/2,y-8,w,2,'#151429');r(73-w/2-1,y-7,1,1,'#151429');r(73+w/2,y-7,1,1,'#151429');if(i<4)r(72,y-5,2,2,'#ffcf7a')}
+  r(72,72,1,10,'#1a1932');for(let i=0;i<5;i++){const w=26-i*4,y=128-i*11;r(73-w/2+2,y-6,w-4,9,'#1f1d3a');r(73-w/2,y-8,w,2,'#151429');r(73-w/2-1,y-7,1,1,'#151429');r(73+w/2,y-7,1,1,'#151429');if(i<4)r(72,y-5,2,2,'#ffcf7a')}
   r(56,128,34,10,'#1f1d3a');
   // The viaduct the trains run along, its piers into the river.
   r(0,140,W,4,'#2b2843');r(0,139,W,1,'#5a5078');r(0,144,W,1,'#1b1930');for(let x=6;x<W;x+=32){r(x,145,5,16,'#221f38');r(x+5,145,1,16,'#36304e')}
