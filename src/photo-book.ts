@@ -7,6 +7,8 @@ type Shelf=Record<string,string[]>;
 let shelf:Promise<Shelf>|null=null;
 const loadShelf=()=>shelf??=fetch(`${photoBase}index.json`).then(r=>r.ok?r.json() as Promise<Shelf>:{}).catch(()=>({}));
 const pages=[...memoryPages,roadPage],columns=6;
+/** Each page's cover (its first photo) as a URL, decrypted once and kept for the session: the index is redrawn on every move of the focus. */
+const covers=new Map<string,Promise<string>>(),coverOf=(path:string)=>{let url=covers.get(path);if(!url){url=photoUrl(path);covers.set(path,url);url.catch(()=>covers.delete(path))}return url};
 /** The album, a full-screen DOM overlay: a page for each place, those not yet found blank, and each page's photos one at a time. From a place's camera (`start`) it opens on that page and closes from there.
  * Arrows, D-pad or stick, Enter or A to open, Esc or B to go back. */
 export class PhotoBook{
@@ -58,8 +60,9 @@ export class PhotoBook{
     const found=pages.filter((_,i)=>this.open(i)&&pages[i]!==roadPage).length,title=document.createElement('div');title.textContent=`My travel journal · ${found} / ${memoryPages.length} memories`;title.style.cssText='padding:12px 16px;font-size:20px';
     const grid=document.createElement('div');grid.style.cssText=`flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(${columns},1fr);grid-auto-rows:minmax(110px,1fr);gap:8px;padding:0 16px 16px`;
     pages.forEach((page,i)=>{
-      const open=this.open(i),card=document.createElement('button');card.textContent=open?`${page.ja}\n${page.en}`:'？';
+      const open=this.open(i),cover=this.photos[page.id]?.[0],card=document.createElement('button');card.textContent=open?`${page.ja}\n${page.en}`:'？';
       card.style.cssText=`font:inherit;font-size:13px;white-space:pre-line;color:#fff;text-shadow:0 1px 3px #000;cursor:${open?'pointer':'default'};display:flex;align-items:flex-end;justify-content:center;padding:6px;background:${open?'#415c4f':'#22393d'};border:3px solid ${i===this.focus?'#f3d76b':'#0000'}`;
+      if(open&&cover)coverOf(`${page.id}/${cover}`).then(url=>{if(card.isConnected)card.style.background=`center/cover url("${url}")`}).catch(()=>{});
       card.onclick=()=>{if(open)this.show(i)};grid.append(card);if(i===this.focus)queueMicrotask(()=>card.scrollIntoView({block:'nearest'}));
     });
     const leave=document.createElement('button');leave.textContent='Close';leave.style.cssText='position:absolute;top:8px;right:12px;font:inherit;padding:4px 12px;background:#415c4f;color:#fff0d4;border:0;cursor:pointer';leave.onclick=()=>this.back();
