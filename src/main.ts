@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { connectedPad } from './pad';
 import './style.css';
-import { apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, kyotoSolids, kyotoWindows, homeLights, homeStreetWidth, homeWindows, laneOuter, laneWindows, doorMarks, busStop, makeBus, binShape, makeArt, makeAreaMap, makeSightRoad, makeTimetable, makeBoard, makeCorridor, makePoles, makeHub, makePlatform, makeTown, makeTrain, boardHeight, doorSize, gantryHeight, trainHeight, trainRoof, trainTop, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
+import { apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, kyotoSolids, kyotoWindows, homeLights, homeStreetWidth, homeWindows, laneOuter, laneWindows, doorMarks, busStop, makeBus, binShape, carAt, makeArt, makeAreaMap, makeSightRoad, makeTimetable, makeBoard, makeCorridor, makePoles, makeHub, makePlatform, makeTown, makeTrain, boardHeight, doorSize, gantryHeight, trainHeight, trainRoof, trainTop, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
 import { vivid } from './palette';
-import { alightAt, deckFor, runOf, stopEn, type Deck, type Run } from './platform';
+import { alightAt, deckFor, lineAt, onTimetable, runOf, stopEn, type Deck, type Run } from './platform';
 import { MachineHall } from './machine-hall';
 import { TicketGate } from './ticket-gate';
 import { openInventory } from './inventory';
@@ -19,11 +19,13 @@ import { playRopeway } from './ropeway';
 import { wakeWheel, type WakeWheel } from './alarm';
 import { Phone, askLorenzo, callLorenzo, contacts, walkTime, type Contact } from './phone';
 import { loadSave, eraseAll, writeSave } from './save';
+import { portraitTexture } from './portraits';
 import { showTitle } from './title';
+import { openPauseMenu } from './pause-menu';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { areaAround, kmApart, onMap, spotOf } from './city-maps';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
-import { addMinutes, clockMs, darkness, dayLabel, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, hold, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
+import { addMinutes, clockMs, darkness, dayLabel, dayOf, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, hold, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
 import { openDepartures, onTokyoBoard, tokyoStations } from './tokyo-fares';
 import { carried, feed, filling, needFactor, spend } from './needs';
 import { goodNamed } from './goods';
@@ -66,12 +68,14 @@ type Step={x:number;y:number;alpha?:number;off?:[number,number]}|{wait:number;fa
 type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:number;face?:string;bump?:number;queue?:[number,number,number]};
 /** A train on one track of the platform, through its cycle: away (`gap`, until it pulls in to leave on time), arriving, doors open for those getting off (`alight`) then the queues (`board`),
  * closing, leaving. `due`: its time on the boards, when it leaves, in minutes on the journey's clock (clock.ts). `player`: the traveller arriving on board (`off`, to get off) or boarded (`on`),
- * the doors shutting at `wait` once they have chosen where to get off. */
-type Train={track:0|1;line:RailLine;run:Run;due:number;phase:'gap'|'arrive'|'alight'|'board'|'close'|'leave';t:number;wait:number;tick:number;body:Phaser.GameObjects.Container;image:Phaser.GameObjects.Image;doors:Phaser.GameObjects.Rectangle[];player?:'off'|'on';to?:Deck;served?:number[]};
+ * the doors shutting at `wait` once they have chosen where to get off; `seated`, their reserved seat when they boarded the very train and car it is booked on (a rested ride: ride). */
+type Train={track:0|1;line:RailLine;run:Run;due:number;phase:'gap'|'arrive'|'alight'|'board'|'close'|'leave';t:number;wait:number;tick:number;body:Phaser.GameObjects.Container;image:Phaser.GameObjects.Image;doors:Phaser.GameObjects.Rectangle[];player?:'off'|'on';to?:Deck;served?:number[];seated?:string};
 /** A train's ms from pulling in to the earliest its doors close (arriving, those getting off, a moment's boarding): its time on the boards is when it leaves, that long after it starts pulling in. */
 const dwell=6000+2600+4000;
 /** How long (ms) someone getting off leaves the traveller standing in their way dazed. */
 const stunned=1400;
+/** What a ride in the reserved seat, on the train booked, puts back in hunger and thirst. */
+const rested=20;
 /** Lights at night, in scene px: x, y, radius, colour and strength. */
 /** A light at night: x, y and radius in scene px, its colour, its strength, and how flat its pool lies on the ground (its height over its width, round when left out). */
 type Lamp=[number,number,number,number,number?,number?];
@@ -212,7 +216,7 @@ class Journey extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE,()=>{if(this.player)this.nightfall()});
     this.input.addPointer(3);
     this.keys=this.input.keyboard!.createCursorKeys();
-    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
+    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
     this.input.keyboard!.on('keyup',(event:KeyboardEvent)=>this.held.delete(event.code));
     this.game.events.on('blur',()=>this.held.clear());
     // Back where the traveller last stood (waking up at home the first time: out of the apartment is the lane to Higashi-Nakano's west exit).
@@ -565,6 +569,36 @@ class Journey extends Phaser.Scene {
     // Gamepad focus ring: d-pad / stick to move, A to choose, B to close.
     const ring=this.add.rectangle(0,0,1,1).setOrigin(0).setStrokeStyle(3,0xf3d76b).setVisible(false);c.add(ring);c.setData({choices:buttons,ring});this.focusChoice(c,0);
   }
+  /** A friend speaking face to face, as in a Japanese RPG: a box along the foot of the screen, their face on its left, their name and words typed out.
+   * A click, E, Space, Enter, Esc, A or B shows the whole page, then the next; `choices` follow the last page (the last of them also Esc / B), else it closes and `then` follows. */
+  private talk(who:Contact,pages:string[],choices:[string,()=>void][]=[],then?:()=>void){
+    this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);const c=this.add.container(0,0).setDepth(20);this.modal=c;
+    const X=24,Y=436,W=912,H=188,tx=X+188,g=this.add.graphics();
+    const hit=this.add.rectangle(0,0,960,640,0,0).setOrigin(0).setInteractive();c.add([hit,g]);
+    // The box: deep blue shading down, a white rim and a faint inner one; the face in its own frame.
+    g.fillGradientStyle(0x34489e,0x34489e,0x0e1648,0x0e1648,.96).fillRect(X,Y,W,H).lineStyle(4,0xf4f4fa).strokeRect(X,Y,W,H).lineStyle(2,0x7d88c8).strokeRect(X+6,Y+6,W-12,H-12);
+    g.fillStyle(0x0a0f30).fillRect(X+18,Y+20,148,148).lineStyle(2,0xf4f4fa).strokeRect(X+18,Y+20,148,148);
+    portraitTexture(this,who,key=>{if(c.active)c.add(this.add.image(X+20,Y+22,key).setOrigin(0).setDisplaySize(144,144))});
+    const font='"Yorimichi Pixel","Yorimichi JP",monospace';void document.fonts.load('20px "Yorimichi Pixel"');
+    c.add(this.add.text(tx,Y+18,contacts[who].name,{fontFamily:font,fontSize:22,color:'#ffe27a'}));
+    const text=this.add.text(tx,Y+54,'',{fontFamily:font,fontSize:20,color:'#ffffff',lineSpacing:8,wordWrap:{width:X+W-tx-28}}),more=this.add.text(X+W-34,Y+H-34,'▼',{fontFamily:font,fontSize:16,color:'#ffffff'}).setVisible(false);c.add([text,more]);
+    const ring=this.add.rectangle(0,0,1,1).setOrigin(0).setVisible(false);c.add(ring);
+    let page=0,shown=0,asking=false;
+    const blink=this.tweens.add({targets:more,alpha:0,duration:400,yoyo:true,repeat:-1}),close=()=>{typing.remove();blink.remove();c.destroy(true);if(this.modal===c)this.modal=null};
+    const typing=this.time.addEvent({delay:28,loop:true,callback:()=>{if(shown<pages[page].length)text.setText(pages[page].slice(0,++shown));else ended()}});
+    const ended=()=>{
+      if(asking)return;text.setText(pages[page]);shown=pages[page].length;const last=page===pages.length-1;more.setVisible(!last||!choices.length);if(!last||!choices.length)return;
+      asking=true;const w=Math.min(300,(X+W-tx-28-12*(choices.length-1))/choices.length);
+      const buttons=choices.map(([label,fn],i):PadChoice=>{const go=()=>{close();fn()};return [this.button(tx+i*(w+12),Y+H-60,w,40,label,go,c),go]});
+      ring.setStrokeStyle(3,0xf3d76b);c.setData('choices',buttons);this.focusChoice(c,0);
+    };
+    const press=()=>{if(asking){const buttons=c.getData('choices') as PadChoice[];buttons[c.getData('focus')][1]();return}
+      if(shown<pages[page].length){ended();return}
+      if(page<pages.length-1){page++;shown=0;text.setText('');more.setVisible(false);return}
+      close();then?.()};
+    hit.on('pointerdown',()=>{if(!asking)press()});
+    c.setData({choices:[[hit,press]],ring,talk:press});this.focusChoice(c,0);
+  }
   /** A click on the shade round a popup's panel (`panel`, sized now or later) closes it, as its Close button would. */
   private dismissible(shade:Phaser.GameObjects.Rectangle,panel:Phaser.GameObjects.Rectangle,close:()=>void){shade.on('pointerdown',(pointer:Phaser.Input.Pointer)=>{if(!panel.getBounds().contains(pointer.x,pointer.y))close()})}
   /** The street's area map, read up close: on its board (makeAreaMap, its panels and legend), the street itself at a quarter of the scene's resolution, the traveller on a red 現在地 spot,
@@ -630,6 +664,7 @@ class Journey extends Phaser.Scene {
   }
   private interact(){
     if(this.wheel)this.sleep();
+    const talking=this.modal?.getData('talk') as (()=>void)|undefined;if(talking){talking();return}
     if(this.modal)return;
     const near=this.nearby();if(near.startsWith('stairs')){this.climb(Number(near.slice(6,-1)),near.endsWith('L'));return}if(!near&&(this.place==='corridor'||this.place==='platform'||isHub(this.place)&&!stationOpen()))return;if(near.startsWith('door')){this.tryBoard(near);return}if(near.startsWith('vending')){this.vending(near.split('-')[2] as VendorId);return}
     switch(near){
@@ -689,7 +724,9 @@ class Journey extends Phaser.Scene {
     const close=()=>{this.gate=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
     this.gate=new TicketGate({ja:stations[hub].ja,en:stations[hub].en,accent:stations[hub].accent,hub},service,[...this.tickets],this.wallet,ticket=>ticket.kind==='adjust'?'出場専用のきっぷです\nA fare adjustment ticket only takes you out of a station.'
       :ticket.from!==hub?`このきっぷはご利用になれません\nThis ticket starts its trip at ${stations[ticket.from].en}, not here.`
-      :ticket.service!==service?`${ticket.service==='local'?'在来線':'新幹線'}のきっぷです\nIt goes through the ${ticket.service==='local'?'local (在来線) gates':'Shinkansen (新幹線) gates'}.`:'',{
+      :ticket.service!==service?`${ticket.service==='local'?'在来線':'新幹線'}のきっぷです\nIt goes through the ${ticket.service==='local'?'local (在来線) gates':'Shinkansen (新幹線) gates'}.`
+      // A Shinkansen ticket is good on its own day only (a reserved seat's train missed, it still is, in the non-reserved cars, as at JR).
+      :ticket.kind==='route'&&ticket.reservation?.date!==undefined&&ticket.reservation.date!==dayOf()?'not today':'',{
       pass:ticket=>{
         close();if(ticket.kind!=='route'||service==='local'){this.gateway={hub,service};this.loadPlace('corridor');return}
         const line=railLine(ticket.lineId);this.toPlatform({...deckFor(stations[hub].ja,line,stations[hub].tracks[line.id].indexOf(trackOf(ticket)) as 0|1),arriving:undefined});
@@ -740,7 +777,7 @@ class Journey extends Phaser.Scene {
   private platformMap(){
     const {ja,en,platform:{tracks,lines:[line]},service}=this.deck!,key=`map-platform-${ja}-${tracks.join('-')}-${line.id}`,i=line.stops.indexOf(ja),n=line.stops.length;
     const side=(k:number)=>line.loop?line.stops[(i+k+n)%n]:line.stops[i+k]??'';
-    if(!this.textures.exists(key))makePlatform(this,key,{ja,en,tracks,color:line.color,prev:side(-1),next:side(1),prevEn:side(-1)&&stopEn(side(-1)),nextEn:side(1)&&stopEn(side(1)),service});
+    if(!this.textures.exists(key))makePlatform(this,key,{ja,en,tracks,color:line.color,prev:side(-1),next:side(1),prevEn:side(-1)&&stopEn(side(-1)),nextEn:side(1)&&stopEn(side(1)),service,dirs:service==='shinkansen'?[runOf(line,ja,0).dir,runOf(line,ja,1).dir]:undefined});
     return key;
   }
   /** The door marks along the platform, in scene px. */
@@ -764,7 +801,8 @@ class Journey extends Phaser.Scene {
     const sort=track?472:trainTop[0]*2,lift=trainTop[track]*2-sort,body=this.add.container(origin*2,sort),image=this.add.image(0,lift,'__DEFAULT').setOrigin(0).setScale(2);body.add(image);this.world.add(body);
     // A door open: the far track's shows the dark inside; the near track's, on the side out of sight, the light it spills over the gap to the platform.
     const rects=Array.from({length:cars},(_,c)=>doors.map(d=>(track?this.add.rectangle(2*(c*car+d),lift-8,doorSize*2,8,0xfff1cc):this.add.rectangle(2*(c*car+d),(trainRoof+3)*2,doorSize*2,(trainHeight-trainRoof-5)*2,0x1d2622)).setOrigin(.5,0).setScale(0,1))).flat();body.add(rects);
-    const train:Train={track,line:arriving??pick(deck.platform.lines),run:runOf(deck.platform.lines[0],deck.ja,track),due:this.dueIn(arriving?dwell-3800:(track===deck.track?1500:7500)+dwell),phase:arriving?'arrive':'gap',t:arriving?3800:0,wait:0,tick:0,body,image,doors:rects,player:arriving?'off':undefined};
+    const due=arriving?this.dueIn(dwell-3800,false):this.dueIn((track===deck.track?1500:7500)+dwell);
+    const train:Train={track,line:arriving??(deck.service==='shinkansen'?lineAt(deck.platform.lines,due):pick(deck.platform.lines)),run:runOf(deck.platform.lines[0],deck.ja,track),due,phase:arriving?'arrive':'gap',t:arriving?3800:0,wait:0,tick:0,body,image,doors:rects,player:arriving?'off':undefined};
     this.dress(train);return train;
   }
   /** Paints a train for its line and sets where it goes from here. */
@@ -772,8 +810,9 @@ class Journey extends Phaser.Scene {
     const key='train-'+train.line.id;if(!this.textures.exists(key))makeTrain(this,key,train.line.color,train.line.service);
     train.image.setTexture(key);train.run=runOf(train.line,this.deck!.ja,train.track);
   }
-  /** The time on the boards of a train leaving in `ms` (real ms), whole minutes on the journey's clock, or the first train's if none runs then. */
-  private dueIn(ms:number){return inService(Math.ceil(minutes()+ms/minuteMs))}
+  /** The time on the boards of a train leaving in `ms` (real ms) at the earliest, whole minutes on the journey's clock, or the first train's if none runs then; a Shinkansen's, the next
+   * on its timetable (`timetable`; not the one the traveller arrives on, already running). */
+  private dueIn(ms:number,timetable=true){const due=inService(Math.ceil(minutes()+ms/minuteMs));return timetable&&this.deck?.service==='shinkansen'?onTimetable(due):due}
   /** How far a train is into its `dwell` (ms from pulling in), or `dwell` once past it or away. */
   private into(train:Train){return train.phase==='arrive'?train.t:train.phase==='alight'?6000+train.t:train.phase==='board'?8600+train.t:dwell}
   /** Debug (T, or a click on the clock): sets the clock to the time typed, the trains on the platform retimed to it (one away due as soon as it can come in, one in
@@ -785,8 +824,8 @@ class Journey extends Phaser.Scene {
     for(const train of this.trains)train.due=train.phase==='gap'?this.dueIn(dwell):Math.ceil(minutes()+(dwell-this.into(train))/minuteMs);
     this.keep();
   }
-  /** The line of the next train on a track: lines sharing the platform take turns. */
-  private nextLine(train:Train){const lines=this.deck!.platform.lines;return lines[(lines.indexOf(train.line)+1)%lines.length]}
+  /** The line of the next train on a track: lines sharing the platform take turns (on the Shinkansen, by its timetable: its `due` is already the next one's as this one leaves). */
+  private nextLine(train:Train){const lines=this.deck!.platform.lines;return this.deck!.service==='shinkansen'?lineAt(lines,train.due):lines[(lines.indexOf(train.line)+1)%lines.length]}
   private phase(train:Train,phase:Train['phase']){train.phase=phase;train.t=train.tick=0;train.served=undefined}
   /** The trains' cycles: in, doors open for those getting off then the queues, doors shut, out; the next one follows a moment later (lines sharing the platform take turns).
    * They keep to the journey's clock: each pulls in in time to leave at its time on the boards, and none runs between the last train and the first.
@@ -811,7 +850,7 @@ class Journey extends Phaser.Scene {
       else{
         // With the traveller on board it pulls out quicker, so the ride starts without a wait.
         const p=Math.min(1,train.t/(train.player==='on'?2500:6000));train.body.x=stop+out*far*p*p;
-        if(p>=1){if(train.player==='on'&&train.to){this.ride(train);this.toPlatform(train.to);return}train.player=undefined;train.line=this.nextLine(train);this.dress(train);this.phase(train,'gap');if(this.stayed===train.track)this.stayed=-1}
+        if(p>=1){if(train.player==='on'&&train.to){const seat=train.seated;this.ride(train);this.toPlatform(train.to);if(seat)this.restedNote(seat);return}train.player=undefined;train.line=this.nextLine(train);this.dress(train);this.phase(train,'gap');if(this.stayed===train.track)this.stayed=-1}
       }
       train.doors.forEach(door=>door.setScale(open,1));
       // The boards, digital, in Japanese then English by turns: the time and where it goes, the line under it (a loop's trains by their way round); the next train's once this one pulls out.
@@ -884,8 +923,16 @@ class Journey extends Phaser.Scene {
   private tryBoard(spot:string){
     this.boardAt=spot;if(!this.boardable(spot))return;this.boardAt='';
     const [track,k]=spot.slice(4).split('-').map(Number),train=this.trains[track],door=this.doorPoint(track,k);
-    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0);train.player='on';this.facing=track?'down':'up';
+    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0);train.player='on';this.facing=track?'down':'up';train.seated=this.seatFor(train,k);
     this.tweens.add({targets:this.player,x:door.x,y:door.y,alpha:0,duration:450});this.lineMap(train);
+  }
+  /** The car of door `k` on a Shinkansen, as the platform's floor numbers it (carAt). */
+  private carOf(train:Train,k:number){return carAt(this.doorXs()[k]/2,train.run.dir)}
+  /** The traveller's reserved seat if the ticket that brought them up here is booked on this very train, in the car of door `k`. */
+  private seatFor(train:Train,k:number){
+    const deck=this.deck!;if(deck.service!=='shinkansen')return undefined;
+    const r=this.tickets.flatMap(t=>t.kind==='route'&&t.punched===deck.hub&&t.lineId===train.line.id&&trackOf(t)===stations[deck.hub].tracks[train.line.id][train.track]&&t.reservation?.due===train.due?[t.reservation]:[])[0];
+    return r?.car===this.carOf(train,k)?`${r.car}号車 ${r.seat}`:undefined;
   }
   /** On board, the doors still open: the line ahead as the map over the doors shows it, from here (現在地, in red) to the end of the run.
    * The stops the game has can be chosen, the doors then shutting at once; staying here steps back off by the same door. */
@@ -922,6 +969,12 @@ class Journey extends Phaser.Scene {
   private ride(train:Train){
     const from=this.deck!.ja,to=train.to!.ja;
     addMinutes(train.line.service==='shinkansen'?shinkansenMinutes(train.line,from,to):localMinutes(from,to,train.run.ahead.indexOf(to)+1));
+    // In the seat booked, on the train booked: the ride costs nothing in hunger and thirst, and puts some back (a reward more than a reason).
+    if(train.seated){this.fedAt=minutes();feed(this.needs,{hunger:rested,thirst:rested})}
+  }
+  /** Once off a ride in the reserved seat, a word about it in the corner. */
+  private restedNote(seat:string){
+    const note=this.label(886,556,`Seat ${seat}, as booked: a restful ride. Hunger and thirst +${rested}.`,12,'#253634',this.hud).setOrigin(1,.5).setPadding(8,5,8,5).setBackgroundColor('#f3f1eaee').setWordWrapWidth(320);this.time.delayedCall(4500,()=>note.destroy());
   }
   /** A connection's icon at (x,y), its top left: the line's symbol on its colour; a bus's number after a little bus. */
   private lineTag(c:Phaser.GameObjects.Container,x:number,y:number,tag:Connection,h=13){
@@ -1018,13 +1071,22 @@ class Journey extends Phaser.Scene {
     this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);this.modal=this.add.container(0,0).setDepth(20);
     this.flight=playRopeway(up,()=>{this.flight=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();addMinutes(5);if(up)this.loadPlace(sight.id);else this.loadPlace(roadTo(sight.id),{x:480,y:296})});
   }
-  /** The menu from the top band (or Esc, or the pad's Start). */
-  private menu(){if(!this.modal){this.dialog('Menu','',[['Main menu',()=>{this.keep();location.reload()}],['Restart from zero',()=>this.confirmRestart()]]);this.modal!.setData('pause',true)}}
-  /** Asked once more, the pad's focus starting on Close so that A, A cannot erase a journey. */
-  private confirmRestart(){
-    this.dialog('Restart from zero?','Your whole journey will be erased: position, tickets, money, groceries, memories and messages. You start again at Tokyo Station with the starting purse. This cannot be undone.',[['Yes, erase everything and restart',()=>{this.erased=true;eraseAll();location.reload()}]]);
-    (this.modal!.getData('choices')[0][0] as Phaser.GameObjects.Rectangle).setFillStyle(0xb3261e);this.modal!.setData('pause',true);
-    this.focusChoice(this.modal!,1);
+  /** The menu from the top band (or Esc, or the pad's Start): the pixel-art picture of pause-menu.ts over the paused scene. */
+  private menu(){
+    if(this.modal)return;
+    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20).setData('pause',true);
+    const done=()=>{this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
+    openPauseMenu({where:this.whereabouts(),day:dayLabel(),time:hhmm(minutes()),yen:walletTotal(this.wallet),memories:[this.collected.size,memoryPages.length]},
+      {resume:done,journal:()=>{done();this.album()},title:()=>{this.keep();location.reload()},restart:()=>{this.erased=true;eraseAll();location.reload()}});
+  }
+  /** Where the traveller stands, in Japanese and English, for the menu's card. */
+  private whereabouts():[string,string]{
+    const p=this.place;
+    if(isHub(p))return [`${stations[p].ja}駅`,`${stations[p].en} Station`];
+    if(p==='town'&&this.outside){const {from,side}=this.outside,[ja,en]=exitName(from,side);return [`${stations[from].ja}駅 ${ja}`,`${stations[from].en} Station · ${en}`]}
+    if(p==='corridor'&&this.gateway){const s=stations[this.gateway.hub];return [`${s.ja}駅`,`${s.en} Station · To the platforms`]}
+    if(p==='platform'&&this.deck)return [`${this.deck.ja}駅`,`${this.deck.en} Station · On the platform`];
+    return [(sightOf(p)??sightOfRoad(p))?.ja??'',places[p]??p];
   }
   /** The bag from the top band (or X), or at a bin: tickets, groceries and wallet, over the paused scene. */
   private inventory(bin=false){
@@ -1385,14 +1447,15 @@ class Journey extends Phaser.Scene {
   /** Lorenzo has landed and taken an Uber to the station nearest the traveller: in its street, the traveller sees it pull up, then his message comes; anywhere else it comes at once, the Uber waiting there. */
   private land(){
     const stop=this.pickup(),trip=this.phone.lorenzo;trip.state='here';trip.at=stop;this.keep();
-    const say=()=>this.receive('lorenzo',`I’m at ${this.pickupName(stop)}! My Uber is waiting out front.`);
-    if(this.place==='town'&&this.townId()===stop||this.place===stop)this.parkCar(say);else say();
+    // Seen pulling up, he says it through the window; anywhere else, by message.
+    if(this.place==='town'&&this.townId()===stop||this.place===stop)this.parkCar(()=>this.modal?this.receive('lorenzo',`I’m here! My Uber is waiting out front.`):this.talk('lorenzo',['Ciao! There you are!','The Uber’s right here. Hop in whenever you want a ride home.']));
+    else this.receive('lorenzo',`I’m at ${this.pickupName(stop)}! My Uber is waiting out front.`);
   }
   /** Lorenzo's Uber, parked in the street: a ride home to the apartment, by road about as far as by rail (some 2.4 minutes a km through town), from anywhere around Tokyo;
    * on the Kyoto side, to the rental there. */
   private uber(){
     const here=stations[this.townId()].ja,near=kmBetween(here,stations[home.hub].ja)===null?kyotoHome:home,km=kmBetween(here,stations[near.hub].ja)??0,ride=Math.max(6,Math.round(km*2.4+4)),name=near===home?'Higashi-Nakano':'Jujo';
-    this.dialog('Lorenzo’s Uber',`“Ciao! Hop in, the driver knows the way to your place in ${name}. It’s on me!”\nAbout ${ride} minutes by road.`,[[`Ride home (${ride} min)`,()=>this.rideHome(ride,near)]]);
+    this.talk('lorenzo',[`Ciao! Hop in, the driver knows the way to your place in ${name}. It’s on me!`],[[`Ride home (${ride} min)`,()=>this.rideHome(ride,near)],['Not now',()=>{}]]);
   }
   /** The ride home: the screen fades out on the street and in on the home street, the Uber pulled up at the apartment's door and the traveller just out of it; it drives off,
    * and Lorenzo (wishing a good night from 18:00 to 5:00, else a good morning or afternoon), dropped at Higashi-Nakano Station, waits there (his Uber in its street) until called again. */
@@ -1401,9 +1464,10 @@ class Journey extends Phaser.Scene {
     camera.fadeOut(700,0,0,0);camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
       addMinutes(ride);this.phone.lorenzo={state:'here',at:to.hub};this.outside={from:to.hub,side:to.side};if(to===home)this.loadPlace('home-street',{x:140,y:300});else this.loadPlace('kyoto-lane',{x:134,y:366});this.facing='down';
       this.modal=this.add.container(0,0);const car=this.car=this.add.image(...(to===home?[106,352]:[300,440]) as [number,number],'uber-car-0');this.world.add(car);camera.fadeIn(700);
-      camera.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE,()=>this.tweens.add({targets:car,x:this.mapWidth+80,duration:2400,ease:'Cubic.easeIn',onUpdate:()=>this.roll(car),onComplete:()=>{
-        car.destroy();if(this.car===car)this.car=null;this.modal?.destroy(true);this.modal=null;const hour=minuteOfDay()/60;this.receive('lorenzo',`Here we are! ${hour>=18||hour<5?'Sleep well.':hour<12?'Have a good morning.':'Enjoy the rest of your afternoon.'} I’ll be around ${to===home?'Higashi-Nakano':'Jujo'} Station if you need me.`);
-      }}));
+      // Lorenzo has his word through the window, then the car drives off.
+      const hour=minuteOfDay()/60,drive=()=>{this.modal=this.add.container(0,0);this.tweens.add({targets:car,x:this.mapWidth+80,duration:2400,ease:'Cubic.easeIn',onUpdate:()=>this.roll(car),onComplete:()=>{
+        car.destroy();if(this.car===car)this.car=null;this.modal?.destroy(true);this.modal=null}})};
+      camera.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE,()=>this.talk('lorenzo',['Here we are!',`${hour>=18||hour<5?'Sleep well.':hour<12?'Have a good morning.':'Enjoy the rest of your afternoon.'} I’ll be around ${to===home?'Higashi-Nakano':'Jujo'} Station if you need me. Just send me a message!`],[],drive));
     });
   }
   /** The Uber on the station's side of the road, just past the crossing: parked, or pulling up from the left before `then`. Solid once parked, nudging aside a traveller standing there. */
@@ -1561,7 +1625,7 @@ class Journey extends Phaser.Scene {
     if(this.pending&&near===this.pending){this.pending='';this.stopNavigation();this.interact();return}
     if(!this.path.length)this.pending='';
     // On the platform, the only prompt is the one to board, once it is the traveller's turn.
-    const say=this.place!=='platform'?near&&`${this.promptFor(near)??messages[near]}`:near.startsWith('door')&&this.boardable(near)?'Board':'';
+    const say=this.place!=='platform'?near&&`${this.promptFor(near)??messages[near]}`:near.startsWith('door')&&this.boardable(near)?this.deck!.service==='shinkansen'?`Board · ${this.carOf(this.trains[+near[4]],+near.split('-')[1])}号車`:'Board':'';
     this.prompt.setText(say?`◎ ${say} · E / Ⓐ / click`:'').setVisible(!!say);
     if(say)this.prompt.setPosition(Phaser.Math.Clamp(this.player.x+this.world.x,this.prompt.width/2+8,952-this.prompt.width/2),Math.max(this.player.y+this.world.y-62,this.prompt.height+76));
     // Every hotspot outlined, fading between white and yellow; the one in reach in yellow, pulsing, over a faint wash.

@@ -28,3 +28,13 @@ export function deckFor(ja:string,line:RailLine,track:0|1):Deck{
   const platforms=platformsAt(hub,line.service),i=platforms.findIndex(platform=>platform.lines.includes(line));
   return {ja,en:stopEn(ja),hub,i,service:line.service,track,platform:platforms[i]};
 }
+/** The Shinkansen's timetable (fictional, like every timetable here): a train leaves each track every `shinkansenEvery` minutes, on the quarter hours, the lines sharing a platform taking those departures
+ * in turn (`lineAt`), so that a ticket machine knows which train will stand at which track when. */
+export const shinkansenEvery=15;
+export const onTimetable=(m:number)=>Math.ceil(m/shinkansenEvery)*shinkansenEvery;
+export const lineAt=(lines:RailLine[],due:number)=>lines[Math.floor(due/shinkansenEvery)%lines.length];
+/** A Shinkansen's name and number for its departure (`due`, minutes on the journey's clock) and way (`dir`): odd numbers away from Tokyo (下り), even towards it, numbered through the day. */
+export function trainName(line:RailLine,due:number,dir:number):[string,string]{
+  const [ja,en]=line.id==='tohoku-shinkansen'?['はやぶさ','HAYABUSA']:['のぞみ','NOZOMI'],n=100+2*Math.floor(((due%1440+1440)%1440)/shinkansenEvery)+(dir>0?1:2);
+  return [`${ja}${n}号`,`${en} ${n}`];
+}

@@ -1,5 +1,6 @@
 import { labelled, mapHeight, mapWidth, onMap, paintArea, place, spotOf, stationLabel, type Area, type LonLat } from './city-maps';
 import { dayLabel, hhmm, minutes } from './clock';
+import { portraitUrl } from './portraits';
 
 export type Contact='jennifer'|'namiko'|'lorenzo';
 /** A message, the traveller's own (`me`) or the contact's, sent at `at` on the journey's clock (none: before the journey began). */
@@ -90,8 +91,9 @@ export class Phone {
       if(this.state.unread[s]){this.state.unread[s]=0;this.on.changed()}
       const bar=el(box,'header','phone-bar');this.button(bar,'phone-back',()=>this.back(),'←').setAttribute('aria-label','Back');this.avatar(bar,s);el(bar,'span','',contacts[s].name);
       const log=el(box,'div','phone-log');
-      for(const message of this.state.chats[s]){const b=el(log,'div','phone-bubble'+(message.me?' me':''),message.text);el(b,'small','',this.when(message))}
-      if(s==='lorenzo'&&(this.state.lorenzo.state==='asked'||this.state.lorenzo.state==='called'))el(log,'div','phone-bubble typing','•••');
+      const said=()=>{const row=el(log,'div','phone-said');this.avatar(row,s);return row};
+      for(const message of this.state.chats[s]){const b=el(message.me?log:said(),'div','phone-bubble'+(message.me?' me':''),message.text);el(b,'small','',this.when(message))}
+      if(s==='lorenzo'&&(this.state.lorenzo.state==='asked'||this.state.lorenzo.state==='called'))el(said(),'div','phone-bubble typing','•••');
       const compose=el(box,'div','phone-compose');
       const suggested=s==='lorenzo'?{home:askLorenzo,here:callLorenzo}[this.state.lorenzo.state as string]:undefined;
       if(suggested)this.button(compose,'phone-chip',()=>this.on.send('lorenzo'),suggested);else el(compose,'div','phone-field','Text message');
@@ -161,7 +163,7 @@ export class Phone {
     const ax=view.x+(x-mapWidth/2)/view.z,ay=view.y+(y-mapHeight/2)/view.z;
     view.z=next;view.x=ax-(x-mapWidth/2)/next;view.y=ay-(y-mapHeight/2)/next;clampView();this.layout();
   }
-  private avatar(parent:HTMLElement,id:Contact){const a=this.el(parent,'span','phone-avatar',contacts[id].name[0]);a.style.background=contacts[id].color}
+  private avatar(parent:HTMLElement,id:Contact){const a=this.el(parent,'span','phone-avatar');a.style.background=`${contacts[id].color} url(${portraitUrl(id)}) center/100% no-repeat`}
   private when(message?:Message){return message?.at===undefined?'Yesterday':hhmm(message.at/60000)}
   /** Up a level: the conversation to the list, the list or Maps to the home screen, the home screen puts the phone away. */
   back(){if(last==='home')this.close();else this.go(last==='list'||last==='maps'?'home':'list')}

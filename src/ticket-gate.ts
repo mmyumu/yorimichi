@@ -1,4 +1,4 @@
-import { darkness } from './clock';
+import { darkness, hhmm, monthDay } from './clock';
 import { connectedPad } from './pad';
 import { fareBetween } from './fares';
 import { box, pixelText } from './hall-scene';
@@ -37,8 +37,11 @@ export function paintTicket(g:CanvasRenderingContext2D,w:number,h:number,ticket:
   for(let r=0,y=3;y<h-3;r++,y+=6)for(let x=3+(r%2)*6;x<w-4;x+=12){box(g,x+1,y,1,1,pattern);box(g,x,y+1,3,1,pattern);box(g,x+1,y+2,1,1,pattern)}
   pixelText(g,ticket.kind==='adjust'?'精算券':shinkansen?'乗車券・新幹線特急券':'乗車券',5,8,9,soft,'left',true);pixelText(g,'JR',w-5,8,10,soft,'right',true);
   pixelText(g,route?`${from} → ${route.name.split(' / ')[1]}`:ticket.kind==='adjust'?`${from} → ${ticket.to}`:`${from} → ${ticket.fare}円区間`,w/2,26,route||ticket.kind==='adjust'?16:13,ink,'center',true);
-  pixelText(g,`¥${ticket.fare.toLocaleString('en-US')}`,5,44,11,ink,'left',true);pixelText(g,'大人1名',w-5,44,9,soft,'right');
-  pixelText(g,'当日限り有効',5,56,8,soft,'left');pixelText(g,ticket.kind==='adjust'?'出場用':'下車前途無効',w-5,56,8,soft,'right');
+  // A Shinkansen ticket with a date: the day and, reserved, the train, its time, car and seat; else 自由席.
+  const booked=shinkansen&&route.reservation?.date!==undefined?route.reservation:null;
+  pixelText(g,`¥${ticket.fare.toLocaleString('en-US')}`,5,44,11,ink,'left',true);pixelText(g,booked?.train??'大人1名',w-5,44,9,booked?.train?ink:soft,'right');
+  pixelText(g,booked?`${monthDay(booked.date!)}${booked.due!==undefined?` ${hhmm(booked.due)}発`:''}`:'当日限り有効',5,56,8,booked?ink:soft,'left');
+  pixelText(g,booked?booked.car?`${booked.car}号車 ${booked.seat}`:'自由席':ticket.kind==='adjust'?'出場用':'下車前途無効',w-5,56,8,booked?ink:soft,'right');
   // Punched by a gate: a round hole through the card in the blank between the fare and 大人1名, where nothing hides it, its edge pressed dark.
   if(ticket.punched)for(let dy=-7;dy<=7;dy++)for(let dx=-7;dx<=7;dx++){const d=Math.hypot(dx,dy),x=Math.round(w/2)+dx,y=46+dy;if(d<=4.6)g.clearRect(x,y,1,1);else if(d<=6.2)box(g,x,y,1,1,d<=5.4?'#3d3a30':'#8a8270')}
 }

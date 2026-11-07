@@ -1209,6 +1209,10 @@ export const platformWidth=960;
 export const trainLayout=(service:Service)=>service==='shinkansen'?{car:160,doors:[24,136],cars:16,origin:-400}:{car:120,doors:[30,90],cars:12,origin:-240};
 /** Where a standing train's doors are along the platform, left to right (art px): the 乗車位置 marks the queues form at. */
 export const doorMarks=(service:Service)=>{const {car,doors,cars,origin}=trainLayout(service);return Array.from({length:cars},(_,c)=>doors.map(d=>origin+c*car+d)).flat().filter(x=>x>=10&&x<=platformWidth-10)};
+/** A Shinkansen's car numbers run from 1 at its front, the end it leaves by (`dir`, as runOf gives it): the car whose doors are at x (art px, doorMarks). Cars 1 to 3 are non-reserved (自由席),
+ * 8 to 10 the Green Car; `reservedCars` are the ordinary reserved cars standing along the platform, the ones a machine books a seat in. */
+export const carAt=(x:number,dir:number)=>{const {car,cars,origin}=trainLayout('shinkansen'),c=Math.floor((x-origin)/car);return dir>0?cars-c:c+1};
+export const reservedCars=(dir:number)=>[...new Set(doorMarks('shinkansen').map(x=>carAt(x,dir)))].filter(n=>n>3&&(n<8||n>10)).sort((a,b)=>a-b);
 /** A train's picture in the three-quarter view, art px: its roof, `trainRoof` deep, over the side facing us, as tall as the rest of `trainHeight`; the doors are `doorSize` wide. */
 export const trainHeight=54,trainRoof=16,doorSize=12;
 /** Where a train's picture starts (art px, top), track by track: the far one's side stands at the platform's edge, its doors facing us; the near one's roof bites a little into the edge,
@@ -1264,7 +1268,7 @@ export function makeBoard(scene:Phaser.Scene,key:string,tracks:[number,number]){
  * and yellow tactile strip, the 乗車位置 marks where the doors stop (doorMarks: a lane either side of each door, x ±6–20, 98–125 and 196–223), a stairwell down at each end (0–80 and 880–960 × 128–192, open towards the middle), the station
  * sign in the middle (駅名標: the station, the stops either side on `color`, its line's, and their English; 406–554 × 128–188 with its posts) and the route map, each on its own texture, sorted with the people.
  * In art px; main.ts (solids, hotspots, queues) relies on these. */
-export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:string;tracks:[number,number];color:string;prev:string;next:string;prevEn:string;nextEn:string;service:Service}){
+export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:string;tracks:[number,number];color:string;prev:string;next:string;prevEn:string;nextEn:string;service:Service;dirs?:[number,number]}){
   const W=platformWidth,texture=mapCanvas(scene,key,W,320),g=texture.context;
   const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},t=(x:number,y:number,text:string,c:string,big=false)=>letter(g,x,y,text,c,big);
   const dither=(x:number,y:number,w:number,h:number,c:string)=>{for(let j=0;j<h;j++)for(let i=(j+x+y)%2;i<w;i+=2)r(x+i,y+j,1,1,c)};
@@ -1288,6 +1292,8 @@ export function makePlatform(scene:Phaser.Scene,key:string,o:{ja:string;en:strin
   for(const x of doorMarks(o.service))for(const top of [true,false]){
     for(const dx of [-20,-6,5,19])r(x+dx,top?98:196,1,27,'#8fc078');
     for(const row of [0,1,2])for(const lane of [-15,10]){const y=top?99+row*9:217-row*9;for(const foot of [0,3]){r(x+lane+foot,top?y:y+2,2,3,'#8fc078');r(x+lane+foot,top?y+4:y,2,1,'#8fc078')}}
+    // On a Shinkansen platform, the car's number between the lanes, by the edge, as the train standing on that track will have it (carAt).
+    if(o.dirs){g.textAlign='center';t(x,top?100:216,String(carAt(x,o.dirs[top?0:1])),'#41613b');g.textAlign='left'}
   }
   // A stairwell at each end, seen from the side like the rest: the steps drop away towards the end along the far wall, which rises behind them with its handrail; the near parapet stands in front of their foot, the yellow sign on the far one.
   for(const left of [true,false]){

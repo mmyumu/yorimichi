@@ -13,6 +13,9 @@ let now=0,shown='',last=performance.now();
 /** The clock in minutes from the epoch (a day is 1440): the trains' times are counted in these. */
 export const minutes=()=>now/60000;
 export const minuteOfDay=(m=minutes())=>(m%1440+1440)%1440;
+/** The day a time falls on, counted from the epoch, as a Shinkansen ticket's date holds it; `monthDay` prints it as the ticket does (11月7日). */
+export const dayOf=(m=minutes())=>Math.floor(m/1440);
+export const monthDay=(day:number)=>{const date=new Date(day*864e5);return `${date.getUTCMonth()+1}月${date.getUTCDate()}日`};
 export const clockMs=()=>now;
 /** A new journey starts at 9:00 today; `?time=23:40` sets the clock to that time of its day (to try the night and the last trains). */
 export function startClock(saved?:number){

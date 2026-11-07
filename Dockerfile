@@ -7,6 +7,8 @@ COPY src ./src
 COPY scripts ./scripts
 # The title's code verifier only: the photos are mounted on the VPS, never built in.
 COPY public/access.json ./public/access.json
+# The home-screen install: manifest and icons (scripts/make-icons.mjs).
+COPY public/manifest.webmanifest public/icon-192.png public/icon-512.png ./public/
 RUN npm run build
 
 FROM nginx:1.27-alpine

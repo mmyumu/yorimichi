@@ -1,4 +1,7 @@
-import { routes, stations, type Hub, type Route, type Service } from './network';
+import { routes, stations, trackOf, type Hub, type Route, type Service } from './network';
+import { deckFor, lineAt, onTimetable, runOf, shinkansenEvery, trainName } from './platform';
+import { reservedCars } from './art';
+import { dayOf, firstTrain, hhmm, minutes, monthDay, trainsRun } from './clock';
 import { connectedPad } from './pad';
 import { paintTicket } from './ticket-gate';
 import { fareBetween, faresFrom, shinkansenMinutes } from './fares';
@@ -7,7 +10,14 @@ import { renderFareMap } from './tokyo-fares';
 import { accepted, coinCount, heapSpot, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
 
 // `punched` with the hub whose gate let it through on the way in: the gate's punch leaves a hole in it, and the ticket knows where its trip began.
-export interface RouteTicket extends Route { kind:'route'; reservation?: { day:string; train:string; seat:string }; punched?:Hub }
+/** A Shinkansen ticket's reservation: the day it is good for (`date`, dayOf) and, for a reserved seat, the train (`due`, its departure on the journey's clock, `train` its name), the car and the seat;
+ * without them a non-reserved (自由席) ticket, good for any train that day. Tickets bought before dates were kept have none, and are good any day. */
+export interface Reservation {date?:number;due?:number;train?:string;car?:number;seat?:string}
+export interface RouteTicket extends Route { kind:'route'; reservation?:Reservation; punched?:Hub }
+/** What a non-reserved seat saves on the express charge. */
+export const nonReserved=530;
+/** The English for a ticket's day (Nov 7). */
+const dayEn=(day:number)=>new Date(day*864e5).toLocaleDateString('en-US',{timeZone:'UTC',month:'short',day:'numeric'});
 export interface FareTicket {kind:'fare';from:Hub;service:'local';fare:number;punched?:Hub}
 /** A fare adjustment ticket (精算券) from the machine by the exit gates: the trip from `from` paid up to `to` (a station's Japanese name, English `toEn`), `fare` the difference paid. Only good for leaving there. */
 export interface AdjustTicket {kind:'adjust';from:Hub;to:string;toEn:string;service:'local';fare:number;punched?:Hub}
@@ -65,9 +75,10 @@ export class TicketMachine {
   private notice:[string,string]|null=null;
   private flash='';
   private justDragged=0;
-  private day='Today';
-  private train='NOZOMI 21 · 14:20';
-  private seat='Any seat';
+  // The Shinkansen booking: today or tomorrow (`day`, 0 or 1), the train (`booked`, null for a non-reserved seat) and the car and seat.
+  private day=0;
+  private booked:{due:number;name:[string,string]}|null=null;
+  private seat:[number,string]=[7,'1A'];
   private fareAmount:number|null=null;
   // At the fare adjustment machine: the ticket in its slot, the fare of its trip and what is left to pay.
   private adjusting:{ticket:TravelTicket;fare:number;due:number}|null=null;
@@ -193,7 +204,7 @@ export class TicketMachine {
       else if(this.service==='local'&&this.fareAmount!==null)ticket={kind:'fare',from:this.hub,service:'local',fare:this.fareAmount};
       else if(this.route){
         ticket={...this.route,kind:'route'};
-        if(this.service==='shinkansen')ticket.reservation={day:this.day,train:this.train,seat:this.seat};
+        if(this.service==='shinkansen'){ticket.fare=this.price;ticket.reservation={date:dayOf()+this.day,...this.booked&&{due:this.booked.due,train:this.booked.name[0],car:this.seat[0],seat:this.seat[1]}}}
       }else return;
       this.change=this.deposited-this.price;this.inserted=[];
       this.tray.push({value:'ticket',ticket,fresh:true},...makeChange(this.change).map(value=>({value,fresh:true})));
@@ -232,7 +243,7 @@ export class TicketMachine {
     this.button(parent,route.name,()=>{this.route=route;this.go(this.service==='local'?'review':'date')},'station-key');
   }
   private get options(){return routes.filter(r=>r.from===this.hub&&r.service===this.service);}
-  private get price(){return this.fareAmount??this.route?.fare??0;}
+  private get price(){return this.fareAmount??(this.route?this.route.fare-(this.service==='shinkansen'&&!this.booked?nonReserved:0):0);}
   private render(){
     const focusKey=(document.activeElement as HTMLElement|null)?.dataset?.key;
     this.design.className='machine-design '+this.service;this.design.replaceChildren();
@@ -388,19 +399,24 @@ export class TicketMachine {
       const grid=this.element(body,'div','','station-grid');this.options.forEach(route=>this.routeButton(grid,route));
     }else if(this.step==='date'){
       const grid=this.element(body,'div','','selection-grid');
-      for(const [ja,en,value] of [['本日','Today','Today'],['明日','Tomorrow','Tomorrow']])this.button(grid,tr(ja,en),()=>{this.day=value;this.go('passengers')});
+      for(const [ja,en,value] of [['本日','Today',0],['明日','Tomorrow',1]] as const)this.button(grid,`${tr(ja,en)}  ${tr(monthDay(dayOf()+value),dayEn(dayOf()+value))}`,()=>{this.day=value;this.go('passengers')});
     }else if(this.step==='passengers'){
       const grid=this.element(body,'div','','selection-grid');this.button(grid,tr('大人 1人','1 Adult'),()=>this.go('train'));
       this.element(body,'p',tr('このゲームでは、おひとりでの旅行です。','One traveller in this game.'),'origin-note');
     }else if(this.step==='train'){
       const grid=this.element(body,'div','','train-grid');
-      // Two trains of the line's fastest service, the ride as long as the km make it.
-      const line=railLine(this.route!.lineId),minutes=shinkansenMinutes(line,stations[this.hub].ja,stations[this.route!.to].ja),time=(at:number)=>`${Math.floor(at/60)%24}:${String(at%60).padStart(2,'0')}`;
-      for(const [name,departure,arrival] of [[0,860],[1,880]].map(([k,at])=>[`${line.id==='tohoku-shinkansen'?'HAYABUSA':'NOZOMI'} ${21+k*2}`,time(at),time(at+minutes)]))this.button(grid,`${name}   ${departure} → ${arrival}   ○`,()=>{this.train=`${name} · ${departure}`;this.go('seat')});
-      this.element(body,'p',tr('普通車 指定席　／　時刻はゲーム用です','Ordinary Car · Reserved Seat / Fictional timetable'),'origin-note');
+      // The next departures of the line from the ticket's track, on the day chosen (today, from ten minutes on: time to walk to the platform) (as the platform will run them: platform.ts), the ride as long as the km make it; or a non-reserved seat, any train that day.
+      const route=this.route!,line=railLine(route.lineId),ja=stations[this.hub].ja,track=stations[this.hub].tracks[line.id].indexOf(trackOf(route)) as 0|1,{dir}=runOf(line,ja,track),lines=deckFor(ja,line,track).platform.lines;
+      const ride=shinkansenMinutes(line,ja,stations[route.to].ja),day=dayOf()+this.day,departures:number[]=[];
+      for(let due=onTimetable(this.day?day*1440+firstTrain:minutes()+10);departures.length<6&&dayOf(due)===day;due+=shinkansenEvery)if(trainsRun(due)&&lineAt(lines,due)===line)departures.push(due);
+      for(const due of departures){const name=trainName(line,due,dir);this.button(grid,`${tr(name[0],name[1])}   ${hhmm(due)} → ${hhmm(due+ride)}   ○`,()=>{this.booked={due,name};this.go('seat')})}
+      if(!departures.length)this.element(body,'p',tr('本日の列車は終了しました','No more trains today'),'origin-note');
+      this.button(grid,tr(`自由席（−¥${nonReserved}）`,`Non-reserved seat (−¥${nonReserved})`),()=>{this.booked=null;this.go('review')});
+      this.element(body,'p',tr('普通車 指定席は列車・号車が決まります　／　時刻はゲーム用です','A reserved seat is on one train, in one car / Fictional timetable'),'origin-note');
     }else if(this.step==='seat'){
       const grid=this.element(body,'div','','selection-grid');
-      for(const [ja,en] of [['指定なし','Any seat'],['窓側','Window'],['通路側','Aisle']])this.button(grid,tr(ja,en),()=>{this.seat=en;this.go('review')});
+      const route=this.route!,line=railLine(route.lineId),ja=stations[this.hub].ja,{dir}=runOf(line,ja,stations[this.hub].tracks[line.id].indexOf(trackOf(route)) as 0|1),cars=reservedCars(dir),any=(list:string)=>list[Math.floor(Math.random()*list.length)];
+      for(const [ja,en,seats] of [['指定なし','Any seat','ABCDE'],['窓側','Window','AE'],['通路側','Aisle','CD']])this.button(grid,tr(ja,en),()=>{this.seat=[cars[Math.floor(Math.random()*cars.length)],`${1+Math.floor(Math.random()*17)}${any(seats)}`];this.go('review')});
     }else if(this.step==='review'&&this.route){
       const summary=this.element(body,'div','','review-layout');
       const journey=this.element(summary,'div','','journey-diagram');
@@ -408,9 +424,9 @@ export class TicketMachine {
       this.element(journey,'div',stations[this.hub].en.toUpperCase()+'\n│\n│\n'+stations[this.route.to].en.toUpperCase(),'journey-stations');
       const details=this.element(summary,'dl','','journey-details');
       const fields=[[tr('経由','Via'),this.route.line],[tr('人数','Passengers'),tr('大人 1人','1 Adult')],[tr('のりば','Platform'),this.route.platform]];
-      if(this.service==='shinkansen')fields.push([tr('乗車日','Boarding date'),this.day],[tr('列車','Train'),this.train],[tr('座席','Seat'),this.seat]);
+      if(this.service==='shinkansen'){const day=dayOf()+this.day,b=this.booked;fields.push([tr('乗車日','Boarding date'),tr(monthDay(day),dayEn(day))],[tr('列車','Train'),b?`${tr(b.name[0],b.name[1])} ${hhmm(b.due)}`:tr('当日の列車','Any train that day')],[tr('座席','Seat'),b?tr(`${this.seat[0]}号車 ${this.seat[1]}番`,`Car ${this.seat[0]}, seat ${this.seat[1]}`):tr('自由席','Non-reserved')])}
       for(const [label,value] of fields){this.element(details,'dt',label);this.element(details,'dd',value)}
-      this.element(body,'div',tr('合計金額','Total amount')+'   ¥'+this.route.fare.toLocaleString('en-US'),'fare-total');
+      this.element(body,'div',tr('合計金額','Total amount')+'   ¥'+this.price.toLocaleString('en-US'),'fare-total');
       this.button(body,tr('確認','Confirm'),()=>{this.deposited=0;this.inserted=[];this.go('payment')},'confirm review-confirm');
     }else if(this.step==='adjust'&&this.adjusting&&this.uiOptions.adjust){
       const {ticket,fare,due}=this.adjusting,entry=stations[ticket.punched!],summary=this.element(body,'div','','review-layout');
