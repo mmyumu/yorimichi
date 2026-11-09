@@ -12,7 +12,7 @@ type Rect=[number,number,number,number];
 const inside=([x,y,w,h]:Rect,px:number,py:number)=>px>=x&&px<x+w&&py>=y&&py<y+h;
 /** What the card shows, read when the menu opens (the clock is held meanwhile). */
 export interface PauseFacts {where:[string,string];day:string;time:string;yen:number;memories:[number,number]}
-export interface PauseActions {resume:()=>void;journal:()=>void;title:()=>void;restart:()=>void}
+export interface PauseActions {resume:()=>void;journal:()=>void;stamps:()=>void;title:()=>void}
 
 /** The veil, drawn once and stretched over the whole game canvas (the picture itself keeps whole-pixel scaling): the scene darkened, a dusk blue dithered over it, deeper towards the foot. */
 function veil(){
@@ -30,7 +30,7 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
   const sprite=document.createElement('canvas');sprite.width=20;sprite.height=28;const look=loadLook();
   // Laid over the game's own canvas (same proportions), so that the veil covers the scene and nothing else.
   const fit=()=>{const game=document.querySelector<HTMLCanvasElement>('#game canvas')?.getBoundingClientRect();Object.assign(stage.style,game?{left:game.left+'px',top:game.top+'px',width:game.width+'px',height:game.height+'px'}:{left:'0',top:'0',width:'100%',height:'100%'});fitPicture(canvas,stage,W,H)},watcher=new ResizeObserver(fit);watcher.observe(overlay);fit();
-  let confirm=false,focus=0,frame=0,over=false,opened=performance.now(),items:{rect:Rect;act:()=>void}[]=[];
+  let focus=0,frame=0,over=false,opened=performance.now(),items:{rect:Rect;act:()=>void}[]=[];
 
   const outlined=(text:string,x:number,y:number,font:string,color:string,shadow:string)=>{g.font=font;const w=Math.round(g.measureText(text).width),left=Math.round(x-w/2);for(const [dx,dy] of [[-1,0],[1,0],[0,-1],[0,1],[1,1],[2,2]])crispText(g,text,left+dx,y+dy,shadow);crispText(g,text,left,y,color)};
   const spaced=(text:string,x:number,y:number,color:string,gap=3)=>{g.font='10px "Yorimichi Bitmap"';const widths=[...text].map(c=>g.measureText(c).width),total=widths.reduce((a,b)=>a+b,0)+gap*(text.length-1);let left=Math.round(x-total/2);[...text].forEach((c,i)=>{crispText(g,c,left,y,color);left+=widths[i]+gap})};
@@ -55,21 +55,14 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
     g.font='10px "Yorimichi Bitmap"';crispText(g,'道',x-5,y-5,'#c0463add');
   };
 
-  const choices:[string,()=>void][]=[['つづける · RESUME',()=>close(actions.resume)],['旅の日記 · JOURNAL',()=>close(actions.journal)],['タイトルへ · TITLE SCREEN',()=>close(actions.title)],['はじめから · RESTART',()=>{confirm=true;focus=0}]];
+  const choices:[string,()=>void][]=[['つづける · RESUME',()=>close(actions.resume)],['旅の日記 · JOURNAL',()=>close(actions.journal)],['スタンプ帳 · STAMP BOOK',()=>close(actions.stamps)],['タイトルへ · TITLE SCREEN',()=>close(actions.title)]];
   const drawChoices=()=>{
     const p:Rect=[44,84,200,196];panel(p);
     write(g,'ひとやすみ · PAUSED',p[0]+p[2]/2,p[1]+8,red,'center');box(g,p[0]+12,p[1]+21,p[2]-24,1,rule);
-    items=choices.map(([,act],i)=>({rect:[p[0]+16,p[1]+32+i*28,p[2]-32,18] as Rect,act}));
+    items=choices.map(([,act],i)=>({rect:[p[0]+16,p[1]+30+i*26,p[2]-32,18] as Rect,act}));
     items.forEach(({rect:[x,y,w]},i)=>{const on=i===focus;if(on){box(g,x,y-2,w,20,'#e6d4a6');triangle(x+5,y+4,red)}write(g,choices[i][0],x+w/2+4,y+3,on?red:ink,'center');if(on)box(g,x+18,y+15,w-28,1,red)});
     dashes(p[0]+12,p[1]+p[3]-30,p[2]-24);
     write(g,'The journey is kept as you go.',p[0]+p[2]/2,p[1]+p[3]-22,faint,'center');
-  };
-  const drawConfirm=()=>{
-    const p:Rect=[44,84,200,196];panel(p);
-    write(g,'はじめから · RESTART?',p[0]+p[2]/2,p[1]+8,red,'center');box(g,p[0]+12,p[1]+21,p[2]-24,1,rule);
-    wrap(g,'Your whole journey will be erased: where you are, tickets, money, groceries, memories and messages. You start again at Tokyo Station. This cannot be undone.',p[2]-28).forEach((line,i)=>write(g,line,p[0]+p[2]/2,p[1]+32+i*13,ink,'center'));
-    items=[{rect:[p[0]+14,p[1]+p[3]-32,80,18],act:()=>{confirm=false;focus=3}},{rect:[p[0]+p[2]-94,p[1]+p[3]-32,80,18],act:()=>close(actions.restart)}];
-    button(items[0].rect,'Keep it',focus===0);button(items[1].rect,'Erase all',focus===1);
   };
   const drawCard=(t:number)=>{
     const c:Rect=[264,84,172,196],[x,y,w,h]=c;panel(c);
@@ -93,15 +86,15 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
     g.save();g.translate(0,Math.round(rise*rise*24));
     lanterns(t);
     outlined('寄り道',W/2,26,'32px "Yorimichi Pixel"','#f6dfa0','#1b1530');spaced('YORIMICHI',W/2,62,'#f0d0a8');
-    if(confirm)drawConfirm();else drawChoices();drawCard(t);
+    drawChoices();drawCard(t);
     g.restore();
-    const hint=confirm?'←→ choose · Enter or A · Esc or B back':'↑↓ choose · Enter or A · Esc or B resume';g.font='10px "Yorimichi Bitmap"';const hw=Math.ceil(g.measureText(hint).width)+20;box(g,(W-hw)/2,H-20,hw,15,'#0b0a16d0','#3a3466');write(g,hint,W/2,H-17,'#f0d0a8','center');
+    const hint='↑↓ choose · Enter or A · Esc or B resume';g.font='10px "Yorimichi Bitmap"';const hw=Math.ceil(g.measureText(hint).width)+20;box(g,(W-hw)/2,H-20,hw,15,'#0b0a16d0','#3a3466');write(g,hint,W/2,H-17,'#f0d0a8','center');
     pad();frame=requestAnimationFrame(draw);
   };
 
   function close(then:()=>void){if(over)return;over=true;cancelAnimationFrame(frame);watcher.disconnect();document.removeEventListener('keydown',key,true);overlay.remove();then()}
   const move=(d:number)=>{focus=(focus+d+items.length)%items.length};
-  const back=()=>{if(confirm){confirm=false;focus=3}else close(actions.resume)};
+  const back=()=>close(actions.resume);
   const choose=()=>items[focus]?.act();
   function key(event:KeyboardEvent){
     const keys:Record<string,()=>void>={ArrowUp:()=>move(-1),ArrowDown:()=>move(1),ArrowLeft:()=>move(-1),ArrowRight:()=>move(1),KeyW:()=>move(-1),KeyS:()=>move(1),KeyA:()=>move(-1),KeyD:()=>move(1),Enter:choose,Space:choose,KeyE:choose,Escape:back,Backspace:back};
@@ -123,7 +116,7 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
   canvas.addEventListener('pointermove',event=>{const [x,y]=at(event),i=items.findIndex(item=>inside(item.rect,x,y));if(i>=0)focus=i;canvas.style.cursor=i>=0?'pointer':'default'});
   overlay.addEventListener('pointerdown',event=>{
     if(event.button!==0)return;event.preventDefault();const [x,y]=at(event),i=items.findIndex(item=>inside(item.rect,x,y));
-    if(i>=0){focus=i;items[i].act()}else if(!inside([44,84,392,196],x,y)&&!confirm)close(actions.resume);
+    if(i>=0){focus=i;items[i].act()}else if(!inside([44,84,392,196],x,y))close(actions.resume);
   });
   draw();
 }

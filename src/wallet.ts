@@ -54,8 +54,8 @@ export function pieceArt(value:number){
 }
 
 let audio:AudioContext|null=null;
-/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message, a till's scanner, a can landing in a machine's hatch. */
-export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'|'scan'|'can'){
+/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message, a till's scanner, a can landing in a machine's hatch, a rubber stamp pressed on paper. */
+export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'|'scan'|'can'|'stamp'){
   try{
     audio??=new AudioContext();const now=audio.currentTime,gain=audio.createGain();gain.connect(audio.destination);
     const tone=(freq:number,start:number,length:number,type:OscillatorType='sine',volume=.08)=>{
@@ -67,6 +67,8 @@ export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'
     // The gates' refusal: two short high beeps.
     else if(kind==='beep'){tone(2300,0,.09,'square',.04);tone(2300,.16,.09,'square',.04);}
     else if(kind==='can'){tone(150,0,.16,'square',.09);tone(90,.05,.22,'sine',.14);tone(620,.03,.08,'triangle',.05);}
+    // A rubber stamp pressed on paper: a soft thud.
+    else if(kind==='stamp'){tone(170,0,.07,'triangle',.12);tone(85,.01,.12,'sine',.16);}
     else if(kind==='scan')tone(2900,0,.1,'square',.03);
     else if(kind==='message'){tone(1320,0,.12,'sine',.06);tone(1760,.11,.2,'sine',.06);}
     else if(kind==='note'){for(let i=0;i<6;i++)tone(140+i*12,i*.05,.06,'square',.025);}

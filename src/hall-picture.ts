@@ -3,6 +3,7 @@ import { Picture, type View } from './ticket-gate';
 import { renderWallFareMap } from './tokyo-fares';
 import { hasShinkansen, inKyoto, stations, type Hub } from './network';
 import { looks, type Figure } from './people';
+import { stampInk } from './stamps';
 
 type P=[number,number,number];
 type Rect=[number,number,number,number];
@@ -97,6 +98,16 @@ export class HallPicture {
       if(Math.abs(x-ex)>2400)continue;
       front(x-300,x+300,590,1430,24,C.steel);
       const [l,t,r,b]=this.rect(x-280,x+280,610,1410,25);g.drawImage(this.poster(place),l,t,r-l,b-t);
+    }
+    // Before the left poster, the stamp stand of the concourse map (art.ts): its sign, the little desk, the ink pad and the stamp on it.
+    if(Math.abs(-280-ex)<2400){
+      const ink=stampInk(this.hub);front(-445,-115,1040,1170,40,'#283e40');front(-445,-115,1160,1170,40.5,station.accent);
+      const [sl,st,sr,sb]=this.rect(-445,-115,1040,1160,40.5);letter(g,'スタンプ',(sl+sr)/2,(st+sb)/2,'#fffef2');
+      flat(-450,-110,1250,40,300,'#c08a58');flat(-420,-300,1248,110,220,'#2b2b33');flat(-410,-310,1247,120,210,ink);
+      front(-385,-345,1170,1246,165,'#8a5a36');front(-400,-330,1150,1180,165,'#c08a58','#7a4e2e');flat(-250,-150,1248,130,200,'#fbf6e8');
+      if(ex>-110)side(-110,1250,1690,40,300,'#6e4428');if(ex<-450)side(-450,1250,1690,40,300,'#6e4428');
+      front(-450,-110,1250,1270,300,'#d8a470');front(-445,-115,1270,1690,300,'#8a5a36');front(-430,-130,1400,1410,300.5,'#6e4428');
+      front(-440,-415,1690,floorY,295,'#5a3a24');front(-145,-120,1690,floorY,295,'#5a3a24');
     }
     // The station's name over the board, then the board: the fare map is laid over it.
     if(kyoto)for(let x=Math.floor(x0/600)*600+150;x<x1;x+=600){front(x-5,x+5,0,70,3,'#1f1612');front(x-50,x+50,70,190,3,'#f2e6c8');front(x-50,x+50,70,82,3,'#3a281d');front(x-50,x+50,178,190,3,'#3a281d');front(x-40,x+40,118,142,3,'#c8452e')}

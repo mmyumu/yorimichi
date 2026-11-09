@@ -3,6 +3,7 @@ import { exitName, hasShinkansen, inKyoto, machineKinds, stations, tracksFor, ty
 import { loadLook, paintTraveller } from './look';
 import { looks } from './people';
 import { onTokyoBoard } from './tokyo-fares';
+import { stampInk } from './stamps';
 import { type Piece, type Sight } from './sights';
 
 // Original pixel tiles painted on a 480 × 320 canvas, displayed at integer 2× scale.
@@ -241,7 +242,15 @@ export function makeHub(scene:Phaser.Scene,hub:Hub){
     {const x=Math.max(291,nameL+nameW+3);r(x,34,52,9,'#2f3638');r(x+2,35,7,7,'#ffffff');t(x+3,36,'券','#1d2622');t(x+12,36,'きっぷうりば','#ffffff')}
     r(130,122,232,3,'#5a6650');
     // Tactile paving along the machines.
-    r(150,128,190,5,'#e8c440');for(let x=151;x<339;x+=4)r(x,129+(x%8<4?0:2),2,1,'#cfa72c');
+    r(170,128,170,5,'#e8c440');for(let x=171;x<339;x+=4)r(x,129+(x%8<4?0:2),2,1,'#cfa72c');
+    // Before the left poster, standing on the floor beside the paving, the commemorative stamp stand (main.ts: the 'stamp' hotspot, its solid): a little wooden desk under its sign, the stamp on its ink pad and the sample sheet.
+    {const x=143,y=138,ink=stampInk(hub);
+      r(x+4,y-28,1,4,'#3a281d');r(x+19,y-28,1,4,'#3a281d');r(x+1,y-36,22,9,'#283e40');r(x+1,y-28,22,1,stations[hub].accent);t(x+2,y-35,'スタンプ','#fffef2');
+      dither(x,y-2,24,3,'#00000030');r(x+1,y-7,2,6,'#5a3a24');r(x+21,y-7,2,6,'#5a3a24');
+      r(x,y-18,24,12,'#8a5a36');r(x,y-18,24,1,'#a8744a');r(x+2,y-12,20,1,'#6e4428');r(x+11,y-15,2,1,'#c08a58');
+      r(x-1,y-24,26,6,'#c08a58');r(x-1,y-24,26,1,'#d8a470');r(x-1,y-19,26,1,'#7a4e2e');
+      r(x+2,y-23,9,4,'#2b2b33');r(x+3,y-22,7,2,ink);r(x+4,y-26,5,3,'#a8744a');r(x+5,y-29,3,3,'#c08a58');r(x+5,y-29,3,1,'#e0b080');
+      r(x+14,y-23,8,4,'#fbf6e8');r(x+17,y-22,2,2,ink)}
     // Floor markings: yellow guidance lines to the exits.
     r(0,226,480,3,'#d1b86f');
     // Exits painted on the floor; the yellow 出口 signs are on the concourse pillars (exitPillar, placed by main.ts).
@@ -1101,6 +1110,48 @@ function makeBins(scene:Phaser.Scene){
   r(3,7,10,9,'#e8e4d4');r(3,7,10,2,'#2f7ab0');for(const x of [5,9])r(x,11,2,4,'#2f7ab0');r(1,20,14,1,'#46544e');t.refresh();
   const h=mapCanvas(scene,'bin-home',11,15),c=h.context,q=(x:number,y:number,w:number,z:number,k:string)=>{c.fillStyle=k;c.fillRect(x,y,w,z)};
   q(1,14,10,1,'#00000030');q(1,3,9,11,'#e8e6dc');q(1,3,1,11,'#fbfaf2');q(9,3,1,11,'#b8b6aa');q(0,1,11,3,'#c9c7bb');q(0,1,11,1,'#f2f0e6');q(4,12,3,2,'#6f7572');h.refresh();
+}
+/** The top band's layout in art px (the band is 480 × 35, shown at 2×): the clock's card, the needs' inset (icon rows at `needRows`, bars from `needBar`), the purse's card and the three paper buttons. */
+export const hudLayout={clock:[4,2,62,27],needs:[70,2,72,27],needRows:[6,17],needBar:86,purse:[146,2,82,27],buttons:[[252,3,70,25],[328,3,70,25],[404,3,70,25]]} as const;
+export interface HudFacts {day:string;time:string;coins:number;yen:number;heavy:boolean;hover:number}
+/** Paints the top band, in the pause menu's journal look: a dusk-blue strip with a gold rule, paper cards for the clock and purse, a dark inset for the needs' bars (drawn over it by main.ts), and paper buttons (the hovered one red). */
+let cloth:HTMLCanvasElement|null=null;
+/** The band's cloth, painted once: indigo with seigaiha waves woven in a shade lighter, deepening towards the foot, a paler selvedge along the top,
+ * then a red and gold braid over a dark shadow along the bottom, little gold knots spaced along it. */
+function hudCloth(){
+  if(cloth)return cloth;
+  const c=document.createElement('canvas');c.width=480;c.height=35;const g=c.getContext('2d')!,r=(x:number,y:number,w:number,h:number,k:string)=>{g.fillStyle=k;g.fillRect(x,y,w,h)},bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+  const R=12,rows=Math.ceil(30/(R/2))+2;
+  for(let y=0;y<30;y++)for(let x=0;x<480;x++){
+    // The wave whose fan lies on top here: the lowest row whose circle holds the pixel (rows overlap, each drawn over the one above).
+    let ring=-1;for(let j=rows;j>=0&&ring<0;j--){const cy=j*R/2-2,cx0=(j&1)*R;if(y>cy)continue;const i=Math.round((x-cx0)/(2*R)),d=Math.hypot(x-(cx0+i*2*R),y-cy);if(d<R)ring=Math.floor(d)}
+    const deep=bayer[(y&3)*4+(x&3)]<Math.floor(y/30*10);
+    r(x,y,1,1,ring===R-1?'#3d4078':ring===R-4||ring===R-7?(deep?'#2c2e5e':'#32356c'):deep?'#1c1a3c':'#23264f');
+  }
+  r(0,0,480,1,'#3d4078');
+  r(0,30,480,1,'#7a2a22');r(0,31,480,1,'#c0463a');r(0,32,480,1,'#e2a050');r(0,33,480,2,'#0b0a16');
+  for(let x=12;x<480;x+=24){r(x-1,30,3,3,'#e2a050');r(x,31,1,1,'#f6dfa0')}
+  return cloth=c;
+}
+let hudPainted='';
+export function paintHud(scene:Phaser.Scene,facts:HudFacts){
+  // Repainted only when something it shows has changed (the texture stays across places).
+  const sign=JSON.stringify(facts);if(sign===hudPainted&&scene.textures.exists('hud-band'))return;hudPainted=sign;
+  const t=(scene.textures.exists('hud-band')?scene.textures.get('hud-band'):mapCanvas(scene,'hud-band',480,35)) as Phaser.Textures.CanvasTexture,g=t.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+  const ink='#3a2a20',paper='#efe3c2',edge='#5a3f2c',rule='#d6c49a',red='#c0463a',faint='#8a7558',bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
+  g.clearRect(0,0,480,35);g.textAlign='left';
+  g.imageSmoothingEnabled=false;g.drawImage(hudCloth(),0,0);
+  const card=([x,y,w,h]:readonly number[],fill=paper,line=edge)=>{r(x+1,y+1,w,h,'#0b0a16');r(x,y,w,h,line);r(x+1,y+1,w-2,h-2,fill)};
+  {const [x,y,w,h]=hudLayout.clock;card(hudLayout.clock);r(x+2,y+2,w-4,1,rule);letter(g,x+5,y+3,facts.day,faint);letter(g,x+5,y+12,facts.time,ink,true);r(x+w-8,y+h-8,4,4,red);r(x+w-7,y+h-7,2,2,'#e2553f')}
+  {card(hudLayout.needs,'#14132a','#3a3466');for(const ry of hudLayout.needRows){r(hudLayout.needBar-1,ry+1,54,6,'#3a3466');r(hudLayout.needBar,ry+2,52,4,'#0b0a16')}}
+  {const [x,y]=hudLayout.purse;card(hudLayout.purse);
+    // A ¥100 coin, then their count.
+    r(x+5,y+4,5,7,'#a8a8a0');r(x+4,y+5,7,5,'#a8a8a0');r(x+5,y+5,5,5,'#d8d8cc');r(x+6,y+6,2,2,'#f4f4ea');
+    letter(g,x+14,y+5,`${facts.coins} coins${facts.heavy?' · heavy':''}`,facts.heavy?red:faint);letter(g,x+5,y+14,`¥${facts.yen.toLocaleString('en-US')}`,ink,true)}
+  const labels=[['メニュー','MENU'],['かばん','BAG'],['旅の日記','JOURNAL']];
+  hudLayout.buttons.forEach(([x,y,w,h],i)=>{const on=facts.hover===i;r(x,y+2,w,h,'#0b0a16');r(x,y+1,w,h,'#7a5a40');r(x,y,w,h,on?'#7a2a22':edge);r(x+1,y+1,w-2,h-2,on?red:'#f8f0da');if(!on)r(x+1,y+h-3,w-2,2,'#e6d4a6');
+    g.textAlign='center';letter(g,x+w/2,y+4,labels[i][0],on?'#f6dfa0':faint);letter(g,x+w/2,y+11,labels[i][1],on?'#fff6e0':ink,true);g.textAlign='left'});
+  t.refresh();
 }
 /** The HUD's two icons, 8 × 8: an onigiri for hunger, a drop for thirst. */
 function makeNeedIcons(scene:Phaser.Scene){

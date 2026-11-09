@@ -95,8 +95,8 @@ export function paintTraveller(g:CanvasRenderingContext2D,face:string,frame:numb
   else if(cut===8){
     // The combover: parted on the wearer's left, combed over to the right, where it hangs over the ear.
     top();nape();
-    if(front){u(13,5,1,2,skin);u(5,6,2,4,hair);u(4,8,1,2,hair)}
-    else if(back){u(8,5,1,2,skin);u(15,6,2,4,hair);u(17,8,1,2,hair)}
+    if(front){u(13,5,1,2,dark);u(5,6,2,4,hair);u(4,8,1,2,hair)}
+    else if(back){u(8,5,1,2,dark);u(15,6,2,4,hair);u(17,8,1,2,hair)}
     else if(left){u(8,4,7,1,hair);u(6,5,3,2,hair);u(6,7,1,2,hair)}
     else{u(side(6,9),4,9,2,hair);u(side(11,3),6,3,5,hair)}}
   else{top();if(cut===0||cut===6)nape()}
