@@ -7,9 +7,9 @@ import { newPhone, readPhone, type PhoneState } from './phone';
 /** Where the traveller stands: the place and position in scene px, the station walked out of on the street (`town`) or an exit's map,
  * and in a corridor, the station and gates it lies behind. */
 export interface Spot {place:Place;x:number;y:number;outside:{from:Hub;side:Side}|null;gate?:{hub:Hub;service:Service}|null}
-/** The journey kept between sessions under one versioned key: the tickets carried, where the traveller stands, the time on the journey's clock (clock.ts), the time the alarm is set to (alarm.ts), the phone (phone.ts), what was bought at the konbini (names, Japanese and English) and hunger and thirst (needs.ts);
+/** The journey kept between sessions under one versioned key: the tickets carried, where the traveller stands, the time on the journey's clock (clock.ts), the time the alarm is set to (alarm.ts), the phone (phone.ts), what was bought at the konbini (names, Japanese and English) hunger and thirst (needs.ts) and, in the story mode (story.ts), the chapter it is at;
  * more progress joins it as new fields. */
-export interface Save {tickets:TravelTicket[];at?:Spot;clock?:number;alarm?:number;phone:PhoneState;groceries:[string,string][];needs:Needs}
+export interface Save {tickets:TravelTicket[];at?:Spot;clock?:number;alarm?:number;phone:PhoneState;groceries:[string,string][];needs:Needs;story?:number}
 const key='yorimichi-save',version=1;
 export const hasSave=()=>{try{return localStorage.getItem(key)!==null}catch{return false}};
 // Only tickets for routes and stations that still exist, and a spot whose place (and the station it needs) still exists; a save from another version starts afresh.
@@ -19,7 +19,7 @@ export function loadSave():Save{
   try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(saved?.version===version){
     // A ticket punched before punches named their station was punched at its own.
     const tickets=(Array.isArray(saved.tickets)?saved.tickets as TravelTicket[]:[]).filter(t=>t.from in stations&&(t.kind!=='route'||routes.some(route=>route.id===t.id)));for(const t of tickets)if((t.punched as unknown)===true)t.punched=t.from;
-    return {tickets,at:valid(saved.at)?saved.at:undefined,clock:Number.isFinite(saved.clock)?saved.clock:undefined,alarm:Number.isFinite(saved.alarm)?saved.alarm:undefined,phone:readPhone(saved.phone,at=>at in stations||!!sightOfRoad(at)),groceries:Array.isArray(saved.groceries)?saved.groceries:[],needs:Number.isFinite(saved.needs?.hunger)&&Number.isFinite(saved.needs?.thirst)?saved.needs:freshNeeds()};
+    return {tickets,at:valid(saved.at)?saved.at:undefined,clock:Number.isFinite(saved.clock)?saved.clock:undefined,alarm:Number.isFinite(saved.alarm)?saved.alarm:undefined,phone:readPhone(saved.phone,at=>at in stations||!!sightOfRoad(at)),groceries:Array.isArray(saved.groceries)?saved.groceries:[],needs:Number.isFinite(saved.needs?.hunger)&&Number.isFinite(saved.needs?.thirst)?saved.needs:freshNeeds(),story:Number.isInteger(saved.story)?saved.story:undefined};
   }}catch{}
   return {tickets:[],phone:newPhone(),groceries:[],needs:freshNeeds()};
 }

@@ -4,10 +4,11 @@ import { wrap, write } from './konbini-till';
 import { loadLook, paintTraveller, parts, saveLook, unused, type Look } from './look';
 import { connectedPad } from './pad';
 import { eraseAll, hasSave } from './save';
+import { saveMode, type Mode } from './story';
 import { crispText, fitPicture } from './ticket-gate';
 
 // The title screen, one 320 × 200 picture scaled up whole: Fuji at dusk over a town, a train crossing the viaduct. Over it, in turn, the journal check (a code from the printed travel journal, as old games asked for a word from their manual),
-// the main menu (continue, new journey) and, for a new journey, the traveller's looks (look.ts), painted as they will walk.
+// the main menu (continue, new journey) and, for a new journey, the traveller's looks (look.ts), painted as they will walk, then the way to play (`Mode`, story.ts): exploring freely, or the story playing itself.
 const W=320,H=200,ink='#3a2a20',paper='#efe3c2',edge='#5a3f2c',red='#c0463a';
 const bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const journalReferences=[
@@ -20,7 +21,7 @@ const journalReferences=[
 type Rect=[number,number,number,number];
 /** What can be pointed at or chosen: `row` for the arrows and stick, `left`/`right` where it has a value to turn (its arrows drawn at `arrows`). */
 interface Item {rect:Rect;row:number;act?:()=>void;left?:()=>void;right?:()=>void;arrows?:[Rect,Rect]}
-type Phase='code'|'menu'|'confirm'|'look';
+type Phase='code'|'menu'|'confirm'|'look'|'mode';
 const inside=([x,y,w,h]:Rect,px:number,py:number)=>px>=x&&px<x+w&&py>=y&&py<y+h;
 
 /** Dusk over a town under Fuji, drawn once: the sky banded through the dither, stars, the mountain, a pagoda among the roofs, the viaduct, the river and the roofs in front with their lanterns. */
@@ -137,10 +138,19 @@ export function showTitle(start:()=>void){
     // The box that stops the turning, on the buttons' line (← → reach it), before them.
     const row=parts.length,tick:Rect=[30,139,64,12];items.push({rect:tick,row,act:()=>{const now=facing(performance.now());spin=!spin;turned=spin?(now-Math.floor(performance.now()/1600)%4+4)%4:now}});
     if(chosen(items.length-1))box(g,tick[0]-2,tick[1]-1,tick[2]+4,tick[3]+2,'#d6c49a');box(g,31,141,8,8,'#fbf6e6',ink);if(spin){box(g,33,145,1,2,red);box(g,34,146,1,2,red);box(g,35,143,1,4,red);box(g,36,142,1,2,red)}write(g,'Turning',43,140,ink);
-    const buttons:[string,()=>void][]=[['Random',()=>{for(const part of parts)look[part.key]=Math.floor(Math.random()*part.choices.length)}],['Back',()=>go('menu',0)],['Begin',begin]];
+    const buttons:[string,()=>void][]=[['Random',()=>{for(const part of parts)look[part.key]=Math.floor(Math.random()*part.choices.length)}],['Back',()=>go('menu',0)],['Next',()=>go('mode',0)]];
     buttons.forEach(([label,act],i)=>{const rect:Rect=[116+i*64,168,58,16];items.push({rect,row,act});button(rect,label,chosen(row+1+i))});
   };
 
+  /** The way to play: a card each, its words under its name; Back returns to the looks. */
+  const drawMode=()=>{
+    panel([10,8,300,184]);
+    write(g,'旅のしかた · HOW TO TRAVEL',W/2,14,red,'center');box(g,20,26,280,1,'#d6c49a');
+    const modes:[Mode,string,string][]=[['explore','自由に · EXPLORE','Walk about Japan as you like: buy tickets, ride the trains, find the places and keep their memories yourself.'],['story','物語 · STORY','Sit back and watch: the traveller goes from memory to memory in the order of the trip, and the album opens on each one.']];
+    items=modes.map(([mode],i)=>({rect:[22+i*142,34,134,118] as Rect,row:0,act:()=>begin(mode)}));
+    modes.forEach(([,name,text],i)=>{const [x,y,w,h]=items[i].rect,on=chosen(i);box(g,x,y+1,w,h,'#7a5a40');box(g,x,y,w,h,on?'#f8e6c8':'#f8f0da',on?red:edge);write(g,name,x+w/2,y+8,on?red:ink,'center');box(g,x+10,y+22,w-20,1,'#d6c49a');wrap(g,text,w-16).forEach((line,k)=>write(g,line,x+w/2,y+30+k*12,ink,'center'))});
+    const rect:Rect=[131,166,58,16];items.push({rect,row:1,act:()=>go('look',parts.length+3)});button(rect,'Back',chosen(2));
+  };
   const draw=()=>{
     const t=performance.now();
     g.drawImage(scene,0,0);
@@ -148,8 +158,8 @@ export function showTitle(start:()=>void){
     const run=(t%12000)/12000*(W+cars.width+400)-cars.width;g.drawImage(cars,Math.round(W-run),128);
     // The town's lights flicker now and then.
     for(let k=0;k<5;k++){const x=(k*67+Math.floor(t/900)*31)%W;g.fillStyle='#fff6d0';g.fillRect(x,130+(k*7)%6,1,1)}
-    if(phase==='look')box(g,0,0,W,H,'#0b0a1655');
-    if(ready){if(phase==='code')drawCode();else if(phase==='menu')drawMenu();else if(phase==='confirm')drawConfirm();else drawLook(t)}
+    if(phase==='look'||phase==='mode')box(g,0,0,W,H,'#0b0a1655');
+    if(ready){if(phase==='code')drawCode();else if(phase==='menu')drawMenu();else if(phase==='confirm')drawConfirm();else if(phase==='mode')drawMode();else drawLook(t)}
     if(shake>0)shake=Math.max(0,shake-16);
     pad();frame=requestAnimationFrame(draw);
   };
@@ -160,7 +170,7 @@ export function showTitle(start:()=>void){
     catch(e){status=e instanceof Error?e.message:'Could not check the code.';error=true;checking=false;return}
     field.value='';checking=false;status='';go('menu',0);
   }
-  function begin(){eraseAll();saveLook(look);finish()}
+  function begin(mode:Mode){eraseAll();saveLook(look);saveMode(mode);finish()}
   function finish(){if(over)return;over=true;cancelAnimationFrame(frame);watcher.disconnect();document.removeEventListener('keydown',key,true);overlay.remove();start()}
 
   // Moving the choice: ↑ ↓ between rows (to the item of that row nearest the one chosen), ← → turn a value or move along a row.
@@ -170,7 +180,7 @@ export function showTitle(start:()=>void){
     const rows=[...new Set(items.map(item=>item.row))].sort((a,b)=>a-b),next=rows[rows.indexOf(now.row)+dy];if(next===undefined)return;
     const cx=now.rect[0]+now.rect[2]/2;focus=items.map((item,i)=>[item,i] as const).filter(([item])=>item.row===next).sort(([a],[b])=>Math.abs(a.rect[0]+a.rect[2]/2-cx)-Math.abs(b.rect[0]+b.rect[2]/2-cx))[0][1];
   };
-  const back=()=>{if(phase==='look'||phase==='confirm')go('menu',0)};
+  const back=()=>{if(phase==='mode')go('look',parts.length+3);else if(phase==='look'||phase==='confirm')go('menu',0)};
   const choose=()=>{items[focus]?.act?.()};
   function key(event:KeyboardEvent){
     if(phase==='code'){if(event.key==='Enter'&&document.activeElement===field){event.preventDefault();submit()}return}

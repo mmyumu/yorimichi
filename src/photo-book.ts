@@ -7,12 +7,15 @@ import { stations } from './network';
 import { busLines, stopNames } from './rail';
 import { memoryPages, roadPage, sights, type Page } from './sights';
 import { crispText, fitPicture } from './ticket-gate';
+import type { Tour } from './story';
 
 /** The photos of each page by its id: public/photos/index.json, written by scripts/import-photos.mjs and, like the photos, kept out of the repository. Without it the album's pages are empty. Always revalidated: a cached index naming photos since replaced would leave every page unavailable. */
 type Shelf=Record<string,string[]>;
 let shelf:Promise<Shelf>|null=null;
 const loadShelf=()=>shelf??=fetch(`${photoBase}index.json`,{cache:'no-cache'}).then(r=>r.ok?r.json() as Promise<Shelf>:{}).catch(()=>({}));
-const pages:Page[]=[...memoryPages,roadPage];
+/** Every page; an album shows those with photos (`shown`), all of them while the index is missing or empty. */
+const allPages:Page[]=[...memoryPages,roadPage];
+const shown=(photos:Shelf)=>Object.keys(photos).length?allPages.filter(page=>photos[page.id]?.length):allPages;
 
 // The album as the pause menu is drawn (pause-menu.ts): one 480 × 320 picture, scaled up whole. An open book on a desk: the contents spread (a mounted print per place, blank where not yet found), then a spread per place,
 // its name, stamp and contact sheet on the left, the photo itself mounted on the right, and a close-up larger still. Only the book is pixel art: the canvas has the screen's own resolution, the book is drawn in its 480 × 320 pixels scaled up unsmoothed (`k`), the photos smooth over it.
@@ -109,39 +112,41 @@ export class PhotoBook{
   private frame=0;private watcher:ResizeObserver;private k=1;private rubbing:[number,number]|null=null;private sweep:[number,number]|null=null;private auto=-1;private targets:{rect:Rect;act:()=>void;hover?:()=>void}[]=[];
   private flip:{from:HTMLCanvasElement;to:HTMLCanvasElement;start:number;by:1|-1}|null=null;
   private held:boolean[]=connectedPad()?.buttons.map(b=>b.pressed)??[];private repeatAt=0;private lastDir='';
-  constructor(private found:Set<string>,private start:string|null,private close:()=>void){
+  /** The story mode's slideshow (`tour`): the page's spread with its words (its card scratching itself), then each photo up close with its own, each held long enough to read (`spell`) when `auto`, the next at once on a press. */
+  private pages=allPages;private step=-1;private shown=0;private shelved=false;private scratched=false;
+  constructor(private found:Set<string>,private start:string|null,private close:()=>void,private tour?:Tour,private auto_=true){
     this.overlay.style.cssText='position:fixed;inset:0;z-index:60;background:#3a2518;outline:none;overflow:hidden;touch-action:manipulation;user-select:none';this.overlay.tabIndex=-1;this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-label','Travel journal');
     this.canvas.style.cssText='position:absolute;display:block';
     this.overlay.append(this.canvas);document.body.append(this.overlay);this.overlay.focus();
     this.watcher=new ResizeObserver(()=>this.fit());this.watcher.observe(this.overlay);this.fit();
-    const at=start?pages.findIndex(page=>page.id===start):-1;if(at>=0){this.mode='page';this.page=this.focus=at}
+    const at=start?this.pages.findIndex(page=>page.id===start):-1;if(at>=0){this.mode='page';this.page=this.focus=at}
     document.addEventListener('keydown',this.keydown,true);
     // Scratching: a press on the coat and a drag, finger or mouse.
     this.canvas.style.touchAction='none';
-    const onCoat=(x:number,y:number)=>this.mode==='page'&&!this.flip&&inside(card,x,y)&&!!coatOf(pages[this.page].id);
+    const onCoat=(x:number,y:number)=>this.mode==='page'&&!this.flip&&inside(card,x,y)&&!!coatOf(this.pages[this.page].id);
     this.canvas.addEventListener('pointermove',event=>{const [x,y]=this.at(event);if(this.rubbing){this.rub(this.rubbing,[x-card[0],y-card[1]]);this.rubbing=[x-card[0],y-card[1]];return}if(onCoat(x,y)){this.canvas.style.cursor='crosshair';return}const target=this.targets.find(t=>inside(t.rect,x,y));target?.hover?.();this.canvas.style.cursor=target?'pointer':'default'});
     const stop=()=>{if(this.rubbing)keepCoats();this.rubbing=null};this.canvas.addEventListener('pointerup',stop);this.canvas.addEventListener('pointercancel',stop);
-    this.overlay.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();const [x,y]=this.at(event);if(onCoat(x,y)){this.canvas.setPointerCapture(event.pointerId);this.rubbing=[x-card[0],y-card[1]];this.rub(this.rubbing,this.rubbing);return}const target=this.targets.find(t=>inside(t.rect,x,y));if(target)target.act();else if(!inside([8,6,464,288],x,y)||this.mode==='close')this.back()});
-    loadShelf().then(photos=>{this.photos=photos});this.frame=requestAnimationFrame(this.tick);
+    this.overlay.addEventListener('pointerdown',event=>{if(event.button!==0)return;event.preventDefault();if(this.tour){if(!this.flip)this.onward(1);return}const [x,y]=this.at(event);if(onCoat(x,y)){this.canvas.setPointerCapture(event.pointerId);this.rubbing=[x-card[0],y-card[1]];this.rub(this.rubbing,this.rubbing);return}const target=this.targets.find(t=>inside(t.rect,x,y));if(target)target.act();else if(!inside([8,6,464,288],x,y)||this.mode==='close')this.back()});
+    loadShelf().then(photos=>{const page=this.pages[this.page],focus=this.pages[this.focus];this.photos=photos;this.pages=shown(photos);this.page=Math.max(0,this.pages.indexOf(page));this.focus=Math.max(0,this.pages.indexOf(focus));this.shelved=true});this.frame=requestAnimationFrame(this.tick);
   }
   /** The canvas at the screen's own pixels, `k` of them a book pixel. */
   private fit(){fitPicture(this.canvas,this.overlay,W,H);this.k=parseFloat(this.canvas.style.width)*(devicePixelRatio||1)/W;this.canvas.width=Math.round(W*this.k);this.canvas.height=Math.round(H*this.k);sharp=Math.max(2,Math.min(8,Math.ceil(this.k)));this.flip=null}
   /** Scratches along a stroke, a point a pixel. */
-  private rub([ax,ay]:[number,number],[bx,by]:[number,number]){const id=pages[this.page].id,n=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)));for(let i=0;i<=n;i++)scratch(id,ax+(bx-ax)*i/n,ay+(by-ay)*i/n)}
+  private rub([ax,ay]:[number,number],[bx,by]:[number,number]){const id=this.pages[this.page].id,n=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)));for(let i=0;i<=n;i++)scratch(id,ax+(bx-ax)*i/n,ay+(by-ay)*i/n)}
   /** X: the coin goes over the whole card by itself, row after row. */
-  private scratchAll(){if(this.mode==='page'&&coatOf(pages[this.page].id)&&this.auto<0)this.auto=0}
+  private scratchAll(){if(this.mode==='page'&&coatOf(this.pages[this.page].id)&&this.auto<0)this.auto=0}
   private autoAt(s:number):[number,number]{const w=card[2],row=Math.floor(s/w),x=s%w;return [row%2?w-1-x:x,3+row*6]}
   private at(event:PointerEvent):[number,number]{const r=this.canvas.getBoundingClientRect();return [(event.clientX-r.left)/r.width*W,(event.clientY-r.top)/r.height*H]}
-  private open=(i:number)=>this.found.has(pages[i].id)||pages[i]===roadPage;
-  private list=()=>this.open(this.page)?this.photos[pages[this.page].id]??[]:[];
+  private open=(i:number)=>this.found.has(this.pages[i].id)||this.pages[i]===roadPage;
+  private list=()=>this.open(this.page)?this.photos[this.pages[this.page].id]??[]:[];
 
   // Moving about: every change of spread turns a page (`turn`), the close-up does not.
   private turn(by:1|-1,change:()=>void){if(this.flip)return;const {width,height}=this.canvas,from=document.createElement('canvas');from.width=width;from.height=height;from.getContext('2d')!.drawImage(this.canvas,0,0);change();const to=document.createElement('canvas');to.width=width;to.height=height;this.flip={from,to,start:performance.now(),by}}
   private show(i:number){this.turn(1,()=>{this.mode='page';this.page=this.focus=i;this.photo=0})}
-  private next(by:1|-1){if(this.mode==='contents')return;const i=this.page+by;if(i>=0&&i<pages.length)this.turn(by,()=>{this.mode='page';this.page=this.focus=i;this.photo=0})}
+  private next(by:1|-1){if(this.mode==='contents')return;const i=this.page+by;if(i>=0&&i<this.pages.length)this.turn(by,()=>{this.mode='page';this.page=this.focus=i;this.photo=0})}
   private pick(i:number){const n=this.list().length;if(n)this.photo=(i+n)%n}
   private move(by:number){
-    if(this.mode==='contents'){const to=Math.max(0,Math.min(pages.length-1,this.focus+by));if(Math.floor(to/perSpread)!==Math.floor(this.focus/perSpread))this.turn(to>this.focus?1:-1,()=>{this.focus=to});else this.focus=to}
+    if(this.mode==='contents'){const to=Math.max(0,Math.min(this.pages.length-1,this.focus+by));if(Math.floor(to/perSpread)!==Math.floor(this.focus/perSpread))this.turn(to>this.focus?1:-1,()=>{this.focus=to});else this.focus=to}
     else this.pick(this.photo+by);
   }
   private choose(){if(this.mode==='contents')this.show(this.focus);else if(this.mode==='page'){if(this.list().length)this.mode='close'}else this.mode='page'}
@@ -150,8 +155,18 @@ export class PhotoBook{
     if(this.mode==='page'&&!this.start){this.turn(-1,()=>{this.mode='contents';this.focus=this.page});return}
     this.destroy();this.close();
   }
+  /** The words of what the slideshow shows now. */
+  private words(){return this.step<0?this.tour?.text:this.tour?.photos?.[this.step]}
+  private spell(){const text=this.words();return text?3500+text.length*65:this.step<0?3500:4500}
+  /** On to the next photo (or back one), the album closing after the last. */
+  private onward(by:1|-1){
+    const n=this.list().length,to=this.step+by;this.shown=0;
+    if(to<-1)return;if(to>=n){this.destroy();this.close();return}
+    this.step=to;if(to<0)this.mode='page';else{this.mode='close';this.photo=to}
+  }
   private keydown=(event:KeyboardEvent)=>{
-    event.preventDefault();event.stopPropagation();if(this.flip)return;const vertical=this.mode==='contents'?columns:this.mode==='page'?columns:1;
+    event.preventDefault();event.stopPropagation();if(this.flip)return;
+    if(this.tour){const fn:Record<string,()=>void>={Enter:()=>this.onward(1),Space:()=>this.onward(1),KeyE:()=>this.onward(1),ArrowRight:()=>this.onward(1),KeyD:()=>this.onward(1),ArrowLeft:()=>this.onward(-1),KeyA:()=>this.onward(-1),Escape:()=>{this.destroy();this.close()},Backspace:()=>{this.destroy();this.close()}};if(!event.repeat)fn[event.code]?.();return}const vertical=this.mode==='contents'?columns:this.mode==='page'?columns:1;
     const keys:Record<string,()=>void>={ArrowLeft:()=>this.move(-1),ArrowRight:()=>this.move(1),ArrowUp:()=>this.move(-vertical),ArrowDown:()=>this.move(vertical),KeyA:()=>this.move(-1),KeyD:()=>this.move(1),KeyW:()=>this.move(-vertical),KeyS:()=>this.move(vertical),
       PageUp:()=>this.next(-1),PageDown:()=>this.next(1),KeyQ:()=>this.next(-1),KeyE:()=>this.next(1),Enter:()=>this.choose(),Space:()=>this.choose(),KeyX:()=>this.scratchAll(),Escape:()=>this.back(),Backspace:()=>this.back()};
     const fn=keys[event.code];if(fn&&(!event.repeat||event.code.startsWith('Arrow')))fn();
@@ -160,16 +175,21 @@ export class PhotoBook{
   private pad(){
     const p=connectedPad();if(!p)return;const now=performance.now(),pressed=p.buttons.map(b=>b.pressed),was=this.held,edge=(i:number)=>pressed[i]&&!was[i];this.held=pressed;if(this.flip)return;
     const [x=0,y=0]=p.axes,dir=pressed[14]||x<-.5?'ArrowLeft':pressed[15]||x>.5?'ArrowRight':pressed[12]||y<-.5?'ArrowUp':pressed[13]||y>.5?'ArrowDown':'';
+    if(this.tour){if(edge(0)||edge(15)||edge(5))this.onward(1);else if(edge(14)||edge(4))this.onward(-1);else if(edge(1)){this.destroy();this.close()}return}
     if(dir&&(dir!==this.lastDir||now>this.repeatAt)){this.repeatAt=now+(dir!==this.lastDir?380:160);const v=this.mode==='close'?1:columns;this.move({ArrowLeft:-1,ArrowRight:1,ArrowUp:-v,ArrowDown:v}[dir]!)}this.lastDir=dir;
     if(edge(0))this.choose();else if(edge(1))this.back();else if(edge(3)){this.destroy();this.close()}else if(edge(4))this.next(-1);else if(edge(5))this.next(1);else if(edge(2))this.scratchAll();
     // The right stick sweeps the coin over the card, its tilt the coin's place on it.
-    const [,, sx=0,sy=0]=p.axes,id=this.mode==='page'?pages[this.page].id:'';
+    const [,, sx=0,sy=0]=p.axes,id=this.mode==='page'?this.pages[this.page].id:'';
     if(Math.hypot(sx,sy)>.3&&id&&coatOf(id)){const at:[number,number]=[Math.max(0,Math.min(1,(sx+1)/2))*(card[2]-1),Math.max(0,Math.min(1,(sy+1)/2))*(card[3]-1)];this.rub(this.sweep??at,at);this.sweep=at}else{if(this.sweep)keepCoats();this.sweep=null}
   }
 
   private tick=()=>{
     if(!this.overlay.isConnected)return;this.pad();const g=this.g;
-    if(this.auto>=0){const id=pages[this.page]?.id,end=card[2]*10;if(this.mode!=='page'||!coatOf(id)||this.auto>=end){this.auto=-1;keepCoats()}else{const from=this.autoAt(this.auto);this.auto+=12;this.rub(from,this.autoAt(Math.min(this.auto,end-1)))}}
+    // The slideshow moves on once what it shows has been there long enough, counted from when its photo came in.
+    if(this.tour&&this.step<0&&this.mode==='page'&&!this.scratched&&!this.flip){this.scratched=true;this.scratchAll()}
+    if(this.tour&&this.auto_&&this.shelved&&!this.flip){const list=this.list(),ready=this.step<0||closeUpOf(`${this.pages[this.page].id}/${list[this.step]}`)!==undefined;if(!ready)this.shown=0;else if(!this.shown)this.shown=performance.now();else if(performance.now()-this.shown>this.spell())this.onward(1)}
+    if(!this.overlay.isConnected)return;
+    if(this.auto>=0){const id=this.pages[this.page]?.id,end=card[2]*10;if(this.mode!=='page'||!coatOf(id)||this.auto>=end){this.auto=-1;keepCoats()}else{const from=this.autoAt(this.auto);this.auto+=12;this.rub(from,this.autoAt(Math.min(this.auto,end-1)))}}
     if(this.flip){
       const {from,to,start,by}=this.flip,t=Math.min(1,(performance.now()-start)/320),k=this.k;this.paint(to.getContext('2d')!);g.setTransform(1,0,0,1,0,0);g.imageSmoothingEnabled=true;
       // Both spreads at the screen's pixels, placed in book pixels.
@@ -187,7 +207,9 @@ export class PhotoBook{
     this.targets=[];g.setTransform(this.k,0,0,this.k,0,0);g.imageSmoothingEnabled=false;g.drawImage(backdrop(),0,0);
     if(this.mode==='contents')this.contents(g);else this.spread(g);
     if(this.mode==='close')this.closeUp(g);
-    const hint=this.mode==='contents'?'Arrows choose · Enter or A open · Esc or B close':this.mode==='page'?'Scratch the card · ←→ photos · Enter/A up close · LB RB places · Esc/B back':'←→ photos · Esc or B back';
+    const words=this.tour&&this.words();
+    if(words){const lines=wrap(g,words,W-72).slice(0,8),h=lines.length*12+10,y=H-6-h;box(g,24,y,W-48,h,'#1c110be8','#5a3f2c');lines.forEach((line,i)=>write(g,line,W/2,y+5+i*12,'#f8ead0','center'));return}
+    const hint=this.tour?this.auto_?'Enter or A next · Esc or B on to the next place':'Enter or A next · ← back · Esc or B on to the next place':this.mode==='contents'?'Arrows choose · Enter or A open · Esc or B close':this.mode==='page'?'Scratch the card · ←→ photos · Enter/A up close · LB RB places · Esc/B back':'←→ photos · Esc or B back';
     g.font='10px "Yorimichi Bitmap"';const hw=Math.ceil(g.measureText(hint).width)+20;box(g,(W-hw)/2,H-19,hw,15,'#1c110bd8','#5a3f2c');write(g,hint,W/2,H-16,'#f0d0a8','center');
   }
 
@@ -207,22 +229,22 @@ export class PhotoBook{
     this.targets.push({rect:[x-4,y-4,s+8,s+8],act});
   }
   private contents(g:CanvasRenderingContext2D){
-    const spread=Math.floor(this.focus/perSpread),[lx,,lw]=left,cx=lx+lw/2,memories=pages.filter((page,i)=>page!==roadPage&&this.open(i)).length,chosen=pages[this.focus],seen=this.open(this.focus);
+    const spread=Math.floor(this.focus/perSpread),[lx,,lw]=left,cx=lx+lw/2,memories=this.pages.filter((page,i)=>page!==roadPage&&this.open(i)).length,chosen=this.pages[this.focus],seen=this.open(this.focus);
     g.font='20px "Yorimichi Bitmap"';crispText(g,'旅の日記',Math.round(cx-g.measureText('旅の日記').width/2),24,ink);
-    write(g,'TRAVEL JOURNAL',cx,48,faint,'center');write(g,`${memories} / ${memoryPages.length} memories`,cx,61,red,'center');this.dashes(g,lx+12,78,lw-24);
+    write(g,'TRAVEL JOURNAL',cx,48,faint,'center');write(g,`${memories} / ${this.pages.filter(page=>page!==roadPage).length} memories`,cx,61,red,'center');this.dashes(g,lx+12,78,lw-24);
     write(g,seen?chosen.ja:'？',cx,86,ink,'center');write(g,seen?wrap(g,chosen.en,lw-24)[0]??'':'Not yet found',cx,99,faint,'center');
-    for(let i=spread*perSpread;i<Math.min(pages.length,(spread+1)*perSpread);i++){
-      const [x,y,w,h]=slot(i),page=pages[i],open=this.open(i),cover=this.photos[page.id]?.[0],select=()=>{this.focus=i},on=i===this.focus;
+    for(let i=spread*perSpread;i<Math.min(this.pages.length,(spread+1)*perSpread);i++){
+      const [x,y,w,h]=slot(i),page=this.pages[i],open=this.open(i),cover=this.photos[page.id]?.[0],select=()=>{this.focus=i},on=i===this.focus;
       if(open){const ready=cover?printsOf(`${page.id}/${cover}`):null;this.mounted(g,ready===undefined?undefined:ready?.thumb??null,x,y,w,h,2,3);write(g,this.fitted(g,page.ja,w+4),x+w/2,y+h+3,on?red:ink,'center')}
       else{for(let k=0;k<w;k+=4){box(g,x+k,y,2,1,rule);box(g,x+k,y+h-1,2,1,rule)}for(let k=0;k<h;k+=4){box(g,x,y+k,1,2,rule);box(g,x+w-1,y+k,1,2,rule)}write(g,'？',x+w/2,y+h/2-5,rule,'center')}
       if(on){box(g,x-3,y-3,w+6,1,red);box(g,x-3,y+h+2,w+6,1,red);box(g,x-3,y-3,1,h+6,red);box(g,x+w+2,y-3,1,h+6,red)}
       this.targets.push({rect:[x-3,y-3,w+6,h+16],act:()=>{select();this.show(i)},hover:select});
     }
     if(spread>0)this.curl(g,false,()=>this.move(-perSpread));
-    if((spread+1)*perSpread<pages.length)this.curl(g,true,()=>this.move(perSpread));
+    if((spread+1)*perSpread<this.pages.length)this.curl(g,true,()=>this.move(perSpread));
   }
   private spread(g:CanvasRenderingContext2D){
-    const page=pages[this.page],seen=this.open(this.page),list=this.list(),n=list.length,[lx,ly,lw]=left,[rx,ry,rw,rh]=right,ja=seen?page.ja:'？';
+    const page=this.pages[this.page],seen=this.open(this.page),list=this.list(),n=list.length,[lx,ly,lw]=left,[rx,ry,rw,rh]=right,ja=seen?page.ja:'？';
     g.font='20px "Yorimichi Bitmap"';if(g.measureText(ja).width<=lw-28)crispText(g,ja,lx+14,ly+12,ink);else write(g,ja,lx+14,ly+16,ink);
     wrap(g,seen?page.en:'Not yet found',lw-28).slice(0,2).forEach((line,i)=>write(g,line,lx+14,ly+38+i*12,faint));this.dashes(g,lx+12,ly+64,lw-24);
     // The contact sheet: every photo of the place, twelve at a time, the one on the right page outlined.
@@ -250,7 +272,7 @@ export class PhotoBook{
       const cy=ry+rh-24,cx=rx+rw/2;write(g,`${this.photo+1} / ${n}`,cx,cy,faint,'center');
       if(n>1){for(const [by,ax] of [[-1,cx-38],[1,cx+34]] as const){for(let k=0;k<4;k++)box(g,by<0?ax+3-k:ax+k,cy+1+k,1,7-k*2,red);this.targets.push({rect:[ax-6,cy-4,16,18],act:()=>this.pick(this.photo+by)})}}
     }else{const x=rx+20,y=ry+40,w=rw-40,h=150;for(let k=0;k<w;k+=4){box(g,x+k,y,2,1,rule);box(g,x+k,y+h-1,2,1,rule)}for(let k=0;k<h;k+=4){box(g,x,y+k,1,2,rule);box(g,x+w-1,y+k,1,2,rule)}if(!seen)write(g,'？',x+w/2,y+h/2-5,rule,'center')}
-    const has=(by:number)=>this.page+by>=0&&this.page+by<pages.length;
+    const has=(by:number)=>this.page+by>=0&&this.page+by<this.pages.length;
     if(has(-1))this.curl(g,false,()=>this.next(-1));if(has(1))this.curl(g,true,()=>this.next(1));
   }
   /** The card: where the place is, under its coat until scratched; the coin over it while the pad scratches. */
@@ -262,7 +284,7 @@ export class PhotoBook{
   }
   private closeUp(g:CanvasRenderingContext2D){
     g.drawImage(veiled(),8,6);this.targets=[];
-    const page=pages[this.page],list=this.list(),n=list.length,image=closeUpOf(`${page.id}/${list[this.photo]}`),fit=image?Math.min(FW/image.naturalWidth,FH/image.naturalHeight):0,w=(image?Math.round(image.naturalWidth*fit):Math.round(FH*4/3))+8,h=(image?Math.round(image.naturalHeight*fit):FH)+8,x=Math.round((W-w)/2),y=Math.round(7+(FH+8-h)/2);
+    const page=this.pages[this.page],list=this.list(),n=list.length,image=closeUpOf(`${page.id}/${list[this.photo]}`),fit=image?Math.min(FW/image.naturalWidth,FH/image.naturalHeight):0,w=(image?Math.round(image.naturalWidth*fit):Math.round(FH*4/3))+8,h=(image?Math.round(image.naturalHeight*fit):FH)+8,x=Math.round((W-w)/2),y=Math.round(7+(FH+8-h)/2);
     this.mounted(g,image,x,y,w,h,4,0);this.targets.push({rect:[x,y,w,h],act:()=>{this.mode='page'}});
     write(g,`${page.ja} · ${page.en}   ${this.photo+1} / ${n}`,W/2,FH+19,'#f0d0a8','center');
     if(n>1)for(const [by,ax] of [[-1,8],[1,W-20]] as const){for(let k=0;k<6;k++)box(g,by<0?ax+5-k:ax+6+k,H/2-16+k,1,11-k*2,'#f0d0a8');this.targets.push({rect:[ax-4,H/2-24,24,32],act:()=>this.pick(this.photo+by)})}

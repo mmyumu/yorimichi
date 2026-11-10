@@ -27,7 +27,7 @@ import { areaAround, kmApart, onMap, spotOf } from './city-maps';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
 import { addMinutes, clockMs, darkness, dayLabel, dayOf, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, hold, setTimeOfDay, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
 import { openDepartures, onTokyoBoard, tokyoStations } from './tokyo-fares';
-import { carried, feed, filling, needFactor, spend } from './needs';
+import { carried, feed, filling, freshNeeds, needFactor, spend } from './needs';
 import { goodNamed } from './goods';
 import { coinCount, loadWallet, machineSound, walkFactor, walletTotal } from './wallet';
 
@@ -36,8 +36,9 @@ import { BusFare } from './bus-fare';
 import { PhotoBook } from './photo-book';
 import { StampBook } from './stamp-book';
 import { avenueOf, cameraBox, dressRoad, exitBox, layoutOf, makeScene } from './sight-scenes';
+import { chapters, loadMode, loadPace, savePace, speeds, storyEnd, storyIntro } from './story';
 import { memoryPages, roadTo, scenic, sightOf, sightOfRoad, sights, walkFrom, type Sight } from './sights';
-import { exitName, inKyoto, home, kyotoHome, places, konbiniFor, isHub, hasShinkansen, platformsAt, stationAt, stationOf, stations, trackOf, tracksFor, type Hub, type Place, type Service, type Side } from './network';
+import { routes, exitName, inKyoto, home, kyotoHome, places, konbiniFor, isHub, hasShinkansen, platformsAt, stationAt, stationOf, stations, trackOf, tracksFor, type Hub, type Place, type Service, type Side } from './network';
 import { busFare, busLines, connectionsAt, firstLegs, linesAt, railLine, stopNames, type Connection, type RailLine } from './rail';
 // Highlight frames around the hotspots of nearby(), in scene pixels (art × 2), shown while the player is in range.
 /** Where the traveller waits for the bus and gets off it: on the far pavement, by the stop's post. */
@@ -207,6 +208,11 @@ class Journey extends Phaser.Scene {
   private pigeons:Pigeons|null=null;
   private cat:Cat|null=null;
   // Set on restarting: nothing is saved again on the way out of the page.
+  // The story mode (story.ts): the journey plays itself, chapter after chapter (`storyNext`), the player's own moves ignored; `chapter` is the one under way, saved.
+  private story=loadMode()==='story';
+  private chapter=loadSave().story??0;
+  /** A ticket bought for the ride ahead; whether the chapter has just begun (its time of day still to set); when the director looks again; the last thing it walked to and how often, to cut short a walk that never gets there. */
+  private storyTicket=false;private storyFresh=true;private storyIdle=0;private pace=loadPace();private storyTry:[string,number]=['',0];
   constructor(){super('Journey')}
   create(){
     makeArt(this);vivid(this);startClock(loadSave().clock);this.fedAt=minutes();
@@ -226,12 +232,13 @@ class Journey extends Phaser.Scene {
     const paid=at?.place==='corridor',inside=paid&&this.tickets.some(ticket=>ticket.punched||ticket.kind==='adjust');if(!paid)for(const ticket of this.tickets)delete ticket.punched;
     if(at?.place==='corridor'&&!inside)this.loadPlace(this.gateway!.hub);else this.loadPlace(at?.place??stationAt('東京')!,at);
     // A new journey: just off the train from the airport.
-    if(!at)this.dialog('Welcome to Tokyo','You have just arrived at Tokyo Station from Haneda Airport. Your rental is waiting for you in Higashi-Nakano: it is up to you to find your way there.\n\nYour travel journal is still empty. There are memories to find all over Japan: collect them all to fill it.');
+    this.storySpeed();if(!at&&this.story){this.dialog(storyIntro.title,storyIntro.text);const c=this.modal;this.time.delayedCall(12000*this.time.timeScale,()=>{if(this.modal===c){c?.destroy(true);this.modal=null}})}
+    else if(!at)this.dialog('Welcome to Tokyo','You have just arrived at Tokyo Station from Haneda Airport. Your rental is waiting for you in Higashi-Nakano: it is up to you to find your way there.\n\nYour travel journal is still empty. There are memories to find all over Japan: collect them all to fill it.');
     // Saved on each move (throttled in update) and when the page is hidden or closed.
     document.addEventListener('visibilitychange',()=>this.keep());addEventListener('pagehide',()=>this.keep());
     // A click or tap on a hotspot uses it, walking there first if needed; elsewhere it walks.
     this.input.on('pointerdown',(pointer:Phaser.Input.Pointer, objects:Phaser.GameObjects.GameObject[])=>{
-      const x=pointer.x-this.world.x,y=pointer.y-this.world.y;if(this.modal||objects.length||pointer.y<=70)return;
+      const x=pointer.x-this.world.x,y=pointer.y-this.world.y;if(this.modal||objects.length||pointer.y<=70||this.story)return;
       const spot=this.hotspotAt(x,y);this.boardAt='';
       if(spot&&spot===this.nearby()){this.interact();return}
       // A train's door: to the end of its queue.
@@ -393,6 +400,7 @@ class Journey extends Phaser.Scene {
     this.badgeText=this.add.text(0,0,'',{fontFamily:'monospace',fontSize:12,color:'#ffffff'}).setOrigin(.5);this.badge=this.add.container(16,-30,[this.add.circle(0,0,10,0xd6402e).setStrokeStyle(2,0xfffef2),this.badgeText]);this.mini.add(this.badge);this.refreshPhone();
     // No bottom bar: the action prompt floats over the player when something is in reach (see update).
     this.prompt=this.label(0,0,'',13,'#fff0d4',this.hud).setOrigin(.5,1).setPadding(8,4,8,4).setBackgroundColor('#263d39e0').setVisible(false);
+    this.storyIdle=this.storyAfter(900);this.storyTry=['',0];
     this.keep();
   }
   /** The stage the traveller is on and how many are about on it (crowd.ts). */
@@ -660,25 +668,26 @@ class Journey extends Phaser.Scene {
     }
     return {x:0,y:0};
   }
-  private interact(){
+  private interact(near=this.nearby()){
     if(this.wheel)this.sleep();
     const talking=this.modal?.getData('talk') as (()=>void)|undefined;if(talking){talking();return}
     if(this.modal)return;
-    const near=this.nearby();if(near.startsWith('stairs')){this.climb(Number(near.slice(6,-1)),near.endsWith('L'));return}if(!near&&(this.place==='corridor'||this.place==='platform'||isHub(this.place)&&!stationOpen()))return;if(near.startsWith('door')){this.tryBoard(near);return}if(near.startsWith('vending')){this.vending(near.split('-')[2] as VendorId);return}
+    if(this.story&&this.storyAct(near))return;
+    if(near.startsWith('stairs')){this.climb(Number(near.slice(6,-1)),near.endsWith('L'));return}if(!near&&(this.place==='corridor'||this.place==='platform'||isHub(this.place)&&!stationOpen()))return;if(near.startsWith('door')){this.tryBoard(near);return}if(near.startsWith('vending')){this.vending(near.split('-')[2] as VendorId);return}
     switch(near){
       case 'ticket':this.ticketTerminal();break;
-      case 'local':case 'shinkansen':this.ticketGate(this.nearby() as Service);break;
+      case 'local':case 'shinkansen':this.ticketGate(near as Service);break;
       case 'staff':this.stationHelp();break;
       case 'shop':this.konbini('newdays');break;
       case 'stamp':this.stampBook(this.place as Hub);break;
       case 'konbini':this.konbini(this.place==='kyoto-lane'?'family':konbiniFor(this.townId()));break;
       case 'westExit':case 'eastExit':{
         // Straight out to the exit's own map where it has one, the generic street otherwise.
-        const side:Side=this.nearby()==='westExit'?'west':'east',hub=this.place as Hub;
+        const side:Side=near==='westExit'?'west':'east',hub=this.place as Hub;
         this.outside={from:hub,side};this.loadPlace(stations[hub].maps?.[side]??'town');break;
       }
       case 'adjust':this.fareAdjust();break;
-      case 'downL':case 'downR':this.descend(this.nearby()==='downR');break;
+      case 'downL':case 'downR':this.descend(near==='downR');break;
       // The route map's face on the traveller's side: the top track's from above, the bottom one's from below.
       case 'route':this.routeMap(this.player.y<routeBoard.y*2+12?0:1);break;
       case 'window':this.staffWindow();break;
@@ -1060,7 +1069,7 @@ class Journey extends Phaser.Scene {
     if(!this.player)return;
     const deck=this.place==='platform'?this.deck:null,out=deck?.service==='shinkansen'?deck.hub:undefined;
     const at=!deck?{place:this.place,x:Math.round(this.player.x),y:Math.round(this.player.y)}:out?{place:out as Place,x:836,y:262}:{place:'corridor' as Place,...this.stairsSpot(deck)};
-    writeSave({tickets:out?this.tickets.filter(t=>!t.punched||t.punched===out):this.tickets,at:{...at,outside:this.outside,gate:this.gateway},clock:clockMs(),alarm:this.alarm,phone:this.phone,groceries:this.groceries,needs:this.needs});this.kept=this.time.now;if(this.hud?.active)this.refreshPurse();
+    writeSave({tickets:out?this.tickets.filter(t=>!t.punched||t.punched===out):this.tickets,at:{...at,outside:this.outside,gate:this.gateway},clock:clockMs(),alarm:this.alarm,phone:this.phone,groceries:this.groceries,needs:this.needs,story:this.chapter});this.kept=this.time.now;if(this.hud?.active)this.refreshPurse();
   }
   /** The game stops while the menu is open: the journey's clock (`hold`), the needs and all that `update` moves, the scene's timers and tweens, and what is due on `time.now`. */
   private pause(on:boolean){this.time.paused=on;if(on){this.tweens.pauseAll();this.pausedAt=this.time.now}else{this.tweens.resumeAll();this.phoneDue+=this.time.now-this.pausedAt;this.pausedAt=0}}
@@ -1076,7 +1085,9 @@ class Journey extends Phaser.Scene {
     this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20).setData('pause',true);
     const done=()=>{this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
     openPauseMenu({where:this.whereabouts(),day:dayLabel(),time:hhmm(minutes()),yen:walletTotal(this.wallet),memories:[this.collected.size,memoryPages.length]},
-      {resume:done,journal:()=>{done();this.album()},stamps:()=>{done();this.stampBook(null)},title:()=>{this.keep();location.reload()}});
+      {resume:done,journal:()=>{done();this.album()},stamps:()=>{done();this.stampBook(null)},title:()=>{this.keep();location.reload()},
+        settings:this.story?[{label:()=>`SPEED · ×${this.pace.speed}`,turn:by=>{this.pace.speed=speeds[(speeds.indexOf(this.pace.speed)+by+speeds.length)%speeds.length];savePace(this.pace);this.storySpeed()}},
+          {label:()=>`ALBUM · ${this.pace.auto?'TURNS ITSELF':'BY HAND'}`,turn:()=>{this.pace.auto=!this.pace.auto;savePace(this.pace)}}]:undefined});
   }
   /** Where the traveller stands, in Japanese and English, for the menu's card. */
   private whereabouts():[string,string]{
@@ -1131,6 +1142,97 @@ class Journey extends Phaser.Scene {
   private refreshPurse(){this.burden=walkFactor(this.wallet,carried(this.tickets,this.groceries));this.refreshHud()}
   private refreshHud(){this.hudTime=hhmm(minutes());paintHud(this,{day:dayLabel(),time:this.hudTime,coins:coinCount(this.wallet),yen:walletTotal(this.wallet),heavy:this.burden<1,hover:this.hudHover})}
   private album(){if(!this.modal)this.photoBook(null)}
+  /** The story mode's director, each time the traveller stands idle: one step towards the chapter's memory, through the places as a player would go (a hotspot walked to and used, `storyUse`),
+   * the machines, gates and fare boxes passed without their screens (`storyAct`), the trains ridden as a card (`storyRide`); there, the album's slideshow (`storyMemory`), then the next chapter. */
+  private storyNext(){
+    const chapter=chapters[this.chapter];if(!chapter){this.storyOver();return}
+    if(this.storyFresh){this.storyFresh=false;if(this.storyMorning(chapter.time))return}
+    if(chapter.page==='road'){this.storyMemory('road');return}
+    const goal=this.storyGoal(chapter.page),{sight}=goal;
+    if(this.place===goal.place){this.storyUse(goal.spot);return}
+    // Within the sight: in from its street, into its garden by the signpost, or back out.
+    if(sightOfRoad(this.place)===sight){this.storyUse('entrance');return}
+    if(sightOf(this.place)===sight&&sight.pieces){this.storyUse(this.place===sight.id&&goal.place===sight.garden?'way':'return');return}
+    // In the street of its station: on foot, or by bus.
+    if(this.place==='town'&&this.townId()===goal.hub&&sight.pieces){if(sight.walk?.includes(stations[goal.hub].ja))this.walkTo(sight.id);else this.storyUse('bus');return}
+    // Anywhere else off the trains, back to a station.
+    if(this.place==='corridor'||this.place==='platform'){this.loadPlace(this.gateway?.hub??this.nearestStation());return}
+    if(!isHub(this.place)){this.storyUse(sightOfRoad(this.place)?'walkBack':this.place==='kyoto-upstairs'?'downstairs':'return');return}
+    if(this.place!==goal.hub){
+      // A ride that would arrive after 19:00 waits for the morning.
+      const arrive=minuteOfDay()+this.storyTrip(goal.hub).reduce((sum,leg)=>sum+leg.minutes,0);
+      if(!this.storyTicket&&arrive>=19*60&&this.storyMorning('9:00'))return;
+      this.storyUse(this.storyTicket?this.storyLegs(goal.hub)[0].service:'ticket');return;
+    }
+    this.storyUse(goal.side==='east'?'eastExit':'westExit');
+  }
+  /** Where a page's memory is kept: the place and its camera, and the station to reach it from, by its exit `side` (the one nearest it: a short walk, else the bus stop with the fewest km on foot). */
+  private storyGoal(page:string){
+    const sight=sights.find(sight=>sight.id===page||sight.parts?.some(part=>part.id===page))!;
+    if(!sight.pieces){const hub=stationOf(page as Place),side=Object.entries(stations[hub].maps??{}).find(([,to])=>to===page)![0] as Side;return {sight,place:page as Place,spot:'photo',hub,side}}
+    const ends=[...(sight.walk??[]).map((ja):[string,number]=>[ja,10]),...Object.entries(sight.foot??{}).map(([ja,km]):[string,number]=>[ja,km*12])].sort((a,b)=>a[1]-b[1]);
+    const place=(page===roadTo(sight.id)||page===sight.garden||page===sight.id?page:[sight.id,sight.garden].find(place=>place&&layoutOf(place)?.second?.page===page)!) as Place;
+    return {sight,place,spot:layoutOf(place)?.second?.page===page?'photo2':'photo',hub:stationAt(ends[0][0])!,side:'west' as Side};
+  }
+  /** Walks to a hotspot and uses it, as a click on it would; one that the walk does not reach after a few tries is used from where the traveller stands. */
+  private storyUse(spot:string){
+    const key=`${this.place}/${spot}`;this.storyTry=this.storyTry[0]===key?[key,this.storyTry[1]+1]:[key,0];
+    const to=approach[this.shapeKey(spot)],frame=this.frameFor(spot);
+    if(spot===this.nearby()||this.storyTry[1]>=3||!to&&!frame){this.interact(spot);return}
+    this.pending=spot;this.navigate(to?to[0]:frame[0]+frame[2]/2,to?to[1]:frame[1]+frame[3]/2);
+  }
+  /** What the story does in place of the screens a player goes through; false where the hotspot does as usual. */
+  private storyAct(spot:string){
+    const chapter=chapters[this.chapter];
+    if(spot==='ticket'&&isHub(this.place)){
+      // A moment at the machine, then the ticket.
+      this.facing='up';this.sprite.setTexture('traveller-up-0');this.storyIdle=this.storyAfter(1400);this.time.delayedCall(900,()=>{machineSound('drop');this.storyTicket=true});
+      const note=this.label(this.player.x,this.player.y-70,`Ticket · ${stations[this.storyGoal(chapter!.page).hub].en}`,14,'#fff0d4').setOrigin(.5).setPadding(6,3,6,3).setBackgroundColor('#263d39e0').setAlpha(0);
+      this.tweens.add({targets:note,alpha:1,y:note.y-24,duration:600,hold:700,yoyo:true,onComplete:()=>note.destroy()});return true;
+    }
+    if((spot==='local'||spot==='shinkansen')&&chapter&&chapter.page!=='road'){this.storyRide(this.storyGoal(chapter.page).hub);return true}
+    if(spot==='photo'||spot==='photo2'){this.storyMemory(spot==='photo2'?layoutOf(this.place)!.second!.page:this.place);return true}
+    if(spot==='walkBack'){const sight=sightOfRoad(this.place)!,station=stations[this.townId()];this.walking(`${station.en} Station`,sight.walk?.includes(station.ja)?10:walkFrom(station.ja,sight)?.minutes??60,()=>this.toStation(this.townId()));return true}
+    if(spot==='bus'&&this.place==='town'&&chapter){this.busTo(this.storyGoal(chapter.page).sight);return true}
+    return false;
+  }
+  /** The trains from this station to `to`: a local line where fares reach, else the Shinkansen between the two networks, by the stations nearest either end. */
+  private storyLegs(to:Hub){
+    const from=this.place as Hub,ja=(hub:Hub)=>stations[hub].ja;
+    if(fareBetween(ja(from),ja(to))!==null)return [{service:'local' as Service,from,to}];
+    let best:{route:typeof routes[number];km:number}|null=null;
+    for(const route of routes){const a=kmBetween(ja(from),ja(route.from)),b=kmBetween(ja(route.to),ja(to));if(a!==null&&b!==null&&(!best||a+b<best.km))best={route,km:a+b}}
+    const route=best!.route;
+    return [...route.from!==from?[{service:'local' as Service,from,to:route.from}]:[],{service:'shinkansen' as Service,from:route.from,to:route.to,line:route.lineId},...route.to!==to?[{service:'local' as Service,from:route.to,to}]:[]];
+  }
+  /** Through the gates and off at `to`, the ride a card: its lines, the time it takes on the clock, the longest leg's train going by. */
+  private storyTrip(to:Hub){
+    return this.storyLegs(to).map(leg=>{
+      const a=stations[leg.from].ja,b=stations[leg.to].ja,line='line' in leg&&leg.line?railLine(leg.line):railLine([...firstLegs(a,b)][0]??linesAt(a,'local')[0]!.id);
+      return {...leg,line,minutes:leg.service==='shinkansen'?shinkansenMinutes(line,a,b):localMinutes(a,b,Math.max(1,Math.round((kmBetween(a,b)??3)/2)))};
+    });
+  }
+  private storyRide(to:Hub){
+    const legs=this.storyTrip(to),longest=legs.reduce((a,b)=>b.minutes>a.minutes?b:a),last=legs[legs.length-1];
+    this.walking(`${stations[to].en}`,legs.reduce((sum,leg)=>sum+leg.minutes,0),()=>{this.storyTicket=false;this.loadPlace(to,last.service==='local'?{x:202,y:262}:{x:836,y:262})},legs.map(leg=>leg.line.en).join(' · '),{color:longest.line.color,service:longest.line.service});
+  }
+  /** A new chapter's hour: the time it asks for (later that day, or the next), else the next morning when it would start in the evening or at night. True while that card plays. */
+  private storyMorning(time?:string){
+    const now=minuteOfDay(),m=time?/^(\d+):(\d\d)$/.exec(time):null,at=m?+m[1]*60+ +m[2]:now>=17*60||now<8*60?9*60:null;
+    if(at===null||Math.abs(at-now)<1)return false;
+    const length=Math.round((at-now+1440)%1440);this.walking(at>now?'Later that day':'The next morning',length,()=>{},'寄り道','rest');return true;
+  }
+  /** The memory kept and its page shown as a slideshow, the chapter's words under the photos; then on to the next chapter. */
+  private storyMemory(page:string){
+    if(page!=='road'){this.collected.add(page);localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]))}
+    const chapter=chapters[this.chapter];this.stopNavigation();this.direction={x:0,y:0};this.facing='up';this.sprite.setTexture('traveller-up-0');this.modal=this.add.container(0,0).setDepth(20);
+    new PhotoBook(this.collected,page,()=>{this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();if(chapter?.page===page){this.chapter++;this.storyFresh=true}this.storyIdle=this.storyAfter(600);this.keep()},chapter?.page===page?chapter:{},this.pace.auto);
+  }
+  /** The story's speed: Phaser's timers and tweens (the rides' cards, the buses, the steps on and off) run that much faster, the walk in `update` too; the story's own pauses (`storyAfter`) that much shorter. */
+  private storySpeed(){const k=this.story?this.pace.speed:1;this.time.timeScale=k;this.tweens.timeScale=k}
+  private storyAfter(ms:number){return this.time.now+ms/(this.story?this.pace.speed:1)}
+  /** The last page seen: the traveller is the player's again, for this session (a reload plays the ending again). */
+  private storyOver(){this.story=false;this.storySpeed();for(const page of memoryPages)this.collected.add(page.id);localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]));this.dialog(storyEnd.title,storyEnd.text,[['Look through the album',()=>{this.modal?.destroy(true);this.modal=null;this.photoBook(null)}]])}
   /** The stamp book over the paused scene: at a station's stand (`hub`), to stamp it, or from the menu, to look through it. */
   private stampBook(hub:Hub|null){
     this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
@@ -1148,7 +1250,7 @@ class Journey extends Phaser.Scene {
     return out;
   }
   private busStop(){
-    const ja=stations[this.townId()].ja,go=this.trips().map(([sight,no]):[string,()=>void]=>[`Bus ${no} · ${sight.en}`,()=>this.busRide(()=>this.loadPlace(roadTo(sight.id),{x:790,y:496}))]);
+    const ja=stations[this.townId()].ja,go=this.trips().map(([sight,no]):[string,()=>void]=>[`Bus ${no} · ${sight.en}`,()=>this.busTo(sight)]);
     if(!trainsRun()){this.timetable(`${ja}駅前`,busLines.filter(bus=>bus.stops.includes(ja)).map(bus=>[bus.no,bus.sights.map(([name])=>name).slice(0,2).join('・')]),[]);return}
     this.dialog('Where to?',`Flat fare ¥${busFare}, paid by the driver as you get off.`,go);
   }
@@ -1165,22 +1267,27 @@ class Journey extends Phaser.Scene {
   private walkTo(id:string){
     if(id in stations){const hub=id as Hub,minutes=this.walks()!.list.find(walk=>walk.id===id)!.minutes;this.walking(`${stations[hub].en} Station`,minutes,()=>{this.outside={from:hub,side:'west'};this.loadPlace('town')});return}
     const sight=sightOf(id)!,walk=walkFrom(stations[this.townId()].ja,sight)!,via=stationAt(walk.via)!;
-    this.walking(sight.en,walk.minutes,()=>{if(via!==this.townId())this.outside={from:via,side:'west'};this.loadPlace(roadTo(id),{x:480,y:340})});
+    this.walking(sight.en,walk.minutes,()=>{if(via!==this.townId())this.outside={from:via,side:'west'};if(sight.open)this.loadPlace(id);else this.loadPlace(roadTo(id),{x:480,y:340})});
   }
   /** On foot: the screen fades to the traveller walking along a pavement under the hour's sky, where to, how long and the clock running on, then fades in on the arrival (all the streets look alike, this says one has moved).
    * A little longer the longer the walk. */
-  private walking(to:string,length:number,arrive:()=>void){
+  private walking(to:string,length:number,arrive:()=>void,how='On foot',picture?:'rest'|{color:string;service:Service}){
     this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);const c=this.add.container(0,0).setDepth(30),camera=this.cameras.main,start=minutes(),night=darkness()>.5;this.modal=c;
-    camera.fadeOut(300,0,0,0);camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
+    // Its own fades, forced and followed by their callbacks: a card asked for as the last one fades in (the story's director, fast) neither waits for nor fires another's.
+    const fade=(then:()=>void)=>camera.fade(300,0,0,0,true,(_:unknown,p:number)=>{if(p===1)then()});
+    fade(()=>{
       this.rect(0,0,960,640,night?0x142238:0xb7d4dc,c);this.rect(0,372,960,268,night?0x2a3442:0xbdb59a,c);this.rect(0,372,960,4,night?0x3c4858:0xe0dccb,c);
       const dashes=Array.from({length:9},(_,i)=>this.rect(i*120,440,60,6,night?0x4a5668:0xa9a187,c)),walker=this.add.image(480,338,'traveller-right-0').setScale(3);c.add(walker);
+      // On a train, the train going by instead; resting, the moon or the sun over an empty street.
+      if(picture==='rest'){walker.setVisible(false);c.add(this.add.circle(480,300,30,night?0xf4efd2:0xf6c27c))}
+      else if(picture){walker.setVisible(false);const key=`story-train-${picture.service}-${picture.color}`;if(!this.textures.exists(key))makeTrain(this,key,picture.color,picture.service);c.add(this.add.image(480,410,key).setOrigin(.5,1).setScale(2))}
       const line=(y:number,text:string,size:number,color:string)=>this.label(480,y,text,size,color,c).setOrigin(.5),ink=night?'#f3dfb1':'#283d3c',clock=line(214,`${hhmm(start)} → ${hhmm(start)}`,22,ink);
-      line(120,'On foot',20,ink);line(164,to,34,ink);line(512,walkTime(length),20,night?'#c9d2d8':'#4a5c58');
+      line(120,how,20,ink);line(164,to,34,ink);line(512,walkTime(length),20,night?'#c9d2d8':'#4a5c58');
       const spell=1500+Math.min(length,120)*7;let frame=0;
-      const steps=this.time.addEvent({delay:120,loop:true,callback:()=>{frame++;walker.setTexture(`traveller-right-${frame%3}`);for(const dash of dashes)dash.x=(dash.x-30+1080)%1080-60}});
-      this.tweens.addCounter({from:start,to:start+length,duration:spell,onUpdate:tween=>clock.setText(`${hhmm(start)} → ${hhmm(tween.getValue()??start)}`)});
-      camera.fadeIn(300);
-      this.time.delayedCall(spell,()=>{camera.fadeOut(300,0,0,0);camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{steps.remove();addMinutes(length);spend(this.needs,length*2);c.destroy(true);this.modal=null;arrive();camera.fadeIn(400)})});
+      const steps=this.time.addEvent({delay:120,loop:true,callback:()=>{frame++;walker.setTexture(`traveller-right-${frame%3}`);if(picture!=='rest')for(const dash of dashes)dash.x=(dash.x-(picture?90:30)+1080)%1080-60}});
+      const counter=this.tweens.addCounter({from:start,to:start+length,duration:spell,onUpdate:tween=>{if(clock.active)clock.setText(`${hhmm(start)} → ${hhmm(tween.getValue()??start)}`)}});c.once('destroy',()=>{counter.remove();steps.remove()});
+      camera.fadeFrom(300,0,0,0,true);
+      this.time.delayedCall(Math.max(spell,400*this.time.timeScale),()=>{fade(()=>{addMinutes(length);spend(this.needs,length*2);c.destroy(true);this.modal=null;arrive();camera.fadeIn(400)})});
     });
   }
   /** The stop with no bus running: its timetable on the pole, a sheet for each line, beside the ways that remain. */
@@ -1212,7 +1319,9 @@ class Journey extends Phaser.Scene {
     if(minutes<=15)go();else this.dialog('To the station',`It is a long way on foot.`,[[`Walk to ${station.en} (${walkTime(minutes)})`,go]]);
   }
   /** On the bus: the traveller goes to wait on the pavement (`busSpot`), the bus pulls up along the near lane with its middle door at them, they get on and leave with it as the screen fades; the clock runs on, and at the stop the fare box by the driver keeps them on board until it is paid. Unable to pay, they are put off and find themselves back where they got on, dazed. */
-  private busRide(arrive:()=>void){
+  /** By bus to a sight: off at its stop in its street, or, an `open` one, straight in it, the bus left out of sight. */
+  private busTo(sight:Sight){if(sight.open)this.busRide(()=>this.loadPlace(sight.id),false);else this.busRide(()=>this.loadPlace(roadTo(sight.id),{x:790,y:496}))}
+  private busRide(arrive:()=>void,off=true){
     this.stopNavigation();this.direction={x:0,y:0};this.modal?.destroy(true);this.modal=this.add.container(0,0);const camera=this.cameras.main,[x,y]=busSpot;
     this.stepTo(x,y,()=>{
       this.sprite.setTexture('traveller-right-0');const bus=this.busAt(this.mapWidth+150);
@@ -1225,7 +1334,10 @@ class Journey extends Phaser.Scene {
       }});
       camera.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE,()=>{
         this.tweens.killTweensOf(bus);bus.destroy();this.bus=null;addMinutes(25);
-        this.fareBox=new BusFare(busFare,this.wallet,()=>this.refreshPurse(),paid=>{this.fareBox=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();if(paid){arrive();this.busLeaves()}else{this.player.setPosition(x,y).setVisible(true);this.stun=stunned;camera.fadeIn(500)}});
+        // In the story, the fare is paid without a word.
+        const land=()=>{arrive();if(off)this.busLeaves();else{camera.fadeIn(500);this.keep()}};
+        if(this.story){this.modal?.destroy(true);this.modal=null;land();return}
+        this.fareBox=new BusFare(busFare,this.wallet,()=>this.refreshPurse(),paid=>{this.fareBox=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();if(paid)land();else{this.player.setPosition(x,y).setVisible(true);this.stun=stunned;camera.fadeIn(500)}});
       });
     });
   }
@@ -1562,7 +1674,7 @@ class Journey extends Phaser.Scene {
     if(!this.player)return;
     const paused=!!this.modal?.getData('pause');if(paused!==!!this.pausedAt)this.pause(paused);
     if(paused){hold();this.gamepad();return}
-    tick();spend(this.needs,Math.max(0,minutes()-this.fedAt));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040);
+    tick();if(this.story)this.needs=freshNeeds();spend(this.needs,Math.max(0,minutes()-this.fedAt));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040);
       // Walking slowed by it (the emptier, below half): a red outline pulses round its icon, so that the slowness has a cause.
       const other=i?this.needs.hunger:this.needs.thirst,slowing=this.moving&&!this.modal&&level<50&&level<=other;this.needGlows[i]?.setAlpha(slowing?.55+.45*Math.sin(this.time.now/140):0)});
     if(hhmm(minutes())!==this.hudTime)this.refreshHud();
@@ -1589,8 +1701,8 @@ class Journey extends Phaser.Scene {
     this.wheel?.turn((this.keys.right.isDown?1:0)-(this.keys.left.isDown?1:0)||Math.sign(pad.x));
     if(this.place==='corridor'||this.place==='platform'||this.place==='home-street'||this.place==='apartment'||this.kyotoHouse(this.place)||this.mapWidth>960||this.mapHeight>640)this.scroll(Math.min(1,delta/150));
     if(this.modal){this.glow.clear();this.prompt.setVisible(false);this.held.clear();this.pending='';return;}
-    let x=pad.x||this.direction.x,y=pad.y||this.direction.y;if(this.keys.left.isDown)x=-1;if(this.keys.right.isDown)x=1;if(this.keys.up.isDown)y=-1;if(this.keys.down.isDown)y=1;
-    if(this.held.has('KeyA'))x=-1;if(this.held.has('KeyD'))x=1;if(this.held.has('KeyW'))y=-1;if(this.held.has('KeyS'))y=1;
+    let x=this.story?0:pad.x||this.direction.x,y=this.story?0:pad.y||this.direction.y;if(!this.story){if(this.keys.left.isDown)x=-1;if(this.keys.right.isDown)x=1;if(this.keys.up.isDown)y=-1;if(this.keys.down.isDown)y=1}
+    if(this.story)this.held.clear();if(this.held.has('KeyA'))x=-1;if(this.held.has('KeyD'))x=1;if(this.held.has('KeyW'))y=-1;if(this.held.has('KeyS'))y=1;
     this.stun=Math.max(0,this.stun-delta);this.dizzy.clear();
     if(this.stun){
       // Dazed: stars circling over the head, every order dropped.
@@ -1607,7 +1719,7 @@ class Journey extends Phaser.Scene {
       const step=c.steps[0];if(!this.stun&&step&&'off' in step&&step.off){const to=this.player.x+(dx<0?-1:1)*18;this.stun=stunned;this.stayed=step.off[0];x=y=0;this.stopNavigation();this.pending=this.boardAt='';if(this.canWalk(to,this.player.y))this.tweens.add({targets:this.player,x:to,duration:120})}
       const push=(18-d)*.25/(d||1),nx=this.player.x+dx*push,ny=this.player.y+dy/1.6*push;if((x||y||this.path.length)&&d&&this.canWalk(nx,ny))this.player.setPosition(nx,ny);
     }
-    const speed=380*this.burden*needFactor(this.needs)*this.bump*Math.min(delta,40)/1000;
+    const speed=(this.story?380*this.pace.speed:380*this.burden*needFactor(this.needs))*this.bump*Math.min(delta,40)/1000;
     if(this.path.length){
       let target=this.path[0];
       while(target&&Phaser.Math.Distance.Between(this.player.x,this.player.y,target.x,target.y)<=speed){
@@ -1630,9 +1742,10 @@ class Journey extends Phaser.Scene {
     if(this.boardAt&&this.boardable(near)){this.tryBoard(near);return}
     if(this.pending&&near===this.pending){this.pending='';this.stopNavigation();this.interact();return}
     if(!this.path.length)this.pending='';
+    if(this.story&&!this.path.length&&!this.pending&&!this.stun&&this.time.now>=this.storyIdle&&!this.cameras.main.fadeEffect.isRunning){this.storyIdle=this.storyAfter(500);this.storyNext()}
     // On the platform, the only prompt is the one to board, once it is the traveller's turn.
     const say=this.place!=='platform'?near&&`${this.promptFor(near)??messages[near]}`:near.startsWith('door')&&this.boardable(near)?this.deck!.service==='shinkansen'?`Board · ${this.carOf(this.trains[+near[4]],+near.split('-')[1])}号車`:'Board':'';
-    this.prompt.setText(say?`◎ ${say} · E / Ⓐ / click`:'').setVisible(!!say);
+    this.prompt.setText(say&&!this.story?`◎ ${say} · E / Ⓐ / click`:'').setVisible(!!say&&!this.story);
     if(say)this.prompt.setPosition(Phaser.Math.Clamp(this.player.x+this.world.x,this.prompt.width/2+8,952-this.prompt.width/2),Math.max(this.player.y+this.world.y-62,this.prompt.height+76));
     // Every hotspot outlined, fading between white and yellow; the one in reach in yellow, pulsing, over a faint wash.
     const k=(1-Math.cos(this.time.now/1000*Math.PI*2))/2,blink=Phaser.Display.Color.GetColor(255-12*k,255-40*k,255-148*k);this.glow.clear();
