@@ -46,7 +46,7 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
   const pieces=sight.pieces??[],kind=(name:Piece[0])=>pieces.find(piece=>piece[0]===name),city=sight.ground==='street',torii=kind('torii') as ['torii',string]|undefined;
   const built=(kind('temple')??kind('gate')??kind('pavilion')) as [string,string,string]|undefined,timber=kind('pavilion')?'#6e5138':built?.[1]??'#6e5138',tiles=built?.[2]??'#4d5a5c',greens=['#2f5a4e','#3f7558','#5a8c66','#7fa77a'] as const;
   const tileRoof=(x:number,y:number,w:number,h:number)=>{r(x,y,w,h,tiles);for(let xx=x+2;xx<x+w-1;xx+=5)r(xx,y+1,1,h-2,'#00000030');r(x-2,y+h-1,w+4,2,'#2c3638');r(x+3,y-1,w-6,1,'#ffffff30')};
-  const treeline=(from:number,to:number,top:number,bottom:number)=>{r(from,top+10,to-from,bottom-top-10,greens[0]);for(let x=from;x<to;x+=26)softCrown(r,rand,x+rand()*10,top+14+rand()*10,20,15,greens)};
+  const treeline=(from:number,to:number,top:number,bottom:number)=>{r(from,top+10,to-from,bottom-top-10,greens[0]);for(let x=from;x<to;x+=12+rand()*16){const k=rand(),pal=k<.2?['#1f3f33','#2b5242','#3a6a50','#4e8060']:k<.3?['#6a7a38','#8d9a45','#b3b558','#d6cf78']:k<.65?greens:['#345d48','#487951','#63905b','#86a367'],rx=12+rand()*12;softCrown(r,rand,x,top+12+rand()*18,rx,rx*.75,pal)}};
   // The sky over it all, then the pavement, the road with its crossing, the far pavement and what lies across the road.
   r(0,0,480,136,'#b7d4dc');
   r(0,136,480,63,city?'#a9aaa6':'#cfc6a8');for(let y=136;y<199;y+=8)for(let x=(y-136)%16?0:8;x<480;x+=16){r(x,y,1,8,city?'#9a9b97':'#bdb495')}for(let y=136;y<199;y+=8)r(0,y,480,1,city?'#9a9b97':'#bdb495');
@@ -57,7 +57,7 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
   for(const lx of townLights)streetLight(r,lx,false);
   if(bus)busPole(r,busStop);
   r(0,262,480,58,'#3f6a4c');for(let x=0;x<480;x+=9){r(x,262,8,5,'#4f7f58');r(x+2,263,3,1,'#74a070')}
-  for(let x=-10;x<480;x+=74){r(x,276,64,44,'#d8cfb8');r(x+6,288,14,16,'#5a4a3a');r(x+38,288,14,16,'#5a4a3a');tileRoof(x-4,268,72,12)}
+  for(let x=-10;x<480;){const w=50+Math.floor(rand()*30),wall=['#d8cfb8','#e4dcc6','#c8bca4','#d0c8b8'][Math.floor(rand()*4)],win=rand()<.5;r(x,276,w-6,44,wall);r(x+w-8,276,2,44,'#00000020');if(win){r(x+6,288,14,16,'#5a4a3a');r(x+w-26,288,14,16,'#5a4a3a');r(x+6,288,14,2,'#00000030')}else{for(let wx=x+5;wx<x+w-14;wx+=12)r(wx,286,8,8,'#7a96a4'),r(wx,286,8,1,'#00000030');r(x+w/2-6,300,12,20,'#6a4a34')}if(rand()<.4){r(x+w-18,306,8,6,'#6a5240');softCrown(r,rand,x+w-14,304,5,4,greens)}tileRoof(x-4,268,w+2,12);x+=w}
   // The approach to the entrance, across the pavement.
   r(206,136,68,63,city?'#b9bab6':'#dcd4b8');for(let y=138;y<199;y+=10)r(206,y,68,1,city?'#a5a6a2':'#c6bd9f');
   if(city){
@@ -75,7 +75,7 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
   }else if(built&&!torii){
     // A temple's plastered wall under its tiles, the five white lines of its rank, the gate in the middle.
     treeline(0,480,30,84);
-    for(const [x,w] of [[0,196],[284,196]]){r(x,88,w,48,'#e6dcc2');for(let i=0;i<5;i++)r(x,96+i*8,w,2,'#f6efdd');r(x,132,w,4,'#8a8370');tileRoof(x,80,w,8)}
+    for(const [x,w] of [[0,196],[284,196]]){r(x,88,w,48,'#e6dcc2');for(let i=0;i<5;i++)r(x,96+i*7,w,2,'#f6efdd');r(x,88,w,3,'#00000028');for(let i=0;i<w/14;i++)r(x+rand()*w,91,1+rand()*2,6+rand()*16,'#5a4a3014');r(x,128,w,8,'#8a8370');for(let xx=x;xx<x+w;xx+=9)r(xx+rand()*3,129,7,3,['#9a9482','#7e786a','#a8a290'][Math.floor(rand()*3)]);for(let xx=x+4;xx<x+w;xx+=9)r(xx+rand()*3,132,7,3,['#9a9482','#7e786a','#a8a290'][Math.floor(rand()*3)]);tileRoof(x,80,w,8)}
     r(196,88,10,48,timber);r(274,88,10,48,timber);r(206,96,68,40,'#2a2320');r(206,92,68,4,timber);r(232,100,16,36,'#6a6250');tileRoof(186,74,108,14);tileRoof(202,60,76,12);
   }else if(torii){
     // A clipped hedge and, in its gap, the torii.
