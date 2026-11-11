@@ -22,6 +22,7 @@ import { loadSave, writeSave } from './save';
 import { portraitTexture } from './portraits';
 import { showTitle } from './title';
 import { openPauseMenu } from './pause-menu';
+import { debugAllowed, openTeleport, type Destination } from './teleport';
 import { TicketMachine, fareDue, trayKey, type TravelTicket } from './ticket-machine';
 import { areaAround, kmApart, onMap, spotOf } from './city-maps';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
@@ -223,7 +224,7 @@ class Journey extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE,()=>{if(this.player)this.nightfall()});
     this.input.addPointer(3);
     this.keys=this.input.keyboard!.createCursorKeys();
-    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
+    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
     this.input.keyboard!.on('keyup',(event:KeyboardEvent)=>this.held.delete(event.code));
     this.game.events.on('blur',()=>this.held.clear());
     // Back where the traveller last stood (waking up at home the first time: out of the apartment is the lane to Higashi-Nakano's west exit).
@@ -275,6 +276,8 @@ class Journey extends Phaser.Scene {
       const second=layoutOf(place)!.second;if(second){const key=`photo2-${place}`,[x,y]=second.camera;approach[key]=[(x+9)*2,(y+28)*2];hotspotFrames[key]=[(x-8)*2,(y-6)*2,72,72];hotspotShapes[key]=cameraBox(second.camera);outlines[key]=outline(hotspotShapes[key])}
       const way=layoutOf(place)!.way;if(way)this.signpost(`way-${place}`,way.at);
     }
+    // A sight's street lights its own signs, windows and lanterns (makeSightRoad).
+    if(road&&!avenue){this.neon=this.add.image(0,0,`map-${place}-lit`).setOrigin(0).setAlpha(0);this.over.add(this.neon)}
     if(avenue){
       const {solids,lit,camera}=avenue,photo=`photo-${place}`;this.solids.push(...solids.map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));
       if(lit){this.neon=this.add.image(0,0,`map-${place}-lit`).setOrigin(0).setAlpha(0);this.over.add(this.neon)}
@@ -831,6 +834,30 @@ class Journey extends Phaser.Scene {
     if(!setTimeOfDay(time)){alert(`Not a time: ${time}`);return}this.fedAt=minutes();
     for(const train of this.trains)train.due=train.phase==='gap'?this.dueIn(dwell):Math.ceil(minutes()+(dwell-this.into(train))/minuteMs);
     this.keep();
+  }
+  /** Debug (G, in dev or with `?debug`): straight to any place, as its way in would leave the traveller there (the station's exit, the corridor's gates, the platform's track);
+   * the first-person views open from those places' hotspots. */
+  private debugGo(){
+    if(this.modal)return;
+    this.stopNavigation();this.direction={x:0,y:0};this.held.clear();this.modal=this.add.container(0,0).setDepth(20);
+    const to=(label:string,search:string,go:()=>void):Destination=>({label,search:(label+' '+search).toLowerCase(),go}),out=(from:Hub,side:Side)=>()=>{this.outside={from,side}};
+    const stationOfSight=(sight:Sight)=>stationAt(sight.walk?.[0]??Object.keys(sight.foot??{})[0]??'')??stationOf(sight.id);
+    const homes=[[home,'home-street'],[home,'apartment'],[kyotoHome,'kyoto-lane'],[kyotoHome,'kyoto-house'],[kyotoHome,'kyoto-upstairs']] as const;
+    const list:Destination[]=[
+      ...homes.map(([at,place])=>to(`Home · ${places[place]}`,place,()=>{out(at.hub,at.side)();this.loadPlace(place)})),
+      ...sights.flatMap(sight=>{const hub=stationOfSight(sight),side:Side=sight.pieces?'west':'east',go=(place:string)=>()=>{out(hub,side)();this.loadPlace(place)};return [
+        to(`Sight · ${sight.en}`,`${sight.id} ${sight.ja}`,go(sight.id)),
+        ...sight.pieces?[to(`Sight · ${places[roadTo(sight.id)]}`,`${sight.id} ${sight.ja} road street`,go(roadTo(sight.id)))]:[],
+        ...sight.garden?[to(`Sight · ${places[sight.garden]}`,`${sight.id} ${sight.ja} garden`,go(sight.garden))]:[],
+        ...sight.ropeway?[to(`Sight · ${sight.en} · Ropeway ride up`,`${sight.id} ropeway`,()=>{out(hub,side)();this.loadPlace(roadTo(sight.id));this.ropeway(true)})]:[]]}),
+      ...Object.values(stations).sort((a,b)=>a.en.localeCompare(b.en)).flatMap(station=>{const hub=station.id,search=`${hub} ${station.ja} station`;return [
+        to(`${station.en} · Concourse`,search,()=>this.loadPlace(hub)),
+        ...(['west','east'] as const).map(side=>to(`${station.en} · ${exitName(hub,side)[1]} · ${station.maps?.[side]?places[station.maps[side]!]:'Street'}`,`${search} exit street town`,()=>{out(hub,side)();this.loadPlace(station.maps?.[side]??'town')})),
+        ...(['local','shinkansen'] as const).filter(service=>platformsAt(hub,service).length).flatMap(service=>[
+          ...service==='local'?[to(`${station.en} · Corridor`,`${search} corridor gates`,()=>{this.gateway={hub,service};this.loadPlace('corridor')})]:[],
+          ...platformsAt(hub,service).flatMap(platform=>platform.tracks.map((track,side)=>to(`${station.en} · Track ${track} · ${platform.lines.map(line=>line.en).join(', ')}`,`${search} platform ${service}`,()=>this.toPlatform({...deckFor(station.ja,platform.lines[0],side as 0|1),arriving:undefined}))))])]}),
+    ];
+    openTeleport(list,()=>{this.modal?.destroy(true);this.modal=null;this.held.clear();this.input.keyboard?.resetKeys()});
   }
   /** The line of the next train on a track: lines sharing the platform take turns (on the Shinkansen, by its timetable: its `due` is already the next one's as this one leaves). */
   private nextLine(train:Train){const lines=this.deck!.platform.lines;return this.deck!.service==='shinkansen'?lineAt(lines,train.due):lines[(lines.indexOf(train.line)+1)%lines.length]}
