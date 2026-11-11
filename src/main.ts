@@ -312,7 +312,7 @@ class Journey extends Phaser.Scene {
     // The bin: a sprite of its own but in the apartment, solid and sorted with the people.
     this.bin=this.binOf(place);if(this.bin){
       const [x,y]=this.bin,key=place==='town'||isHub(place)?'bin-street':'bin-home',[w,h]=binShape[key];hotspotFrames.bin=[x-20,y-(h*2+8),40,h*2+12];approach.bin=[x,y+26];
-      if(place==='apartment'){hotspotFrames.bin=[752,476,32,60];approach.bin=[744,510];hotspotShapes.bin=[[380,242,11,28]]}else{hotspotShapes.bin=[[x/2-w/2,y/2-h,w,h]];this.world.add(this.add.image(x,y,key).setOrigin(.5,1));this.solids.push(new Phaser.Geom.Rectangle(x-w,y-12,w*2,14))}
+      if(place==='apartment'){hotspotFrames.bin=[728,500,60,48];approach.bin=[724,538];hotspotShapes.bin=[[368,254,23,17]]}else{hotspotShapes.bin=[[x/2-w/2,y/2-h,w,h]];this.world.add(this.add.image(x,y,key).setOrigin(.5,1));this.solids.push(new Phaser.Geom.Rectangle(x-w,y-12,w*2,14))}
       outlines.bin=outline(hotspotShapes.bin);
     }
     if(isHub(place))for(const [x,side] of [[254,'west'],[690,'east']] as const){this.world.add(this.add.image(x,380,`exit-pillar-${place}-${side}`).setOrigin(.5,1));this.solids.push(new Phaser.Geom.Rectangle(x-30,364,60,16))}

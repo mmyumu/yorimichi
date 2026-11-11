@@ -913,7 +913,7 @@ export const apartmentSolids:[number,number,number,number][]=[
   [0,0,480,74],[0,0,70,416],[410,0,70,416],[192,0,6,192],[192,228,6,78],[192,340,6,76],[70,232,122,34],[128,266,6,34],[128,330,6,16],[0,346,198,70],
   [198,272,8,34],[232,272,178,34],[300,272,110,144],[240,306,6,8],[240,346,6,70],[294,272,6,90],[246,356,54,60],[192,402,54,14],
   // The bed and its nightstand, the desk and its chair, a plant; the TV board, the low table, the sofa, a plant, the island, the bins, the fridge; the vanity, the washing machine, the tub; the toilet; the shoe cabinet.
-  [78,74,26,42],[106,74,10,10],[70,140,28,40],[72,216,14,14],[330,74,60,14],[340,104,40,18],[326,136,68,16],[198,74,14,14],[280,208,100,12],[380,240,8,28],[392,256,18,16],[140,266,24,14],[168,266,22,22],[74,266,50,30],[262,300,16,24],[228,372,12,26]];
+  [78,74,26,42],[106,74,10,10],[70,140,28,40],[72,216,14,14],[330,74,60,14],[340,104,40,18],[326,136,68,16],[198,74,14,14],[280,208,100,12],[368,262,24,8],[392,256,18,16],[140,266,24,14],[168,266,22,22],[74,266,50,30],[262,300,16,24],[228,372,12,26]];
 /** The furniture standing in the LDK, each on its own texture (`apartment-<name>`) whose foot is at `base` (art px): drawn in front of whoever stands behind it. */
 export const apartmentProps=[{name:'sofa',x:326,top:120,w:68,base:152},{name:'island',x:280,top:194,w:100,base:220},{name:'fridge',x:392,top:224,w:18,base:272}] as const;
 function makeApartment(scene:Phaser.Scene){
@@ -963,7 +963,7 @@ function makeApartment(scene:Phaser.Scene){
   palm(201,74);
   for(const x of [298,326,354]){r(x,186,8,5,'#7d5e40');r(x+1,186,6,1,'#9a7856');r(x+1,191,1,8,'#5a4a3e');r(x+6,191,1,8,'#5a4a3e');shadow(x,199,8,1)}
   // The kitchen's side: a mat before the island, the rubbish bins by the fridge.
-  r(292,228,72,10,'#9aa7a0');r(294,230,68,6,'#aab7b0');for(const [y,lid,lit] of [[241,'#3a78c2','#6aa2e0'],[255,'#7d8a84','#a4b0aa']] as const){r(381,y+14,10,1,'#00000030');r(381,y+3,9,11,'#e8e6dc');r(381,y+3,1,11,'#fbfaf2');r(389,y+3,1,11,'#b8b6aa');r(380,y+1,11,3,lid);r(380,y+1,11,1,lit);r(383,y+6,5,3,lid);r(384,y+12,3,2,'#6f7572')}
+  r(292,228,72,10,'#9aa7a0');r(294,230,68,6,'#aab7b0');for(const [x,lid,lit,dim] of [[368,'#3a78c2','#6aa2e0','#2a5a9a'],[380,'#7d8a84','#a4b0aa','#5d6a64']] as const){const y=254;r(x+1,y+16,10,1,'#00000030');r(x+1,y+6,9,10,'#e8e6dc');r(x+1,y+6,1,10,'#fbfaf2');r(x+9,y+6,1,10,'#b8b6aa');r(x+1,y+15,9,1,'#c8c6ba');r(x,y,11,5,lid);r(x,y,11,1,lit);r(x+1,y+1,9,2,lit);r(x,y+5,11,1,dim);r(x+4,y+2,3,1,dim);r(x+4,y+14,3,2,'#6f7572')}
   // The bath: the tub against its wall, the shower, a frosted window, the mat; the washroom: the mirror and the vanity, the washing machine, a towel; the toilet and its window, paper, mat.
   r(100,243,20,10,'#dfe9ec');r(110,243,.5,10,'#c4d0d4');r(86,242,2,16,'#9aa0a4');r(84,242,6,3,'#c9cdd0');r(76,262,48,30,'#f4f4ee');r(79,265,42,22,'#9fd0e8');r(81,267,30,1,'#c3e2ee');r(74,292,50,4,'#d8dcdf');shadow(74,296,50);
   r(84,304,22,10,'#7a9ec4');r(86,306,18,6,'#9ab8d8');
