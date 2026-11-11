@@ -17,7 +17,7 @@ export const sights:Sight[]=[
   {id:'shibuya-crossing',open:true,ja:'渋谷',en:'Shibuya',at:[139.7005,35.6595],walk:['渋谷','原宿'],ground:'street',pieces:[['neon','#34b6e0']]},
   {id:'meiji',ja:'明治神宮',en:'Meiji-jingu',at:[139.6993,35.6764],walk:['原宿','代々木'],ground:'gravel',pieces:[['temple','#6e5138','#3f6358'],['torii','#a08a68']]},
   {id:'ginza',open:true,ja:'銀座',en:'Ginza',at:[139.7671,35.6717],walk:['有楽町','新橋'],ground:'street',pieces:[['neon','#e0483a']]},
-  {id:'odaiba',open:true,ja:'お台場',en:'Odaiba',at:[139.7756,35.6268],foot:{新橋:7,浜松町:6},pieces:[['lake'],['rainbow']]},
+  {id:'odaiba',open:true,ja:'お台場',en:'Odaiba',at:[139.7756,35.6268],walk:['台場','お台場海浜公園'],foot:{新橋:7,浜松町:6},pieces:[['lake'],['rainbow']]},
   {id:'kinkaku',ja:'金閣寺',en:'Kinkaku-ji',at:[135.7292,35.0394],foot:{京都:8.5,円町:2.6,北大路:2.6,三条:7,祇園四条:7.5},pieces:[['pavilion','#e0b43c','#6d5a2a']]},
   {id:'ginkaku',ja:'銀閣寺',en:'Ginkaku-ji',at:[135.7982,35.0270],ground:'moss',foot:{京都:8,三条:3.8,円町:7,北大路:4},pieces:[['pavilion','#6f6a60','#3a3a38']]},
   {id:'daitoku',ja:'大徳寺',en:'Daitoku-ji',at:[135.7466,35.0432],ground:'gravel',foot:{京都:6.5,円町:3,北大路:1.3,三条:5,祇園四条:5.5},pieces:[['gate','#a8402f','#4d5a5c']]},
