@@ -11,7 +11,9 @@ COPY public/access.json ./public/access.json
 COPY public/manifest.webmanifest public/icon-192.png public/icon-512.png ./public/
 RUN npm run build
 
-FROM nginx:1.27-alpine
+# The maintained stable line, not a frozen version tag, and its Alpine packages upgraded at each build (libxslt and the like).
+FROM nginx:stable-alpine
+RUN apk upgrade --no-cache
 COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
