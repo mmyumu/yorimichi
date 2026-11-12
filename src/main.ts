@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { connectedPad } from './pad';
 import './style.css';
-import { hudLayout, paintHud, apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, kyotoSolids, kyotoWindows, homeLights, homeStreetWidth, homeWindows, laneOuter, laneWindows, doorMarks, busStop, makeBus, binShape, carAt, makeArt, makeAreaMap, makeSightRoad, makeTimetable, makeBoard, makeCorridor, makePoles, makeHub, makePlatform, makeTown, makeTrain, boardHeight, doorSize, gantryHeight, trainHeight, trainRoof, trainTop, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
+import { hudLayout, paintHud, makeSignals, makeTraffic, signalSize, trafficColours, apartmentProps, apartmentSolids, apartmentWindows, areaMapFace, areaMapWindow, corridorLayout, kyotoSolids, kyotoWindows, homeLights, homeStreetWidth, homeWindows, laneOuter, laneWindows, doorMarks, busStop, makeBus, binShape, carAt, makeArt, makeAreaMap, makeSightRoad, makeTimetable, makeBoard, makeCorridor, makePoles, makeHub, makePlatform, makeTown, makeTrain, boardHeight, doorSize, gantryHeight, trainHeight, trainRoof, trainTop, platformBoards, platformWidth, routeBoard, stationSign, townLights, townWindows, trainLayout } from './art';
 import { vivid } from './palette';
 import { alightAt, deckFor, lineAt, onTimetable, runOf, stopEn, type Deck, type Run } from './platform';
 import { MachineHall } from './machine-hall';
@@ -68,7 +68,7 @@ const hallParam=new URLSearchParams(location.search).get('hall'),hallView=hallPa
 // `off`: the track and door someone getting off a train is stepping away from, until past the queues' lanes.
 type Step={x:number;y:number;alpha?:number;off?:[number,number]}|{wait:number;face:string;spot?:string};
 // `queue`: the track, door mark and place (slot) a commuter waits at on a platform.
-type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:number;face?:string;bump?:number;queue?:[number,number,number]};
+type Commuter={image:Phaser.GameObjects.Image;look:number;steps:Step[];speed:number;face?:string;bump?:number;queue?:[number,number,number];home?:{x:number;y:number};crossed?:number};
 /** A train on one track of the platform, through its cycle: away (`gap`, until it pulls in to leave on time), arriving, doors open for those getting off (`alight`) then the queues (`board`),
  * closing, leaving. `due`: its time on the boards, when it leaves, in minutes on the journey's clock (clock.ts). `player`: the traveller arriving on board (`off`, to get off) or boarded (`on`),
  * the doors shutting at `wait` once they have chosen where to get off; `seated`, their reserved seat when they boarded the very train and car it is booked on (a rested ride: ride). */
@@ -82,6 +82,8 @@ const rested=20;
 /** Lights at night, in scene px: x, y, radius, colour and strength. */
 /** A light at night: x, y and radius in scene px, its colour, its strength, and how flat its pool lies on the ground (its height over its width, round when left out). */
 type Lamp=[number,number,number,number,number?,number?];
+/** The scramble's cycle (ms): the cars' green, all red, then the walkers' green to the end of the period. */
+const signalPeriod=32000,carsGo=16000,allRed=2000,carTop=.24;
 const pick=<T,>(items:readonly T[])=>items[Math.floor(Math.random()*items.length)],between=(a:number,b:number)=>a+Math.random()*(b-a);
 /** Line names in English, as the prompts and dialogs give them: "Utsunomiya / Takasaki Line" for a shared platform. */
 const lineNames=(lines:RailLine[],or=' / ')=>lines.length>1?lines.map(line=>line.en.replace(/ Line$/,'')).join(or)+(lines.every(line=>line.en.endsWith(' Line'))?' Line':''):lines[0]?.en??'';
@@ -224,7 +226,7 @@ class Journey extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE,()=>{if(this.player)this.nightfall()});
     this.input.addPointer(3);
     this.keys=this.input.keyboard!.createCursorKeys();
-    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
+    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyF'&&!event.repeat&&debugAllowed&&!this.modal){this.needs=freshNeeds();this.fedAt=minutes();this.keep()}else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
     this.input.keyboard!.on('keyup',(event:KeyboardEvent)=>this.held.delete(event.code));
     this.game.events.on('blur',()=>this.held.clear());
     // Back where the traveller last stood (waking up at home the first time: out of the apartment is the lane to Higashi-Nakano's west exit).
@@ -382,7 +384,12 @@ class Journey extends Phaser.Scene {
     if(place==='town'||road){makePoles(this);const kyoto=place==='town'&&inKyoto(this.townId());for(const x of townLights)this.world.add(this.add.image((x-2)*2,520,kyoto?'pole-light-kyoto':'pole-light').setOrigin(0,1));if(road?this.busesTo(road).length:this.trips().length)this.world.add(this.add.image(busStop*2,520,'pole-bus').setOrigin(0,1))}
     // Above all else, the street's sorting included: it stands at the map's foot.
     if(avenue?.over)this.world.add(this.add.image(0,this.mapHeight,`map-${place}-over`).setOrigin(0,1));
-    for(const [x,y,look,face] of layoutOf(place)?.people??[])this.world.add(this.add.image(x*2,y*2,`commuter-${look}-${face}-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1)));
+    // A sight's people stroll about their spot (wander), a first pause before setting off.
+    // A scramble crossing: its lights, sorted with the people at their pole's foot, the crowd beyond those listed coming in from off the screen.
+    const crossing=layoutOf(place)?.crossing;this.traffic=[];if(crossing){makeSignals(this);makeTraffic(this)}this.signals=(crossing?.poles??[]).map(([x,y,side])=>{const image=this.add.image(x*2,y*2,`signal-${side}-g-s`).setOrigin((side==='L'?4:44)/signalSize[0],1);this.world.add(image);return image});
+    if(crossing)crossing.cars.lanes.forEach(([,dir],lane)=>{this.trafficDue[lane]=between(0,2500);for(let x=between(60,260);x<900;x+=between(180,420))this.addCar(lane,dir>0?x:960-x)});
+    if(crossing){const plain=looks.map((_,i)=>i).filter(i=>looks[i].length!=='robe'&&!looks[i].cane);for(let k=layoutOf(place)!.people!.length;k<crossing.crowd;k++){const look=pick(plain),image=this.add.image(0,0,`commuter-${look}-down-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1)).setAlpha(0);this.world.add(image);this.commuters.push({image,look,steps:[{wait:between(0,9000),face:'down'}],speed:.06*(1+(look*7%5)*.15)*(looks[look].pace??1),home:{x:0,y:0}})}}
+    for(const [x,y,look,face] of layoutOf(place)?.people??[]){const image=this.add.image(x*2,y*2,`commuter-${look}-${face}-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1));this.world.add(image);const busy=layoutOf(place)!.busy;this.commuters.push({image,look,steps:[{wait:between(0,busy?600:4000),face}],speed:(busy?.06:.03)*(1+(look*7%5)*.15)*(looks[look].pace??1),home:{x:x*2,y:y*2}})}
     if(scenic(place)){const {over,puffs}=layoutOf(place)!;this.lifted=over?this.add.image(0,0,`map-${place}-over`).setOrigin(0):null;if(this.lifted)this.world.add(this.lifted);for(const [x,y,color] of puffs??[])for(let i=0;i<5;i++){const puff=this.add.rectangle(x*2,y*2,6,6,color,.7);this.world.add(puff);this.tweens.add({targets:puff,y:y*2-54,x:x*2+Phaser.Math.Between(-16,16),alpha:0,duration:2600,delay:i*520,repeat:-1})}}
     // Up the stairs, out of the stairwell's mouth; on a train pulling in, out of sight until its doors open (alight), nothing to do meanwhile.
     // Up the stairs on the side of the corridor's stairs taken: out of that end's stairwell. On a train pulling in, behind one of its doors near the middle, out of sight until they open.
@@ -545,7 +552,7 @@ class Journey extends Phaser.Scene {
     if(spot==='return'&&(this.place==='home-street'||this.place==='kyoto-lane'))return 'To the station →';if(spot==='home'&&this.place==='kyoto-lane')return 'Home';
     if(spot==='return'&&(this.place==='apartment'||this.place==='kyoto-house'))return 'Go out';if(spot==='upstairs')return 'Upstairs';if(spot==='downstairs')return 'Downstairs';
     // An exit, with its name where it has one (Marunouchi, Komachi…).
-    if(isHub(this.place)&&(spot==='westExit'||spot==='eastExit')){const west=spot==='westExit',[name]=stations[this.place][west?'west':'east'];return `${west?'West exit':'East exit'}${name?` · ${name}`:''}`}
+    if(isHub(this.place)&&(spot==='westExit'||spot==='eastExit')){const west=spot==='westExit',[name]=stations[this.place][west?'west':'east'];return `${stations[this.place].exits?.[west?'west':'east'][1]??(west?'West exit':'East exit')}${name?` · ${name}`:''}`}
     if(spot==='way')return `Enter · ${layoutOf(this.place)!.way!.en}`;
     if(spot==='return'&&layoutOf(this.place)?.out)return layoutOf(this.place)!.out!.en;
     if(spot==='return'&&sightOf(this.place)?.ropeway&&this.place===sightOf(this.place)!.id)return 'Ropeway down';
@@ -718,6 +725,8 @@ class Journey extends Phaser.Scene {
         // From a garden, back into its sight; from a sight, out to the street before it.
         {const out=layoutOf(this.place)?.out;if(out){this.loadPlace(out.to,{x:out.at[0]*2,y:out.at[1]*2});break}}
         if(sightOf(this.place)?.ropeway){this.ropeway(false);break}
+        // A sight right outside an exit (Shibuya's crossing, its Hachiko exit): straight back into that station.
+        {const from=this.outside&&Object.entries(stations[this.outside.from].maps??{}).find(([,to])=>to===this.place);if(from){this.outside={from:this.outside!.from,side:from[0] as Side};this.loadPlace(this.outside.from);break}}
         if(sightOf(this.place)?.pieces){this.loadPlace(roadTo(this.place),{x:480,y:296});break}
         // From the street or an exit's own map, straight back in through the doors: the concourse stays open all night.
         this.loadPlace(this.outside?.from??stationOf(this.place));break;
@@ -1205,7 +1214,8 @@ class Journey extends Phaser.Scene {
     if(!sight.pieces){const hub=stationOf(page as Place),side=Object.entries(stations[hub].maps??{}).find(([,to])=>to===page)![0] as Side;return {sight,place:page as Place,spot:'photo',hub,side}}
     const ends=[...(sight.walk??[]).map((ja):[string,number]=>[ja,10]),...Object.entries(sight.foot??{}).map(([ja,km]):[string,number]=>[ja,km*12])].sort((a,b)=>a[1]-b[1]);
     const place=(sight.street?roadTo(sight.id):page===roadTo(sight.id)||page===sight.garden||page===sight.id?page:[sight.id,sight.garden].find(place=>place&&layoutOf(place)?.second?.page===page)!) as Place;
-    return {sight,place,spot:layoutOf(place)?.second?.page===page?'photo2':'photo',hub:stationAt(ends[0][0])!,side:'west' as Side};
+    const hub=stationAt(ends[0][0])!;
+    return {sight,place,spot:layoutOf(place)?.second?.page===page?'photo2':'photo',hub,side:(Object.entries(stations[hub].maps??{}).find(([,to])=>to===sight.id)?.[0]??'west') as Side};
   }
   /** Walks to a hotspot and uses it, as a click on it would; one that the walk does not reach after a few tries is used from where the traveller stands. */
   private storyUse(spot:string){
@@ -1390,7 +1400,7 @@ class Journey extends Phaser.Scene {
 
   private canWalk(x:number,y:number){
     // Down to the canvas edge, feet still in view (the hub's world sits 24px lower).
-    return x>18&&x<this.mapWidth-18&&y>88&&y<(this.place==='corridor'||this.place==='apartment'||this.kyotoHouse(this.place)||this.mapHeight>640?this.mapHeight:628-this.world.y)&&!this.solids.some(r=>Phaser.Geom.Intersects.RectangleToRectangle(r,new Phaser.Geom.Rectangle(x-10,y-10,20,25)));
+    return x>18&&x<this.mapWidth-18&&y>88&&y<(this.place==='corridor'||this.place==='apartment'||this.kyotoHouse(this.place)||this.mapHeight>640?this.mapHeight:628-this.world.y)&&!this.solids.some(r=>Phaser.Geom.Intersects.RectangleToRectangle(r,new Phaser.Geom.Rectangle(x-10,y-10,20,25)))&&!this.traffic.some(c=>Math.abs(x-c.image.x)<66&&y>c.image.y-38&&y<c.image.y+4);
   }
   private stopNavigation(){this.path=[];this.marker?.setVisible(false);}
   private navigate(x:number,y:number){
@@ -1403,7 +1413,9 @@ class Journey extends Phaser.Scene {
   private gridPath(fx:number,fy:number,x:number,y:number){
     const cols=Math.ceil((this.mapWidth-36)/16),rows=Math.ceil((this.mapHeight-104)/16),step=16;
     const point=(id:number)=>({x:24+(id%cols)*step,y:104+Math.floor(id/cols)*step});
-    const start=Phaser.Math.Clamp(Math.round((fy-104)/step),0,rows-1)*cols+Phaser.Math.Clamp(Math.round((fx-24)/step),0,cols-1);
+    // Start from the nearest walkable cell round the player: the rounded one may be off the ground (the canvas's foot, a solid's margin), and nothing would then be reached.
+    const r=(fy-104)/step,q=(fx-24)/step,near=(v:number)=>[-1,0,1,2].map(d=>Math.floor(v)+d),cells=near(r).flatMap(j=>near(q).map(i=>[Phaser.Math.Clamp(j,0,rows-1),Phaser.Math.Clamp(i,0,cols-1)])).sort((a,b)=>Math.hypot(a[0]-r,a[1]-q)-Math.hypot(b[0]-r,b[1]-q));
+    const [sj,si]=cells.find(([j,i])=>this.canWalk(24+i*step,104+j*step))??cells[0],start=sj*cols+si;
     const queue=[start],parents=new Map<number,number>([[start,-1]]);
     let best=start,distance=Infinity;
     for(let i=0;i<queue.length;i++){
@@ -1536,10 +1548,63 @@ class Journey extends Phaser.Scene {
     c.steps=[...bend,{x:to,y:bend.length?(ltr?back:y):y+between(-12,12)},{wait:between(500,5000),face:'down'}];
   }
   /** Moves a commuter `delta` ms along its steps, planning the next trip when they run out. */
+  /** A sight's commuter: off to a spot within the scene's `roam` of their own that they can reach on foot, then a look about; or a while longer where they stand. In a `busy` place, always off again at once. */
+  /** The scramble's lights, a cycle of `signalPeriod` ms: the cars' green (amber at its end), all red a moment, then the walkers' green, blinking at its end. */
+  private signal=0;private signals:Phaser.GameObjects.Image[]=[];
+  /** The scramble's cars, each in its lane (`crossing.cars.lanes`), `v` its speed (scene px/ms); `trafficDue` the time till the next comes in, per lane. */
+  private traffic:{image:Phaser.GameObjects.Image;lane:number;colour:number;v:number}[]=[];private trafficDue:number[]=[];
+  /** Whether a car is still in the crossing, past its stop line: the walkers wait for it. */
+  private carsInside(){const [l,r]=layoutOf(this.place)!.crossing!.cars.stop;return this.traffic.some(c=>c.image.x+62>l*2+2&&c.image.x-62<r*2-2)}
+  private addCar(lane:number,x:number){const [foot,dir]=layoutOf(this.place)!.crossing!.cars.lanes[lane],colour=Math.floor(Math.random()*trafficColours.length),image=this.add.image(x,foot*2,`traffic-${colour}-0`).setOrigin(.5,1).setFlipX(dir<0);this.world.add(image);this.traffic.push({image,lane,colour,v:carTop})}
+  /** The cars: each gathers speed to `carTop` and holds it, but stops short of the car ahead, of anyone in its way (the traveller included), and of its stop line while the light is not green (on amber, unless too close to stop);
+   * past the screen's edge it is gone, another coming in on its lane a while later, if there is room. */
+  private drive(delta:number){
+    const {lanes,stop}=layoutOf(this.place)!.crossing!.cars,t=this.signal%signalPeriod,green=t<carsGo-2500,amber=!green&&t<carsGo,brake=.0006;
+    const people=[{x:this.player.x,y:this.player.y},...this.commuters.filter(c=>c.image.alpha>.5).map(c=>({x:c.image.x,y:c.image.y}))];
+    lanes.forEach(([foot,dir],lane)=>{
+      const cars=this.traffic.filter(c=>c.lane===lane).sort((a,b)=>dir*(b.image.x-a.image.x)),last=cars[cars.length-1],y=foot*2;
+      this.trafficDue[lane]-=delta;if(this.trafficDue[lane]<=0&&cars.length<6&&(!last||(dir>0?last.image.x>80:last.image.x<880))){this.addCar(lane,dir>0?-70:1030);this.trafficDue[lane]=between(1200,5000)}
+      cars.forEach((c,i)=>{
+        const front=c.image.x+dir*62,line=(dir>0?stop[0]:stop[1])*2,toLine=dir*(line-front);let room=Infinity;
+        if(i)room=dir*(cars[i-1].image.x-dir*62-front)-14;
+        if(!green&&toLine>=0&&!(amber&&c.v*c.v/(2*brake)>toLine+4))room=Math.min(room,toLine);
+        for(const p of people){const ahead=dir*(p.x-front);if(p.y>y-40&&p.y<y+6&&ahead>-124)room=Math.min(room,Math.max(0,ahead-16))}
+        c.v=room<=0?0:Math.min(carTop,c.v+.00025*delta,Math.sqrt(2*brake*room));c.image.x+=dir*Math.min(c.v*delta,Math.max(0,room));c.image.setTexture(`traffic-${c.colour}-${(Math.floor(c.image.x/8.5)%4+4)%4}`);
+      });
+    });
+    this.traffic=this.traffic.filter(c=>{const gone=c.image.x>1040||c.image.x<-80;if(gone)c.image.destroy();return !gone});
+  }
+  private walkLeft(){const t=this.signal%signalPeriod;return t>=carsGo+allRed?signalPeriod-t:0}
+  private paintSignals(){
+    const t=this.signal%signalPeriod,walk=this.walkLeft(),state=`${t<carsGo-2500?'g':t<carsGo?'a':'r'}-${!walk?'s':walk>4000||Math.floor(t/300)%2===0?'w':'o'}`;
+    this.signals.forEach((image,i)=>{const key=`signal-${layoutOf(this.place)!.crossing!.poles[i][2]}-${state}`;if(image.texture.key!==key)image.setTexture(key)});
+  }
+  /** One of the scramble's walkers, once done with their last steps: in from off the screen to wait at a kerb; across to the other while the walkers' light is green (and not about to turn);
+   * across, half of them off the screen, the others waiting there for the next green. Waiting is a wait that never ends, cut short as the light turns green (update). */
+  private scramble(c:Commuter){
+    const {sides,exits,poles}=layoutOf(this.place)!.crossing!,mid=(sides[0][1]+sides[1][1]),here={x:c.image.x,y:c.image.y};
+    const spot=(side:number)=>{const [x,y,w,h]=sides[side];for(let i=0;;i++){const p={x:between(x,x+w)*2,y:between(y,y+h)*2};if(i>12||this.canWalk(p.x,p.y)&&!poles.some(([px,py])=>Math.abs(p.x/2-px)<8&&Math.abs(p.y/2-py)<7))return p}};
+    const wait=(side:number):Step=>({wait:1e9,face:side?'up':'down'});
+    if(c.image.alpha<.5){const side=Math.random()<.5?0:1,[ex,ey]=pick(exits[side]);c.image.setPosition(ex*2,ey*2).setAlpha(0);c.steps=[...this.route({x:ex*2,y:ey*2},spot(side)),wait(side)];return}
+    const side=here.y<mid?0:1;
+    const cycle=Math.floor(this.signal/signalPeriod);if(this.walkLeft()>4000&&c.crossed!==cycle&&!this.carsInside()){c.crossed=cycle;c.steps=this.route(here,spot(1-side));return}
+    if(c.crossed===cycle&&Math.random()<.5){const [ex,ey]=pick(exits[side]),way:Step[]=this.route(here,{x:ex*2,y:ey*2}).map((p,i,all)=>i===all.length-1?{...p,alpha:0}:p);c.steps=[...way,{wait:between(1000,6000),face:'down'}];return}
+    c.steps=[...this.route(here,spot(side)),wait(side)];
+  }
+  private wander(c:Commuter){
+    if(layoutOf(this.place)!.crossing){this.scramble(c);return}
+    const {roam=55,busy}=layoutOf(this.place)!,here={x:c.image.x,y:c.image.y},face=pick(['up','down','left','right']);
+    for(let tries=0;tries<(busy?16:8)&&(busy||Math.random()<.75);tries++){
+      const to=typeof roam==='number'?{x:c.home!.x+between(-roam,roam)*2,y:c.home!.y+between(-roam,roam)}:{x:between(roam[0],roam[0]+roam[2])*2,y:between(roam[1],roam[1]+roam[3])*2};if(!this.canWalk(to.x,to.y))continue;
+      const {path,distance}=this.gridPath(here.x,here.y,to.x,to.y);if(distance>=16*16)continue;
+      c.steps=[...this.pull([here,...path.slice(1,-1),to]),{wait:busy?between(0,300):between(1500,6000),face}];return;
+    }
+    c.steps=[{wait:between(2000,7000),face}];
+  }
   private stepCommuter(c:Commuter,i:number,delta:number){
     if(c.face){c.image.setTexture(`commuter-${c.look}-${c.face}-0`);return}
     for(let budget=delta;budget>0;){
-      if(!c.steps.length)this.planTrip(c);
+      if(!c.steps.length)c.home?this.wander(c):this.planTrip(c);
       const step=c.steps[0];
       if('wait' in step){
         const used=Math.min(budget,step.wait);step.wait-=used;budget-=used;c.image.setTexture(`commuter-${c.look}-${step.face}-0`);
@@ -1725,6 +1790,8 @@ class Journey extends Phaser.Scene {
     }
     // In the street and along the lane, the passers-by; Lorenzo's Uber and the lane's sign keep their own order with the traveller (below).
     if(this.place==='town'||this.place==='home-street'||this.place==='kyoto-lane'){this.commuters.forEach((commuter,i)=>{commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});this.world.sort('y')}
+    if(this.signals.length){this.signal+=delta;this.paintSignals();this.drive(Math.min(delta,100));if(this.walkLeft()>4000&&!this.carsInside()){const cycle=Math.floor(this.signal/signalPeriod);for(const c of this.commuters){const step=c.steps[0];if(c.crossed!==cycle&&step&&'wait' in step&&step.wait>1e8)step.wait=between(0,1200)}}}
+    if(layoutOf(this.place)?.people)this.commuters.forEach((commuter,i)=>{commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});
     // In the apartment, the traveller passes behind the sofa, the island and the fridge.
     if(this.place==='apartment'||layoutOf(this.place)?.stands||layoutOf(this.place)?.people||sightOfRoad(this.place)){this.world.sort('y');if(this.lifted&&layoutOf(this.place)?.people)this.world.bringToTop(this.lifted);this.world.bringToTop(this.glow)}
     // The traveller passes behind Lorenzo's Uber from the pavement, in front of it from across the road.

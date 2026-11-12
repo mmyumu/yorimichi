@@ -43,6 +43,7 @@ const known:Record<string,Partial<Station>>={
   京都:{accent:'#7a4a32',west:['Karasuma / Bus','Karasuma and the bus terminal'],east:['Hachijo / Taxi','Hachijo and the taxis'],exits:{west:['烏丸口','Karasuma Exit'],east:['八条口','Hachijo Exit']},
     tracks:{'biwako-kyoto':[4,5],kosei:[6,7],nara:[8,9],sagano:[32,33],karasuma:[34,35],'tokaido-shinkansen':[11,12]}},
   鎌倉:{accent:'#3f6f9e',west:['Onari / Enoden','Onari-dori and the Enoden line'],east:['Komachi / Temples','Komachi-dori and the temples'],maps:{east:'kamakura-trail'}},
+  渋谷:{east:['Hachiko / Scramble','Hachiko and the scramble crossing'],exits:{west:['西口','West Exit'],east:['ハチ公口','Hachiko Exit']},maps:{east:'shibuya-crossing'}},
   東中野:{west:['1-chome / Home','Higashi-Nakano 1-chome and the way home']},
   嵯峨嵐山:{east:['Bamboo path','the bamboo path and the river'],maps:{east:'arashiyama'}},
   稲荷:{accent:'#c8452e'},

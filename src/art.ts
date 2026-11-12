@@ -248,9 +248,10 @@ function exitPillar(scene:Phaser.Scene,hub:Hub,side:'west'|'east'){
   // Kyoto's are clad in dark timber.
   if(inKyoto(hub)){r(0,0,30,64,'#5a4030');for(let x=4;x<30;x+=5)r(x,0,1,64,'#4a3426');r(0,0,1,64,'#3a281d');r(29,0,1,64,'#3a281d')}
   r(0,0,30,3,'#4c5852');r(0,58,30,6,'#aeb4b0');r(0,63,30,1,'#8b918d');
-  const west=side==='west';r(1,9,28,34,'#f2c230');r(1,43,28,1,'#c9a020');
+  // A name longer than the pillar is wide (ハチ公口) goes on two lines, the yellow panel taller.
+  const west=side==='west',[ja,en]=exitName(hub,side),lines=ja.length>3?[ja.slice(0,ja.length-2),ja.slice(-2)]:[ja],low=(lines.length-1)*10;r(1,9,28,34+low,'#f2c230');r(1,43+low,28,1,'#c9a020');
   r(west?15:3,11,12,12,'#1d2622');t(west?16:4,12,'出','#f2c230',true);t(west?3:17,12,west?'←':'→','#1d2622',true);
-  g.textAlign='center';t(15,25,exitName(hub,side)[0],'#1d2622',true);t(15,36,exitName(hub,side)[1].length>9?exitName(hub,side)[1].replace(' Exit',''):exitName(hub,side)[1],'#1d2622');
+  g.textAlign='center';lines.forEach((line,i)=>t(15,25+i*10,line,'#1d2622',true));t(15,36+low,en.length>9?en.replace(' Exit',''):en,'#1d2622');
   texture.refresh();
 }
 /** The concourse seen from above, laid out like the first-person ticket hall: the tiled wall with the fare map and the five machines at the back,
@@ -380,7 +381,7 @@ export function makeHub(scene:Phaser.Scene,hub:Hub){
     r(0,226,480,3,'#d1b86f');
     // Exits painted on the floor; the yellow 出口 signs are on the concourse pillars (exitPillar, placed by main.ts).
     const paint=kyoto?'#4a3426':'#e6e3cc',faint=kyoto?'#5a4a3a':'#cfd3b8';t(12,234,`← ${exitName(hub,'west')[0]} EXIT`,paint,true);t(12,246,station.west[0],faint);
-    t(394,234,`${exitName(hub,'east')[0]} EXIT →`,paint,true);t(394,246,station.east[0],faint);
+    t(394,234,`${exitName(hub,'east')[0]}${exitName(hub,'east')[0].length>3?'':' EXIT'} →`,paint,true);t(394,246,station.east[0],faint);
     texture.refresh();
     exitPillar(scene,hub,'west');exitPillar(scene,hub,'east');
   }
@@ -1199,20 +1200,57 @@ function makePigeons(scene:Phaser.Scene){
   }
 }
 /** The car with its wheels turned `k` eighths of a turn clockwise (`uber-car-<k>`): a bar across each hubcap, drawn on the canvas's half art px, shows them roll (main.ts, `roll`). */
-function drawCar(scene:Phaser.Scene,k:number){
-  const t=mapCanvas(scene,`uber-car-${k}`,62,31),g=t.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},a=k*Math.PI/4;
+/** A car's colours: its roof and the tops of its bonnet and boot (`top`, lit `topHi`, creased `topLine`, the roof itself `roof`), its flank (`flank`, lit `flankHi`, shadowed `flankLo`), the lettering on its door, a taxi's roof sign. */
+interface CarPaint {top:string;topHi:string;topLine:string;roof:string;flank:string;flankHi:string;flankLo:string;label?:string;taxi?:string}
+const uberPaint:CarPaint={top:'#2e353a',topHi:'#4f5960',topLine:'#394147',roof:'#30373c',flank:'#1f2427',flankHi:'#3a4248',flankLo:'#15191b',label:'Uber'};
+const mix=(a:string,b:string,t:number)=>'#'+[1,3,5].map(i=>Math.round(parseInt(a.slice(i,i+2),16)*(1-t)+parseInt(b.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
+/** The cars of the traffic (Shibuya's scramble), on the Uber's drawing: `traffic-<i>-<k>`, the `i`th of `trafficColours` with its wheels turned `k` eighths, facing right (flipped to drive left). The yellow and green are taxis. */
+export const trafficColours=['#e8e8e2','#a8adb0','#1f2427','#b8352b','#2f5a9a','#e8b830','#3a6a4a','#d8d2c0'];
+export function makeTraffic(scene:Phaser.Scene){
+  if(scene.textures.exists('traffic-0-0'))return;
+  trafficColours.forEach((c,i)=>{const light=c==='#e8e8e2'||c==='#d8d2c0',paint:CarPaint={top:mix(c,'#ffffff',.1),topHi:mix(c,'#ffffff',.35),topLine:mix(c,'#000000',.15),roof:mix(c,'#ffffff',.06),flank:light?mix(c,'#000000',.06):c,flankHi:mix(c,'#ffffff',.25),flankLo:mix(c,'#000000',.4),taxi:c==='#e8b830'||c==='#3a6a4a'?'#f4f0e0':undefined};for(let k=0;k<4;k++)drawCar(scene,k,`traffic-${i}`,paint)});
+}
+function drawCar(scene:Phaser.Scene,k:number,key='uber-car',p:CarPaint=uberPaint){
+  const t=mapCanvas(scene,`${key}-${k}`,62,31),g=t.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)},a=k*Math.PI/4;
   r(3,28,58,3,'#0000003a');
   // From above: the boot and bonnet, the roof between the sloping rear window and windscreen.
-  r(2,7,14,6,'#2e353a');r(1,8,1,5,'#2e353a');r(2,7,14,1,'#4f5960');r(48,7,12,6,'#2e353a');r(60,8,1,5,'#2e353a');r(48,7,12,1,'#4f5960');r(52,9,6,1,'#394147');
-  r(19,0,23,7,'#30373c');r(20,0,21,1,'#4f5960');r(22,3,16,1,'#394147');
+  r(2,7,14,6,p.top);r(1,8,1,5,p.top);r(2,7,14,1,p.topHi);r(48,7,12,6,p.top);r(60,8,1,5,p.top);r(48,7,12,1,p.topHi);r(52,9,6,1,p.topLine);
+  r(19,0,23,7,p.roof);r(20,0,21,1,p.topHi);r(22,3,16,1,p.topLine);
   for(let y=0;y<7;y++){r(18-y,y,y+1,1,'#55798a');r(42,y,y+2,1,'#7fa8b8');r(43+y,y,1,1,'#b8d4dc')}
   // The near flank: side windows between the pillars, the body, door lines, handles at the doors' back edges, the lettering high on the rear door (clear of the wheel arch), lights at both ends.
   r(16,7,32,5,'#6f97a8');r(17,7,14,1,'#a9c8d3');r(33,7,14,1,'#a9c8d3');for(const x of [16,31,32,47])r(x,7,1,5,'#1f2427');r(16,12,32,1,'#1f2427');
-  r(1,13,60,10,'#1f2427');r(0,14,62,8,'#1f2427');r(1,13,60,1,'#3a4248');r(1,22,60,1,'#15191b');r(31,13,1,9,'#15191b');r(47,12,3,1,'#15191b');
-  r(17,14.5,3,1,'#5b6265');r(33,14.5,3,1,'#5b6265');r(59,14,3,3,'#fff4c0');r(60,18,2,2,'#5b6265');r(0,14,2,3,'#c8352b');letter(g,20.5,13.5,'Uber','#ffffff');
+  r(1,13,60,10,p.flank);r(0,14,62,8,p.flank);r(1,13,60,1,p.flankHi);r(1,22,60,1,p.flankLo);r(31,13,1,9,p.flankLo);r(47,12,3,1,p.flankLo);r(1,19,60,1,p.flankLo+'80');
+  r(17,14.5,3,1,'#5b6265');r(33,14.5,3,1,'#5b6265');r(59,14,3,3,'#fff4c0');r(60,18,2,2,'#5b6265');r(0,14,2,3,'#c8352b');if(p.label)letter(g,20.5,13.5,p.label,'#ffffff');
+  // A taxi's lamp on the roof (行灯), across it.
+  if(p.taxi){r(27,0,8,1.5,p.taxi);r(27,0,8,.5,'#ffffff');r(27,1.5,8,.5,mix(p.taxi,'#000000',.3))}
   for(const cx of [13,48]){r(cx-7,18,15,4,'#0c0e10');for(let y=18;y<30;y++)for(let x=cx-6;x<=cx+6;x++){const d=Math.hypot(x-cx,y-24);if(d<=5.4)r(x,y,1,1,d<=1.3?'#5b6265':d<=3?'#9aa0a4':'#14171a')}
     for(let y=21;y<28;y+=.5)for(let x=cx-3;x<cx+4;x+=.5){const dx=x+.25-cx-.5,dy=y+.25-24.5;if(Math.hypot(Math.floor(x)-cx,Math.floor(y)-24)<=3&&Math.abs(dx*Math.sin(a)-dy*Math.cos(a))<=.55)r(x,y,.5,.5,'#4a5155')}}
   t.refresh();
+}
+/** The scramble's signal posts, 48 × 52 art px, foot at the bottom, the post at x 2–5 (`'L'`, its arm reaching right over the road) or mirrored (`'R'`): on the arm, the horizontal car signal
+ * (green, amber, red from the left, each lamp under its visor), on the post the walkers' box, a red figure standing over a blue-green one walking. `signal-<side>-<car>-<walk>`: car `g` `a` `r`, walk `w` `s` or `o` (both dark, blinking). */
+export const signalSize=[48,52] as const;
+export function makeSignals(scene:Phaser.Scene){
+  if(scene.textures.exists('signal-L-g-w'))return;
+  for(const side of ['L','R'] as const)for(const car of ['g','a','r'] as const)for(const walk of ['w','s','o'] as const){
+    const t=mapCanvas(scene,`signal-${side}-${car}-${walk}`,48,52),g=t.context,X=(x:number,w:number)=>side==='L'?x:48-x-w,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(X(x,w),y,w,h)},at=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
+    const grey='#7c8388',lit='#a4abb0',dim='#5c6266',box='#2c3236',boxHi='#4a5256',visor='#16191b';
+    // The post on its base, its shadow, the arm and its brace.
+    r(0,51,10,1,'#00000035');r(1.5,48.5,5,3,'#575d61');r(1.5,48.5,5,.5,'#8a9196');r(2.5,6,3,43,grey);r(2.5,6,1,43,lit);r(4.5,6,1,43,dim);r(2,4.5,4,1.5,dim);
+    r(5,8,40,2.5,grey);r(5,8,40,.5,lit);r(5,10,40,.5,dim);for(let i=0;i<8;i++)r(5.5+i,16-i,1.5,1,dim);r(44,7.5,2,3.5,dim);
+    // The car signal, hung under the arm's end: a flat housing, three round lamps.
+    const hx=side==='L'?21:3;at(hx+11.5,10.5,1,2,dim);at(hx,12,24,9,box);at(hx,12,24,.5,boxHi);at(hx,20.5,24,.5,visor);
+    ([['#28d8a8','#b0ffe8','#1c3a33'],['#f2a81c','#ffe6a0','#3b321c'],['#ee3a2c','#ffb4a4','#3a1f1c']] as const).forEach(([on,core,off],i)=>{const cx=hx+5+i*7,cy=16.75,shine=car==='gar'[i];
+      for(let y=-3;y<3;y+=.5)for(let x=-3;x<3;x+=.5){const d=Math.hypot(x+.25,y+.25);if(d<=2.6)at(cx+x,cy+y,.5,.5,!shine?off:d<1?core:on)}
+      at(cx-3,12.5,6,1,visor);at(cx-3,12.5,.5,3,visor);at(cx+2.5,12.5,.5,3,visor)});
+    // The walkers' box on the post, its two faces under their visors: red standing, blue-green walking.
+    const bx=side==='L'?6:34;r(5,25,1.5,1,dim);r(5,36,1.5,1,dim);at(bx,22,8,18,box);at(bx,22,8,.5,boxHi);
+    for(const fy of [23,31]){at(bx+1,fy,6,7.5,'#121517');at(bx+.5,fy-.5,7,.5,visor)}
+    const red=walk==='s'?'#ff4a3a':'#4a2420',green=walk==='w'?'#3ae8c0':'#18342e',f=bx+1;
+    at(f+2.5,24,1,1,red);at(f+2,25.5,2,2.5,red);at(f+1.5,25.5,.5,2,red);at(f+4,25.5,.5,2,red);at(f+2,28,.5,2,red);at(f+3.5,28,.5,2,red);
+    at(f+2.5,32,1,1,green);at(f+2.5,33.5,1.5,2,green);at(f+1.5,34,1,.5,green);at(f+4,33.5,.5,1,green);at(f+1.5,35.5,1,.5,green);at(f+1,36,.5,1.5,green);at(f+3.5,35.5,.5,1,green);at(f+4,36.5,.5,1,green);
+    t.refresh();
+  }
 }
 /** The bins (`bin-street`, in a station or before it, foot centred; `bin-home`, a little one with a pedal), silhouettes `binShape`. */
 export const binShape={'bin-street':[16,24],'bin-home':[11,15]} as const;

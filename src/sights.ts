@@ -1,6 +1,6 @@
 /** The places of the trip, each an album page: reached on foot through the phone's Maps (`walkFrom`; `walk`: the stations, Japanese names, a short walk away; `foot`: the km on foot from the stops of its buses, roughly the real ones) or by the buses of rail.ts naming its `en`, or, without `pieces`,
  * by an exit of its own (network.ts `known`). One screen each, its layout and drawing in sight-scenes.ts after the real place (`pieces` and `ground` are only what its street, makeSightRoad, shows of it), with a camera that keeps the memory; its photos are those in
- * public/photos/<id>/, listed in public/photos/index.json by scripts/import-photos.mjs. `open`: a place with no gate (a district, a shore): the bus and the walk arrive straight in it, its street only on the way out.
+ * public/photos/<id>/, listed in public/photos/index.json by scripts/import-photos.mjs. `open`: a place with no gate (a district, a shore, a path): the bus and the walk arrive straight in it, its street only on the way out.
  * `street`: a place seen from its street only (Kyoto Tower): no screen of its own, its camera stands on the pavement there (an avenue of its road in sight-scenes.ts).
  * Adding a place: a line here, its entry in sight-scenes.ts, a bus or a `walk`, and its folder in that script. */
 import { areas, kmApart, onMap, spotOf, type LonLat } from './city-maps';
@@ -23,7 +23,7 @@ export const sights:Sight[]=[
   {id:'daitoku',ja:'大徳寺',en:'Daitoku-ji',at:[135.7466,35.0432],ground:'gravel',foot:{京都:6.5,円町:3,北大路:1.3,三条:5,祇園四条:5.5},pieces:[['gate','#a8402f','#4d5a5c']]},
   {id:'kenkun',ja:'建勲神社',en:'Kenkun-jinja',at:[135.7500,35.0389],foot:{京都:6.5,円町:3.2,北大路:1.2},pieces:[['temple','#c2513a','#5a4a3a'],['torii','#d4502e']]},
   {id:'yasaka',ja:'八坂神社',en:'Yasaka-jinja',at:[135.7785,35.0037],walk:['祇園四条'],ground:'gravel',pieces:[['temple','#d9d2bd','#4d5a5c']]},
-  {id:'higashiyama',ja:'東山',en:'Higashiyama',at:[135.7789,34.9985],walk:['祇園四条','清水五条'],ground:'gravel',foot:{京都:3,北大路:7.5},pieces:[['pagoda',5,'#4a3a2e','#3c4648'],['gate','#4a3a2e','#3c4648']]},
+  {id:'higashiyama',open:true,ja:'東山',en:'Higashiyama',at:[135.7789,34.9985],walk:['祇園四条','清水五条'],ground:'gravel',foot:{京都:3,北大路:7.5},pieces:[['pagoda',5,'#4a3a2e','#3c4648'],['gate','#4a3a2e','#3c4648']]},
   {id:'heian',ja:'平安神宮',en:'Heian-jingu',at:[135.7824,35.0160],walk:['神宮丸太町'],ground:'gravel',foot:{京都:5,三条:1.8},pieces:[['temple','#d4502e','#3d7a5e']],garden:'heian-garden',parts:[{id:'heian-garden',ja:'神苑',en:'Heian-jingu · The garden'},{id:'heian-road',ja:'大鳥居',en:'Heian-jingu · The great torii'}]},
   {id:'lanterns',ja:'提灯の社',en:'The lantern shrine',at:[135.7850,35.0300],ground:'moss',foot:{京都:5.5,三条:3.2,円町:6,北大路:4},pieces:[['temple','#6e5138','#4a4238'],['torii','#a7a596']]},
   {id:'kyoto-tower',street:true,ja:'京都タワー',en:'Kyoto Tower',at:[135.7595,34.9875],walk:['京都','四条'],ground:'street',pieces:[['kyotoTower']]},
@@ -33,8 +33,8 @@ export const sights:Sight[]=[
   {id:'biwako',ja:'びわ湖テラス',en:'Biwako Terrace',at:[135.9030,35.2050],foot:{志賀:3.8},pieces:[['lake'],['ropeway']],ropeway:true,garden:'biwako-horai',parts:[{id:'biwako-horai',ja:'蓬莱山',en:'Biwako Terrace · Mt Horai'},{id:'biwako-bridge',ja:'吊橋',en:'Biwako Terrace · The Sky Bridge'}]},
   {id:'otsu-shore',open:true,ja:'大津',en:'Otsu',at:[135.8675,35.0085],walk:['大津','膳所'],pieces:[['lake']]},
   {id:'toshogu',ja:'日光東照宮',en:'Nikko Toshogu',at:[139.5991,36.7580],ground:'gravel',foot:{日光:2.2},pieces:[['pagoda',5,'#a83a2c','#3f4a46'],['gate','#e0c070','#2f3a38']]},
-  {id:'kanmangafuchi',ja:'憾満ヶ淵',en:'Kanmangafuchi',at:[139.5861,36.7459],ground:'moss',foot:{日光:3.6},pieces:[['bridge',''],['jizo']]},
-  {id:'shinkyo',ja:'神橋',en:'Shinkyo Bridge',at:[139.6037,36.7534],walk:['日光'],ground:'moss',foot:{日光:1.5},pieces:[['bridge','#c8452e']]},
+  {id:'kanmangafuchi',open:true,ja:'憾満ヶ淵',en:'Kanmangafuchi',at:[139.5861,36.7459],ground:'moss',foot:{日光:3.6},pieces:[['bridge',''],['jizo']]},
+  {id:'shinkyo',open:true,ja:'神橋',en:'Shinkyo Bridge',at:[139.6037,36.7534],walk:['日光'],ground:'moss',foot:{日光:1.5},pieces:[['bridge','#c8452e']]},
   {id:'kamakura-trail',ja:'鎌倉',en:'Kamakura'},
   {id:'arashiyama',ja:'嵐山',en:'Arashiyama'},
 ];
