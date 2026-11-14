@@ -62,7 +62,8 @@ export function makeArt(scene:Phaser.Scene){
 
 /** The street outside a sight, on first use: its entrance in the middle of the back, on the layout of the street outside a station (makeTown, whose road, crossing, street lights and bus stop are here too, so that main.ts shares them, Lorenzo's Uber included):
  * what surrounds it 34–136, entrance 190–290 × 88–136, pavement to 199, road 199–247, far pavement to 262, the neighbours' hedge and roofs below. The sign to the station on its post (1–45 × 140–153), the stop only where a bus serves the sight (`bus`).
- * The surroundings follow the sight: a plastered temple wall with its gate, a hedge with a torii, shop fronts, or trees. */
+ * The surroundings follow the sight: a plastered temple wall with its gate, a hedge with a torii, shop fronts, an old quarter's wooden houses and its steps (`machiya`), a shore's rail under a steel gantry, or a valley's wall with the name down a post (`stake`);
+ * the near side of the road likewise, a city's flat roofs or the neighbours' houses. */
 export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:boolean,avenue?:{height:number;dress:(g:CanvasRenderingContext2D)=>void;lifted:(picture:HTMLCanvasElement)=>void}){
   if(scene.textures.exists('map-'+place))return;
   const texture=mapCanvas(scene,'map-'+place,480,avenue?.height??320),g=texture.context,r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),w,h)};
@@ -83,8 +84,16 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
   r(0,247,480,3,'#e0dccb');r(0,250,480,12,'#bdb59a');for(let x=0;x<480;x+=16)r(x,250,1,12,'#a9a187');
   for(const lx of townLights)streetLight(r,lx,false);
   if(bus)busPole(r,busStop);
-  r(0,262,480,58,'#3f6a4c');for(let x=0;x<480;x+=9){r(x,262,8,5,'#4f7f58');r(x+2,263,3,1,'#74a070')}
-  for(let x=-10;x<480;){const w=50+Math.floor(rand()*30),wall=['#d8cfb8','#e4dcc6','#c8bca4','#d0c8b8'][Math.floor(rand()*4)],win=rand()<.5;r(x,276,w-6,44,wall);r(x+w-8,276,2,44,'#00000020');if(win){r(x+6,288,14,16,'#5a4a3a');r(x+w-26,288,14,16,'#5a4a3a');r(x+6,288,14,2,'#00000030');if(rand()<.6)spark(x+7,290,12,13,'#f2cf7c');if(rand()<.4)spark(x+w-25,290,12,13,'#f2cf7c')}else{for(let wx=x+5;wx<x+w-14;wx+=12){r(wx,286,8,8,'#7a96a4'),r(wx,286,8,1,'#00000030');if(rand()<.45)spark(wx+1,287,6,6,'#f2cf7c')}r(x+w/2-6,300,12,20,'#6a4a34')}if(rand()<.4){r(x+w-18,306,8,6,'#6a5240');softCrown(r,rand,x+w-14,304,5,4,greens)}tileRoof(x-4,268,w+2,12);x+=w}
+  if(city||kind('rainbow'))r(0,262,480,58,'#3a3e44');else{r(0,262,480,58,'#3f6a4c');for(let x=0;x<480;x+=9){r(x,262,8,5,'#4f7f58');r(x+2,263,3,1,'#74a070')}}
+  // The near side: a city's flat roofs, their parapets, tanks and air conditioning, seen from behind; elsewhere the neighbours' houses.
+  if(city||kind('rainbow'))for(let x=-6,k=0;x<480;k++){const w=58+Math.floor(rand()*36),top=264+Math.floor(rand()*8),roof=['#8f9294','#9a9c98','#84888c','#a3a39c'][k%4];
+    r(x,top,w-3,320-top,roof);r(x,top,w-3,2,'#c4c6c2');r(x,top+2,w-3,1,'#00000030');r(x+w-5,top+2,2,320-top,'#00000030');r(x+2,top+5,w-9,1,'#ffffff20');
+    for(let i=0;i<w*2;i++)r(x+2+rand()*(w-8),top+5+rand()*(314-top),1,1,'#00000014');
+    if(k%3===0){r(x+8,top+12,16,12,'#7a8084');r(x+8,top+12,16,2,'#a8aeb2');r(x+10,top+24,2,3,'#3a3e40');r(x+20,top+24,2,3,'#3a3e40');r(x+9,top+27,16,2,'#00000030')}
+    for(let ax=x+(k%3?8:32);ax<x+w-18;ax+=14){r(ax,top+30,10,7,'#d4d6d2');r(ax,top+30,10,1,'#f0f0ec');r(ax+2,top+32,6,4,'#6a7074');r(ax+4,top+33,2,2,'#8a9094');r(ax+1,top+37,10,1,'#00000030')}
+    if(k%2){r(x+w-24,top+10,14,10,'#5a6064');r(x+w-23,top+11,12,8,'#a8c4cc');r(x+w-17,top+11,1,8,'#5a6064');if(rand()<.6)spark(x+w-23,top+11,12,8,'#f2cf7c')}else{r(x+w-20,top+8,2,14,'#6a6e70');r(x+w-24,top+10,10,1,'#6a6e70');r(x+w-22,top+14,6,1,'#6a6e70')}
+    x+=w}
+  else for(let x=-10;x<480;){const w=50+Math.floor(rand()*30),wall=['#d8cfb8','#e4dcc6','#c8bca4','#d0c8b8'][Math.floor(rand()*4)],win=rand()<.5;r(x,276,w-6,44,wall);r(x+w-8,276,2,44,'#00000020');if(win){r(x+6,288,14,16,'#5a4a3a');r(x+w-26,288,14,16,'#5a4a3a');r(x+6,288,14,2,'#00000030');if(rand()<.6)spark(x+7,290,12,13,'#f2cf7c');if(rand()<.4)spark(x+w-25,290,12,13,'#f2cf7c')}else{for(let wx=x+5;wx<x+w-14;wx+=12){r(wx,286,8,8,'#7a96a4'),r(wx,286,8,1,'#00000030');if(rand()<.45)spark(wx+1,287,6,6,'#f2cf7c')}r(x+w/2-6,300,12,20,'#6a4a34')}if(rand()<.4){r(x+w-18,306,8,6,'#6a5240');softCrown(r,rand,x+w-14,304,5,4,greens)}tileRoof(x-4,268,w+2,12);x+=w}
   // The approach to the entrance, across the pavement; the wall's shadow along its foot, the yellow studded slabs at the crossing, a manhole, the gutter's grates, the road worn where the wheels run.
   r(206,136,68,63,city?'#b9bab6':'#dcd4b8');for(let y=138;y<199;y+=10)r(206,y,68,1,city?'#a5a6a2':'#c6bd9f');
   r(0,136,480,2,'#00000026');for(const y of [193,251]){r(206,y,68,4,'#e0b83a');for(let x=207;x<274;x+=3)r(x,y+1,1,1,'#b08a22'),r(x+1,y+3,1,1,'#b08a22')}
@@ -108,9 +117,11 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
   const cedar=(x:number,foot:number,h:number)=>{r(x-1,foot-h*.3,3,h*.3,'#4c3528');for(let i=0;i<5;i++)softCrown(r,rand,x,foot-h*.25-i*h*.16,12-i*2,5,['#1f3f33','#2b5242','#3a6a50','#4e8060'])};
   const jizo=(x:number,f:number)=>{r(x,f-8,7,8,'#8d8f84');r(x+1,f-13,5,5,'#a3a598');r(x+2,f-11,1,1,'#5c5c52');r(x+4,f-11,1,1,'#5c5c52');r(x,f-8,7,3,'#c8452e');r(x+1,f-15,5,2,'#c8452e')};
   const ledge=(x:number,w:number,moss=true)=>{r(x,120,w,16,'#8e8a7c');for(let xx=x;xx<x+w;xx+=11){r(xx+rand()*2,121,9,6,['#9a9688','#84806f','#a8a494'][Math.floor(rand()*3)]);r(xx+5+rand()*2,128,9,7,['#9a9688','#84806f','#a8a494'][Math.floor(rand()*3)])}r(x,134,w,2,'#00000030');if(moss)for(let xx=x;xx<x+w;xx+=2)r(xx,119+Math.floor(rand()*2),2,2+Math.floor(rand()*3),rand()<.5?'#5f8a4e':'#7aa05c')};
+  // The place's name down a wooden post, where no gate carries it.
+  const stake=(x:number)=>{const n=[...sight.ja].length,top=130-n*10;r(x,top-3,12,139-top,'#6b4a34');r(x,top-3,2,139-top,'#8a6a50');r(x+10,top-3,2,139-top,'#3d2e24');r(x-1,top-5,14,2,'#3d2e24');r(x-1,136,14,2,'#00000030');for(const [i,ch] of [...sight.ja].entries())letter(g,x+1,top+i*10,ch,'#f4e4b8',true)};
   if(city){
     // A city street: towers in the haze, the district's landmark over the roofs, then fronts each with its blade sign, its awning and what the shop puts out; the way in under an arch.
-    const posh=sight.id==='ginza',hue=(kind('neon')?.[1] as string|undefined)??'#c8452e',names=['カラオケ','ラーメン','ドラッグ','居酒屋','串かつ','たこ焼'];
+    const posh=sight.id==='ginza',hue=(kind('neon')?.[1] as string|undefined)??'#c8452e',names=kind('kyotoTower')?['抹茶','ラーメン','京漬物','居酒屋','そば','うどん']:['カラオケ','ラーメン','ドラッグ','居酒屋','串かつ','たこ焼'];
     for(let x=-8;x<480;){const w=22+Math.floor(rand()*26),h=36+rand()*46;r(x,96-h,w,h+40,mix('#b7d4dc','#7f97ac',.5+rand()*.3));for(let wy=100-h;wy<96;wy+=5)for(let wx=x+2;wx<x+w-2;wx+=4)if(rand()<.5)r(wx,wy,2,2,'#ffffff30');x+=w+Math.floor(rand()*6)}
     if(kind('tsutenkaku')){const cx=372;for(let i=0;i<70;i++){const t=i/69,w=10+12*t**2.4;r(cx-w/2,50+i,2,1,'#c9ced2');r(cx+w/2-2,50+i,2,1,'#aab0b6');if(i%8===0)r(cx-w/2,50+i,w,1,'#b8bec4');if(i%8===4){wire(cx-w/2,50+i,cx+w/2,58+i,0,'#b8bec4');wire(cx-w/2,58+i,cx+w/2,50+i,0,'#b8bec4')}}glow(cx-12,34,24,16);glow(cx-4,56,8,32);r(cx-12,36,24,14,'#e4e8ea');r(cx-14,34,28,3,'#aab0b6');for(let x=cx-10;x<cx+10;x+=4)r(x,39,2,7,'#6a8494');r(cx-4,28,8,6,'#d0d6da');r(cx-1,16,2,12,'#c9ced2');r(cx-4,56,8,40,'#d8402c');g.textAlign='center';for(const [i,ch] of [...'通天閣'].entries())letter(g,cx,58+i*12,ch,'#ffffff',true);g.textAlign='left'}
     let x=-6,k=0;while(x<480){const w=x<196&&x+56+(k*19)%22>196?198-x:56+(k*19)%22,mark=kind('tsutenkaku')?372:-99,top=x<mark+18&&x+w>mark-18?88:44+(k*29)%34,sign=posh?['#2a2e34','#3a3028','#283440'][k%3]:[hue,'#e0483a','#34b6e0','#f0c030','#d060b0'][k%5],wall=posh?['#d8d2c4','#c4c0b6','#e2ded2'][k%3]:['#4a4e56','#5a565e','#44505a'][k%3];
@@ -130,17 +141,17 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
       x+=w;k++}
     if(kind('kyotoTower')){
       // Kyoto Tower, seen from the street: its building's pale front with its bands of windows, the name over the glazed doors; on the roof the white tube swelling to the red-banded gallery, the spike above.
-      const cx=240;r(190,88,100,48,'#e4e0d6');r(190,88,100,2,'#f6f4ee');r(286,88,4,48,'#00000026');for(let wy=93;wy<106;wy+=7){r(194,wy,92,4,'#7f9aa8');for(let wx=194;wx<286;wx+=6)r(wx,wy,1,4,'#e4e0d6');for(let wx=196;wx<284;wx+=12)if((wx+wy)%5<2)spark(wx,wy,5,4,'#f2cf7c')}
+      const cx=240;r(190,98,100,38,'#e4e0d6');r(190,98,100,2,'#f6f4ee');r(286,98,4,38,'#00000026');r(194,102,92,4,'#7f9aa8');for(let wx=194;wx<286;wx+=6)r(wx,102,1,4,'#e4e0d6');for(let wx=196;wx<284;wx+=12)if(wx%5<2)spark(wx,102,5,4,'#f2cf7c');
       r(204,108,72,13,'#23292e');r(204,108,72,1,'#d8402c');glow(204,108,72,13);g.textAlign='center';letter(g,cx,110,'京都タワー','#ffffff',true);g.textAlign='left';
       r(194,123,92,13,'#2f3a40');glow(196,124,88,12);r(196,124,88,12,'#a8c4cc');r(196,124,88,2,'#ffffff60');for(const wx of [216,239,262])r(wx,124,2,12,'#2f3a40');r(228,124,24,12,'#c8dde0');r(239,124,2,12,'#2f3a40');
-      r(cx-13,79,26,9,'#e8e4dc');r(cx-13,79,26,1,'#f6f4ee');for(let i=0;i<28;i++){const t=i/27,w=7+14*(1-t)**2+4*t**3;r(cx-w/2,79-i,w,1,'#f4f2ec');r(cx+w/2-2,79-i,2,1,'#c8c6c0')}
-      glow(cx-17,36,34,16);spark(cx-1,22,2,2,'#ff5a40');r(cx-15,40,30,3,'#d8402c');r(cx-17,43,34,6,'#f4f2ec');for(let wx=cx-16;wx<cx+16;wx+=3)r(wx,44,2,3,'#5a7a8a');r(cx-15,49,30,3,'#e8562c');r(cx-8,36,16,4,'#f4f2ec');r(cx-1,22,2,14,'#d8402c');
+      r(cx-17,88,34,10,'#e8e4dc');r(cx-17,88,34,1,'#f6f4ee');for(let i=0;i<38;i++){const t=i/37,w=9+20*(1-t)**2+6*t**3;r(cx-w/2,88-i,w,1,'#f4f2ec');r(cx+w/2-3,88-i,3,1,'#c8c6c0');r(cx-w/2,88-i,1,1,'#ffffff')}
+      glow(cx-23,34,46,18);spark(cx-1,33,2,2,'#ff5a40');r(cx-20,38,40,3,'#d8402c');r(cx-23,41,46,7,'#f4f2ec');r(cx-23,41,46,1,'#ffffff');for(let wx=cx-22;wx<cx+22;wx+=3)r(wx,43,2,3,'#5a7a8a');r(cx-20,48,40,3,'#e8562c');r(cx-12,34,24,4,'#f4f2ec');r(cx-1,18,2,16,'#d8402c');
     }else{
       // The way in: an arch over the street beyond, its fronts running away under their lanterns.
-      r(196,96,88,40,'#8fb4c8');r(206,112,68,24,'#b0b1ad');for(let i=0;i<5;i++){const d=i*5;r(206+d,100+i*2,6,36-i*2,['#4a4e56','#5a565e','#44505a'][i%3]);r(268-d,100+i*2,6,36-i*2,['#5a565e','#44505a','#4a4e56'][i%3]);r(207+d,108+i,4,3,[hue,'#e0483a','#f0c030','#34b6e0','#d060b0'][i]);r(269-d,110+i,4,3,['#34b6e0','#f0c030',hue,'#d060b0','#e0483a'][i])}r(232,112,16,24,'#c4c5c0');for(let y=114;y<136;y+=4)r(232,y,16,1,'#b0b1ad');
-      r(196,84,10,52,'#3a4048');r(274,84,10,52,'#3a4048');r(198,84,2,52,'#565e68');r(276,84,2,52,'#565e68');glow(190,74,100,28);glow(206,100,68,36);r(190,74,100,18,'#23292e');r(190,74,100,2,hue);r(190,90,100,2,hue);if(!posh)for(let lx=210;lx<272;lx+=10){r(lx,94,5,6,'#d0402c');r(lx,96,5,1,'#f4f4ec')}
+      r(196,96,88,40,'#8fb4c8');r(206,112,68,24,'#b0b1ad');for(let i=0;i<5;i++){const d=i*5;r(206+d,100+i*2,6,36-i*2,(posh?['#c4c0b6','#d8d2c4','#b8b4aa']:['#4a4e56','#5a565e','#44505a'])[i%3]);r(268-d,100+i*2,6,36-i*2,(posh?['#d8d2c4','#b8b4aa','#c4c0b6']:['#5a565e','#44505a','#4a4e56'])[i%3]);r(207+d,108+i,4,3,posh?'#d8c48a':[hue,'#e0483a','#f0c030','#34b6e0','#d060b0'][i]);r(269-d,110+i,4,3,posh?'#e8e4d8':['#34b6e0','#f0c030',hue,'#d060b0','#e0483a'][i])}r(232,112,16,24,'#c4c5c0');for(let y=114;y<136;y+=4)r(232,y,16,1,'#b0b1ad');
+      r(196,84,10,52,'#3a4048');r(274,84,10,52,'#3a4048');r(198,84,2,52,'#565e68');r(276,84,2,52,'#565e68');glow(190,74,100,28);glow(206,100,68,36);r(190,74,100,18,'#23292e');r(190,74,100,2,posh?'#c9a84a':hue);r(190,90,100,2,posh?'#c9a84a':hue);if(!posh)for(let lx=210;lx<272;lx+=10){r(lx,94,5,6,'#d0402c');r(lx,96,5,1,'#f4f4ec')}
     }
-    vending(150,137,'#d0402c');vending(165,137,'#f4f4ec');bike(60,138,'#3a78c2');bike(78,138,'#6a6a62');planter(300,137);planter(430,137);if(!posh)nobori(318,138,hue);
+    if(posh){planter(150,137);planter(168,137);bench(56,138)}else{vending(150,137,'#d0402c');vending(165,137,'#f4f4ec');bike(60,138,'#3a78c2');bike(78,138,'#6a6a62')}planter(300,137);planter(430,137);if(!posh)nobori(318,138,hue);
   }else if(kind('ropeway')){
     // The ropeway's foot station across the road from the stop: the mountain straight up behind it, the cable out of its roof with a cabin on the way, the doors in the middle, the ticket windows beside them.
     treeline(0,480,30,136);for(let i=0;i<46;i++){const rx=7+rand()*9;softCrown(r,rand,rand()*480,36+rand()*92,rx,rx*.7,i%3?['#4a4a2c','#6e5a34','#8a6a40','#a88a58']:['#5a3a26','#7a4a30','#9a6038','#b88048'])}
@@ -149,6 +160,22 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
     glow(210,100,60,36);glow(160,98,32,16);glow(288,98,32,16);glow(322,40,20,13);r(206,96,68,40,'#2a3238');r(210,100,28,36,'#a8c4cc');r(242,100,28,36,'#a8c4cc');r(239,100,2,36,'#2a3238');r(158,96,36,20,'#2a3238');r(160,98,14,16,'#c8dde0');r(178,98,14,16,'#c8dde0');r(286,96,36,20,'#2a3238');r(288,98,32,16,'#c8dde0');r(211,101,8,34,'#ffffff40');r(243,101,8,34,'#ffffff40');
     // A stone wall holding the slope either side, the fare board, the machines, a bench for the wait.
     ledge(0,150);ledge(330,150);r(160,120,30,12,'#f4f0e0');for(let i=0;i<3;i++)r(162,122+i*3,26-(i*7)%9,1,'#3a2c20');vending(338,137,'#3a78c2');vending(353,137,'#f4f4ec');bench(112,138);bench(52,138);nobori(300,138,'#1d5fae');nobori(138,138,'#e8562c');planter(190,137);planter(282,137);
+  }else if(kind('machiya')){
+    // An old quarter: the wooded hills, the pagoda over the roofs, two-storey wooden houses along the pavement (tiles, plaster, slats, a pent roof over the lattice and the noren), and the stone steps of its lane climbing between them.
+    treeline(0,480,30,100);
+    const pagoda=kind('pagoda') as ['pagoda',number,string,string]|undefined;
+    if(pagoda){const cx=128,[,n,wall,tile]=pagoda;for(let i=0;i<n;i++){const w=46-i*4,y=96-i*11;r(cx-w/2+7,y-8,w-14,8,wall);r(cx-w/2+7,y-8,w-14,2,'#00000050');r(cx-w/2+7,y-8,1,8,'#ffffff30');for(let px=cx-w/2+10;px<cx+w/2-8;px+=4)r(px,y-6,1,6,'#00000030');r(cx-w/2,y-11,w,3,tile);r(cx-w/2-2,y-9,w+4,1,'#2c3032');r(cx-w/2+4,y-12,w-8,1,tile);r(cx-w/2+2,y-11,w-4,1,'#ffffff24')}r(cx,96-n*11-14,1,13,'#c9a84a');for(const dy of [10,7,4])r(cx-1,96-n*11-dy,3,1,'#e0c060')}
+    for(let x=-6,k=0;x<480;k++){if(x>=196&&x<284){x=284;continue}const w=x<196&&196-x<40+(k*17)%18+26?196-x:40+(k*17)%18,wide=w,timberC=['#4a3a2e','#57432f','#43342a'][k%3],noren=['#2f4a6a','#8a3a2c','#e8dcc0','#5a6a3a','#6a4a7a'][k%5];
+      r(x,100,wide-1,36,timberC);r(x,100,wide-1,11,'#e4dcc6');r(x,100,1,36,'#00000030');r(x+4,102,wide-10,6,'#3a2c22');for(let sx=x+5;sx<x+wide-7;sx+=2)r(sx,102,1,6,'#8a7458');
+      tileRoof(x,90,wide-1,10);tileRoof(x-1,111,wide+1,5);
+      for(let sx=x+3;sx<x+wide-4;sx+=2)r(sx,118,1,16,'#2a2019');r(x+2,125,wide-5,1,'#2a2019');
+      const dx=x+Math.floor(wide/2)-6;r(dx,117,13,19,'#1f1814');glow(dx,117,13,19);r(dx,117,13,8,noren);r(dx+4,119,1,6,'#00000040');r(dx+8,119,1,6,'#00000040');r(dx+2,126,9,10,'#c8a460');r(dx+2,126,9,1,'#00000040');
+      if(k%2){r(x+3,129,7,7,'#6a5240');r(x+4,130,5,2,['#c8452e','#e0b040','#6a8a4a'][k%3])}else planter(x+wide-13,137);
+      r(x,134,wide-1,2,'#8a8370');x+=w}
+    r(196,90,88,46,'#3f5f48');softCrown(r,rand,206,96,10,8,greens);softCrown(r,rand,276,94,10,8,['#6a7a38','#8d9a45','#b3b558','#d6cf78']);
+    r(210,92,60,44,'#a39d8c');for(let i=0;i<11;i++){r(210,92+i*4,60,3,'#c9c2ab');r(210,95+i*4,60,1,'#8a8474')}r(206,92,4,44,'#8f9184');r(270,92,4,44,'#8f9184');r(206,92,1,44,'#b5b5a8');
+    for(const lx of [200,279]){r(lx,104,1,32,'#3a2c22');glow(lx-2,108,5,8);r(lx-2,108,5,8,'#f2e6c8');r(lx-2,107,5,1,'#2a2020');r(lx-2,116,5,1,'#2a2020');r(lx-1,110,3,1,'#c8452e')}
+    stake(180);wires(60,420);bike(300,138,'#6a6a62');
   }else if(built&&!torii){
     // A temple's plastered wall under its tiles, the five white lines of its rank, the gate in the middle; over the wall its trees, the great roof, the pagoda or the pavilion's top, and a pine leaning out.
     treeline(0,480,30,84);
@@ -161,6 +188,8 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
     pineOver(46,84,1);pineOver(318,84,-1);pineOver(452,84,1);
     // The gate: its leaves folded back, the court seen through it, a lantern under each eave.
     r(196,88,10,48,timber);r(274,88,10,48,timber);r(196,88,2,48,'#ffffff24');r(282,88,2,48,'#00000030');r(206,96,68,40,'#2a2320');r(218,104,44,32,'#5a7a58');r(218,104,44,10,'#3f5f48');r(230,112,20,24,'#d8d0b4');r(226,124,28,12,'#d8d0b4');for(let y=114;y<136;y+=5)r(228,y,24,1,'#bdb495');r(206,96,12,40,mix(timber,'#1a1410',.45));r(262,96,12,40,mix(timber,'#1a1410',.45));for(const dx of [208,264])for(let y=100;y<134;y+=8)r(dx+2,y,2,2,'#c9a84a'),r(dx+7,y,2,2,'#c9a84a');r(206,92,68,4,timber);r(206,96,68,2,'#00000050');r(202,134,76,3,'#a8a290');r(202,134,76,1,'#c4beae');tileRoof(186,74,108,14);tileRoof(202,60,76,12);r(200,57,6,4,'#2c3638');r(274,57,6,4,'#2c3638');
+    // The Kaminarimon's great red lantern, hung in the gateway.
+    if(sight.id==='asakusa'){glow(229,97,22,25);r(232,97,16,2,'#2a2020');r(230,99,20,19,'#c8322a');r(229,101,22,15,'#c8322a');r(231,99,3,19,'#e8584a');r(246,99,3,19,'#9a2620');for(let y=102;y<116;y+=3)r(229,y,22,1,'#00000020');r(236,102,8,13,'#2a2020');for(const [dx,dy] of [[1,1],[5,1],[3,3],[1,5],[5,5],[1,8],[5,8],[3,10]])r(236+dx,102+dy,2,1,'#c8322a');r(232,118,16,2,'#2a2020');r(234,120,12,1,'#c9a84a')}
     for(const lx of [199,277]){glow(lx,98,5,8);r(lx,98,5,8,red?'#d0402c':'#f2e6c8');r(lx,97,5,1,'#2a2020');r(lx,106,5,1,'#2a2020');r(lx+1,100,3,1,red?'#f4f4ec':'#3a2c20')}
     if(!avenue){stoneLamp(180,139);stoneLamp(296,139);notice(142,138);wires(70,414);
     if(red){nobori(308,138,'#d0402c');nobori(320,138,'#f4f4ec');nobori(332,138,'#6a4a9a');r(346,126,28,11,'#6a5240');r(344,122,32,5,'#d0402c');for(let i=0;i<4;i++)r(346+i*8,122,4,5,'#f4f4ec');for(let i=0;i<5;i++)r(348+i*5,129,3,4,['#e8e0cc','#c8452e','#e0b040','#6a8a4a','#f4f4ec'][i])}else{bench(310,138);planter(338,137)}
@@ -189,7 +218,7 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
     else{r(318,92,70,7,'#f4f4ec');r(318,98,70,2,'#c8452e');r(326,84,50,8,'#f4f4ec');for(let x=328;x<374;x+=5){r(x,86,3,4,'#4a7a94');spark(x,86,3,4,'#f2cf7c')}r(334,78,34,6,'#f4f4ec');r(344,68,4,10,'#3a3e40');r(356,68,4,10,'#3a3e40');r(388,88,8,12,'#d0402c');for(let y=89;y<100;y+=3)r(388,y,8,1,'#f4f4ec');for(let i=0;i<8;i++)r(300-i*6,100+i%2,5,1,'#ffffff80')}
     softCrown(r,rand,24,96,26,20,greens);softCrown(r,rand,58,104,18,14,['#345d48','#487951','#63905b','#86a367']);softCrown(r,rand,452,98,26,20,greens);softCrown(r,rand,418,106,16,12,['#345d48','#487951','#63905b','#86a367']);
     ledge(0,480,false);r(0,118,480,3,'#c4beae');for(let x=4;x<480;x+=14){if(x>196&&x<276)continue;r(x,104,3,16,'#e8e6dc');r(x+2,104,1,16,'#b8b6ac')}for(const y of [106,112])r(0,y,480,1,'#e8e6dc');
-    r(198,98,8,38,'#6e5138');r(274,98,8,38,'#6e5138');r(206,104,68,32,mix('#7fb4cc','#3f7fa4',.6));for(let y=120;y<136;y+=4)r(206,y,68,4,y%8?'#dcd4b8':'#c6bd9f');r(196,94,88,5,'#5a4232');
+    r(206,104,68,32,mix('#7fb4cc','#3f7fa4',.6));for(let y=120;y<136;y+=4)r(206,y,68,4,y%8?'#dcd4b8':'#c6bd9f');for(const x of [200,277]){r(x,88,3,48,'#e8e6dc');r(x+2,88,1,48,'#a8b0b4');r(x-1,133,5,3,'#b8b6ac')}r(200,88,80,2,'#e8e6dc');r(200,90,80,1,'#a8b0b4');
     bench(120,138);bench(330,138);vending(424,137,'#3a78c2');planter(170,137);planter(300,137);bike(58,138,'#d0402c');
   }else if(kind('bamboo')){
     // A bamboo park: the culms close behind a brushwood fence, their leaves arching over; the Jizo of the park on their ledge.
@@ -206,12 +235,14 @@ export function makeSightRoad(scene:Phaser.Scene,place:string,sight:Sight,bus:bo
     if(bridge?.[1]){for(let i=0;i<8;i++)r(300,96+i*3,170,3,mix('#5fb0b0','#2f7f88',i/7));for(let i=0;i<40;i++)r(300+rand()*166,98+rand()*20,3+rand()*6,1,'#ffffff70');for(const x of [318,372,430])r(x,112+rand()*4,8,4,'#6a6e68');
       const c=bridge[1],deck=(x:number)=>104-10*(1-((x-385)/75)**2);for(let x=310;x<460;x++){const y=deck(x);r(x,y,1,5,c);r(x,y+5,1,2,'#2a2020');r(x,y-5,1,1,c);if(x%10===0){r(x,y-8,2,8,c);r(x,y-9,2,1,'#2a2020')}}r(340,108,5,12,'#8f9184');r(424,108,5,12,'#8f9184')}
     ledge(0,196);ledge(284,196);if(kind('jizo')){for(let i=0;i<13;i++)jizo(12+i*14,120);for(let i=0;i<12;i++)jizo(300+i*14,120)}
-    r(198,74,8,62,'#6e5138');r(274,74,8,62,'#6e5138');r(198,74,2,62,'#8a6a50');r(206,88,68,48,'#3f5f48');softCrown(r,rand,222,100,12,9,greens);softCrown(r,rand,258,98,12,9,['#6a7a38','#8d9a45','#b3b558','#d6cf78']);r(228,104,24,32,'#cfc6a8');for(let y=108;y<136;y+=6)r(228,y,24,1,'#b4ab8c');r(192,70,96,5,'#5a4232');
+    r(206,88,68,48,'#3f5f48');softCrown(r,rand,218,100,12,9,greens);softCrown(r,rand,262,98,12,9,['#6a7a38','#8d9a45','#b3b558','#d6cf78']);r(226,104,28,32,'#cfc6a8');for(let y=108;y<136;y+=6)r(226,y,28,1,'#b4ab8c');for(const x of [198,274]){r(x,112,8,24,'#a3a598');r(x,112,2,24,'#c4c4b8');r(x+6,112,2,24,'#83857a');r(x-1,109,10,3,'#8f9184')}
+    stake(184);
     wires(110,404);notice(150,138);if(!kind('jizo')){bench(310,138);vending(440,137,'#f4f4ec')}
   }
   avenue?.dress(g);
   // The name on its board by the way in.
-  if(!kind('kyotoTower')){const name=kind('ropeway')?'ロープウェイ':sight.ja,w=[...name].length*10+8,x=240-w/2,y=city?76:torii?72:built?88:kind('ropeway')?80:92;r(x-1,y-1,w+2,14,'#3d2e24');r(x,y,w,12,'#6b4a34');letter(g,x+4,y+1,name,'#f4e4b8',true)}
+  const shore=!city&&!kind('ropeway')&&!built&&!torii&&!!kind('lake'),valley=!city&&!kind('ropeway')&&!built&&!torii&&!kind('lake')&&!kind('bamboo');
+  if(!kind('kyotoTower')&&!valley){const name=kind('ropeway')?'ロープウェイ':sight.ja,w=[...name].length*10+8,x=240-w/2,y=city?76:torii?72:built?88:kind('ropeway')?80:92;r(x-1,y-1,w+2,14,shore?'#e8e6dc':'#3d2e24');r(x,y,w,12,shore?'#1d4f7a':'#6b4a34');letter(g,x+4,y+1,name,shore?'#ffffff':'#f4e4b8',true)}
   // The way to the station, on its post.
   r(9,177,4,1,'#00000030');r(10,153,2,25,'#5b6558');r(1,140,44,13,'#fbfbf6');r(1.5,140.5,43,12,'#1d5fae');letter(g,3,141.5,'← 駅','#ffffff');letter(g,5,147,'STATION','#d8e4f4');
   texture.refresh();avenue?.lifted(texture.canvas);
@@ -1261,9 +1292,11 @@ function makeBins(scene:Phaser.Scene){
   const h=mapCanvas(scene,'bin-home',11,15),c=h.context,q=(x:number,y:number,w:number,z:number,k:string)=>{c.fillStyle=k;c.fillRect(x,y,w,z)};
   q(1,14,10,1,'#00000030');q(1,3,9,11,'#e8e6dc');q(1,3,1,11,'#fbfaf2');q(9,3,1,11,'#b8b6aa');q(0,1,11,3,'#c9c7bb');q(0,1,11,1,'#f2f0e6');q(4,12,3,2,'#6f7572');h.refresh();
 }
-/** The top band's layout in art px (the band is 480 × 35, shown at 2×): the clock's card, the needs' inset (icon rows at `needRows`, bars from `needBar`), the purse's card and the three paper buttons. */
-export const hudLayout={clock:[4,2,62,27],needs:[70,2,72,27],needRows:[6,17],needBar:86,purse:[146,2,82,27],buttons:[[252,3,70,25],[328,3,70,25],[404,3,70,25]]} as const;
-export interface HudFacts {day:string;time:string;coins:number;yen:number;heavy:boolean;hover:number}
+/** The top band's layout in art px (the band is 480 × 35, shown at 2×): the clock's card, the needs' inset (icon rows at `needRows`, bars from `needBar`), the purse's card and the three paper buttons.
+ * In the story mode the needs and purse give way to the story's controls (`story`): play / pause, the three speeds and the album's turning (hover indices 3, 4–6, 7). */
+export const hudLayout={clock:[4,2,62,27],needs:[70,2,72,27],needRows:[6,17],needBar:86,purse:[146,2,82,27],buttons:[[252,3,70,25],[328,3,70,25],[404,3,70,25]],
+  story:{play:[70,3,48,25],speed:[122,3,62,25],speeds:[[124,13,18,11],[144,13,18,11],[164,13,18,11]],album:[188,3,40,25]}} as const;
+export interface HudFacts {day:string;time:string;coins:number;yen:number;heavy:boolean;hover:number;story?:{held:boolean;speed:number;speeds:number[];auto:boolean}}
 /** Paints the top band, in the pause menu's journal look: a dusk-blue strip with a gold rule, paper cards for the clock and purse, a dark inset for the needs' bars (drawn over it by main.ts), and paper buttons (the hovered one red). */
 let cloth:HTMLCanvasElement|null=null;
 /** The band's cloth, painted once: indigo with seigaiha waves woven in a shade lighter, deepening towards the foot, a paler selvedge along the top,
@@ -1293,13 +1326,23 @@ export function paintHud(scene:Phaser.Scene,facts:HudFacts){
   g.imageSmoothingEnabled=false;g.drawImage(hudCloth(),0,0);
   const card=([x,y,w,h]:readonly number[],fill=paper,line=edge)=>{r(x+1,y+1,w,h,'#0b0a16');r(x,y,w,h,line);r(x+1,y+1,w-2,h-2,fill)};
   {const [x,y,w,h]=hudLayout.clock;card(hudLayout.clock);r(x+2,y+2,w-4,1,rule);letter(g,x+5,y+3,facts.day,faint);letter(g,x+5,y+12,facts.time,ink,true);r(x+w-8,y+h-8,4,4,red);r(x+w-7,y+h-7,2,2,'#e2553f')}
-  {card(hudLayout.needs,'#14132a','#3a3466');for(const ry of hudLayout.needRows){r(hudLayout.needBar-1,ry+1,54,6,'#3a3466');r(hudLayout.needBar,ry+2,52,4,'#0b0a16')}}
-  {const [x,y]=hudLayout.purse;card(hudLayout.purse);
+  const button=([x,y,w,h]:readonly number[],on:boolean)=>{r(x,y+2,w,h,'#0b0a16');r(x,y+1,w,h,'#7a5a40');r(x,y,w,h,on?'#7a2a22':edge);r(x+1,y+1,w-2,h-2,on?red:'#f8f0da');if(!on)r(x+1,y+h-3,w-2,2,'#e6d4a6')};
+  if(facts.story){
+    // The story's controls: play / pause (red while held, to be found), the speeds (the one on in red), the album turning by itself or by hand.
+    const s=facts.story,{play,speed,speeds,album}=hudLayout.story;g.textAlign='center';
+    {const [x,y,w]=play,on=s.held||facts.hover===3,ink2=on?'#fff6e0':ink,label=s.held?'PLAY':'PAUSE',x0=Math.round(x+(w-(label.length*5+7))/2);button(play,on);letter(g,x+w/2,y+4,'STORY',on?'#f6dfa0':faint);
+      if(s.held)for(let i=0;i<4;i++)r(x0+i,y+13+i,1,7-2*i,ink2);else{r(x0,y+13,2,7,ink2);r(x0+3,y+13,2,7,ink2)}g.textAlign='left';letter(g,x0+7,y+11,label,ink2,true);g.textAlign='center'}
+    {const [x,y,w]=speed;card(speed);letter(g,x+w/2,y+2,'SPEED',faint);speeds.forEach(([sx,sy,sw,sh],i)=>{const on=s.speeds[i]===s.speed,hover=facts.hover===4+i;r(sx,sy,sw,sh,on?'#7a2a22':hover?red:edge);r(sx+1,sy+1,sw-2,sh-2,on?red:hover?'#e6d4a6':'#f8f0da');letter(g,sx+sw/2,sy,`×${s.speeds[i]}`,on?'#fff6e0':ink,true)})}
+    {const [x,y,w]=album,on=facts.hover===7;button(album,on);letter(g,x+w/2,y+4,'ALBUM',on?'#f6dfa0':faint);letter(g,x+w/2,y+11,s.auto?'AUTO':'HAND',on?'#fff6e0':ink,true)}
+    g.textAlign='left';
+  }
+  else{card(hudLayout.needs,'#14132a','#3a3466');for(const ry of hudLayout.needRows){r(hudLayout.needBar-1,ry+1,54,6,'#3a3466');r(hudLayout.needBar,ry+2,52,4,'#0b0a16')}}
+  if(!facts.story){const [x,y]=hudLayout.purse;card(hudLayout.purse);
     // A ¥100 coin, then their count.
     r(x+5,y+4,5,7,'#a8a8a0');r(x+4,y+5,7,5,'#a8a8a0');r(x+5,y+5,5,5,'#d8d8cc');r(x+6,y+6,2,2,'#f4f4ea');
     letter(g,x+14,y+5,`${facts.coins} coins${facts.heavy?' · heavy':''}`,facts.heavy?red:faint);letter(g,x+5,y+14,`¥${facts.yen.toLocaleString('en-US')}`,ink,true)}
   const labels=[['メニュー','MENU'],['かばん','BAG'],['旅の日記','JOURNAL']];
-  hudLayout.buttons.forEach(([x,y,w,h],i)=>{const on=facts.hover===i;r(x,y+2,w,h,'#0b0a16');r(x,y+1,w,h,'#7a5a40');r(x,y,w,h,on?'#7a2a22':edge);r(x+1,y+1,w-2,h-2,on?red:'#f8f0da');if(!on)r(x+1,y+h-3,w-2,2,'#e6d4a6');
+  hudLayout.buttons.forEach((rect,i)=>{const [x,y,w]=rect,on=facts.hover===i;button(rect,on);
     g.textAlign='center';letter(g,x+w/2,y+4,labels[i][0],on?'#f6dfa0':faint);letter(g,x+w/2,y+11,labels[i][1],on?'#fff6e0':ink,true);g.textAlign='left'});
   t.refresh();
 }

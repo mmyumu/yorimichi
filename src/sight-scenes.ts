@@ -247,7 +247,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const x of [276,364])k.stoneLantern(x,92);
   }},
   // Ginza: the 4-chome crossing, the Wako's curved stone corner and its clock tower, the San-ai glass drum opposite and Mitsukoshi with its bronze lion beside it; Chuo-dori closed to cars, its wide pavements, the old Ginza lamps along the kerbs, the near blocks' roofs below.
-  ginza:{layout:{busy:true,start:[240,304],exit:[184,280],camera:[300,126],solids:[[0,0,188,146],[292,0,188,146],[0,212,188,108],[292,212,188,108]],people:[[216,186,1,'up'],[262,236,7,'left'],[230,262,4,'right'],[150,176,11,'right'],[330,180,5,'left'],[420,176,13,'left'],[60,180,0,'right']],lit:[[148,50,34,20],[298,40,70,96],[372,92,40,14],[0,128,182,10],[368,128,112,10],[10,236,30,22],[440,234,30,22]],lamps:[[176,160,44,warm,.8],[304,160,44,warm,.8],[176,206,44,warm,.8],[304,206,44,warm,.8],[240,260,80,warm,.5],[164,60,30,0xfff6d0],[330,90,90,cool,.7],[60,116,30,0xfff6d0,.9],[120,116,30,0xfff6d0,.9],[380,116,30,0xfff6d0,.9],[460,116,30,0xfff6d0,.9],[60,190,30,0xfff6d0,.9],[120,190,30,0xfff6d0,.9],[380,190,30,0xfff6d0,.9],[460,190,30,0xfff6d0,.9],[90,160,70,warm,.5,.4],[420,160,70,warm,.5,.4],[90,134,80,warm,.5,.4],[400,134,80,warm,.5,.4],[389,268,60,0xffc890,.7],[93,244,24,0xfff1cc,.5]]},draw:k=>{
+  ginza:{layout:{busy:true,start:[240,304],exit:[184,280],camera:[300,126],solids:[[0,0,188,146],[292,0,188,146],[0,212,188,108],[292,212,188,108]],stands:[60,120,380,460].map((x):Box=>[x-9,183,22,41]),people:[[216,186,1,'up'],[262,236,7,'left'],[230,262,4,'right'],[150,176,11,'right'],[330,180,5,'left'],[420,176,13,'left'],[60,180,0,'right']],lit:[[148,50,34,20],[298,40,70,96],[372,92,40,14],[0,128,182,10],[368,128,112,10],[10,236,30,22],[440,234,30,22]],lamps:[[176,160,44,warm,.8],[304,160,44,warm,.8],[176,206,44,warm,.8],[304,206,44,warm,.8],[240,260,80,warm,.5],[164,60,30,0xfff6d0],[330,90,90,cool,.7],[60,116,30,0xfff6d0,.9],[120,116,30,0xfff6d0,.9],[380,116,30,0xfff6d0,.9],[460,116,30,0xfff6d0,.9],[60,190,30,0xfff6d0,.9],[120,190,30,0xfff6d0,.9],[380,190,30,0xfff6d0,.9],[460,190,30,0xfff6d0,.9],[90,160,70,warm,.5,.4],[420,160,70,warm,.5,.4],[90,134,80,warm,.5,.4],[400,134,80,warm,.5,.4],[389,268,60,0xffc890,.7],[93,244,24,0xfff1cc,.5]]},draw:k=>{
     const {r}=k;r(0,0,480,40,'#8aa8c0');
     // The road: asphalt, its lines, the four zebras.
     r(0,146,480,66,'#5d6163');r(182,0,116,320,'#5d6163');for(let i=0;i<700;i++){const x=k.int(480),y=k.int(320);if(x>182&&x<298||y>146&&y<212)r(x,y,2,1,k.int(2)?'#676b6d':'#53575a')}for(let y=0;y<146;y+=20)r(239,y,2,10,'#e6e3cc');for(let y=226;y<320;y+=20)r(239,y,2,10,'#e6e3cc');
@@ -261,8 +261,8 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     r(298,40,70,96,'#a8c4cc');k.ell(333,40,35,7,'#c8dde0');for(let x=302;x<366;x+=7)r(x,40,2,96,'#7a9aa4');for(let y=48;y<132;y+=7){r(298,y,70,2,'#e4f4f8');r(298,y+2,70,1,'#5a7a84')}r(298,40,6,96,'#d0e4e8');r(360,40,8,96,'#6a8a94');k.ell(333,36,22,5,'#f6efdc');k.ell(333,36,18,3,'#a8c4cc');
     r(368,36,112,104,'#cfc6b0');r(368,36,112,3,'#e8e0cc');for(let y=46;y<120;y+=14)for(let x=374;x<476;x+=10)r(x,y,6,9,'#5c6e78');r(372,92,40,14,'#2a2320');k.text(380,94,'三越','#e8c860');r(368,124,112,16,'#2e3234');for(let x=372;x<476;x+=12)r(x,127,10,10,'#f4dca0');r(368,122,112,2,'#a89f8a');
     k.shade(430,140,22,2);r(428,132,22,8,'#6a6458');r(428,132,22,2,'#8a8478');r(432,124,14,9,'#5a4a30');r(440,118,8,8,'#6a5636');r(443,116,6,6,'#7a6640');r(432,124,3,3,'#8a7450');r(446,120,2,2,'#2a2018');
-    // The Ginza lamps: a post, two white globes on a crossbar.
-    for(const [x,y] of [[60,144],[120,144],[380,144],[460,144],[60,216],[120,216],[380,216],[460,216]] as const){k.shade(x-2,y+2,8,2);r(x,y-22,2,24,'#3a4a40');r(x-6,y-22,14,2,'#3a4a40');k.ell(x-5,y-25,3,3,'#fbf6e6');k.ell(x+7,y-25,3,3,'#fbf6e6');k.ell(x+1,y-29,3,3,'#fbf6e6')}
+    // The Ginza lamps: a post, two white globes on a crossbar; those of the near kerb are `stands`, before anyone on the road.
+    for(const [x,y] of [[60,144],[120,144],[380,144],[460,144],[60,216],[120,216],[380,216],[460,216]] as const){k.shade(x-2,y+2,8,2);k.above(()=>{r(x,y-22,2,24,'#3a4a40');r(x-6,y-22,14,2,'#3a4a40');k.ell(x-5,y-25,3,3,'#fbf6e6');k.ell(x+7,y-25,3,3,'#fbf6e6');k.ell(x+1,y-29,3,3,'#fbf6e6')})}
     // The blocks to the south, from over their roofs, an alley's shadow between them: plant rooms, tanks and rows of air conditioners, skylights, a roof garden with its little Inari shrine, a beer garden under its parasols and lanterns, the lit signs at the corners facing the crossing.
     const roof=(x:number,w:number,c:string,drop=0)=>{r(x,218,w,102,'#c8cacc');r(x+2,220,w-4,100,c);r(x+2,220,w-4,2,'#00000038');r(x+2,220,2,100,'#00000028');for(let i=0;i<w*2;i++)r(x+3+k.int(w-6),222+k.int(96),2,1,k.int(2)?'#ffffff14':'#00000014');if(drop)r(x+2,220,drop,100,'#00000030')};
     const unit=(x:number,y:number)=>{r(x+1,y+8,10,2,'#00000030');r(x,y,10,8,'#d4d8d8');r(x,y+6,10,2,'#9a9ea0');k.ell(x+5,y+3,3,3,'#7a8286');r(x+4,y+2,2,2,'#c4c8cc')};
@@ -281,21 +281,23 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(let i=0;i<3;i++)unit(428+i*14,268);k.shade(444,304,20,3);k.ell(452,296,9,9,'#7a7e80');k.ell(452,294,8,8,'#b0b4b8');k.ell(449,291,3,2,'#e4e8e8');r(444,256,2,6,'#3a3e40');r(464,256,2,6,'#3a3e40');hut(426,290,14,18);
     for(const [x,c,t] of [[10,'#e0483a','銀座'],[440,'#34b6e0','GINZA']] as const){r(x,234,30,22,'#1a1c22');r(x+1,235,28,20,c);r(x+2,236,26,2,'#ffffff70');if(t==='GINZA')letter(k.g,x+3,243,t,'#fffef2');else k.text(x+5,240,t,'#fffef2')}
   }},
-  // Odaiba: the bay and the Rainbow Bridge over it, white towers, its two decks and its cables, the city behind with Tokyo Tower; the houseboats, the little Statue of Liberty on her white plinth at the water's edge, the beach, the lawn, the boardwalk, the television building's silver ball.
-  odaiba:{layout:{start:[60,298],exit:[18,268],camera:[220,176],solids:[[0,0,480,150],[350,104,44,60],[330,214,150,106],[100,262,28,6],[236,262,28,6],[27,248,4,4],[187,248,4,4],[322,184,98,5]],people:[[120,182,6,'up'],[132,184,1,'up'],[290,196,10,'up'],[300,260,3,'right'],[160,272,11,'left']],lit:[[0,40,480,48],[0,38,480,82],[356,66,32,90],[56,110,52,14],[246,118,52,14]],lamps:[[160,110,30,0xffffff,.8],[300,110,30,0xffffff,.8],[230,110,60,cool,.6],[374,100,40,0xc8ffe8,.9],[120,276,60,warm,.7],[260,276,60,warm,.7],[84,124,40,0xff8060,.7],[274,132,40,0xff8060,.7],[40,252,30,0xfff6d0,.9],[200,252,30,0xfff6d0,.9]]},draw:k=>{
+  // Odaiba: the bay and the Rainbow Bridge crossing it away from us, white towers, its two decks and its cables, the city behind with Tokyo Tower; the houseboats, the little Statue of Liberty on her white plinth at the water's edge, the beach, the lawn, the boardwalk, the television building's silver ball.
+  odaiba:{layout:{start:[60,298],exit:[18,268],camera:[220,176],solids:[[0,0,480,150],[350,104,44,60],[330,214,150,106],[100,262,28,6],[236,262,28,6],[27,248,4,4],[187,248,4,4],[322,184,98,5]],people:[[120,182,6,'up'],[132,184,1,'up'],[290,196,10,'up'],[300,260,3,'right'],[160,272,11,'left']],lit:[[0,20,480,100],[356,66,32,90],[56,110,52,14],[246,118,52,14]],lamps:[[180,98,24,0xffffff,.8],[307,110,34,0xffffff,.8],[240,90,60,cool,.6],[374,100,40,0xc8ffe8,.9],[120,276,60,warm,.7],[260,276,60,warm,.7],[84,124,40,0xff8060,.7],[274,132,40,0xff8060,.7],[40,252,30,0xfff6d0,.9],[200,252,30,0xfff6d0,.9]]},draw:k=>{
     const {r}=k;gradient(r,0,0,480,86,'#6aa0d0','#cfe2ea',8);
     // The city across the bay: towers in their greys, windows, Tokyo Tower orange among them.
     for(let x=0;x<480;){const w=8+k.int(16),h=10+k.int(34);r(x,86-h,w-1,h,['#8ea2ae','#9aaeb6','#7f96a4','#a8b4bc'][k.int(4)]);r(x+w-3,86-h,2,h,'#00000020');k.shine(()=>{for(let y=88-h;y<84;y+=4)for(let wx=x+1;wx<x+w-2;wx+=3)if(k.int(3))r(wx,y,1,1,'#f0e0a0')});x+=w}
     k.shine(()=>{for(let y=52;y<86;y++){const w=Math.max(.5,(y-52)*.16);r(120-w,y,w*2,1,y%6<3?'#e8642c':'#f4f0e8')}r(116,66,8,2,'#e8642c');r(117,74,6,1,'#f4f0e8');r(119,46,2,6,'#e8642c')});
     // The bay: blue, deeper towards us, the city and the bridge again in it.
     gradient(r,0,86,480,64,'#5a98b4','#3e7c98',5);
-    // The bridge, from shore to shore and off both edges: piers, the twin white towers with their crossbeams, the two decks in their truss, the main cables slung and the hangers down from them.
-    const deck=(x:number)=>100-(x>170&&x<306?(1-((x-238)/68)**2)*3:0);
-    k.shine(()=>{for(const x of [170,300]){r(x-1,40,10,80,'#f2f2ea');r(x+11,40,10,80,'#f2f2ea');r(x+8,40,2,80,'#c8c8c0');r(x+18,40,3,80,'#c8c8c0');for(const y of [40,56,74])r(x-1,y,22,5,'#f2f2ea');r(x-1,40,22,1,'#ffffff');r(x+2,110,16,10,'#d8d8d0')}
-    for(let x=0;x<480;x+=2){const y=deck(x);r(x,y,2,3,'#f2f2ea');r(x,y+3,2,6,'#c8ccd0');if(x%8===0)k.line(x,y+3,x+4,y+9,'#9aa0a6');r(x,y+9,2,1,'#8a9096')}
-    for(const [x0,x1,top0,top1] of [[-40,180,100,42],[180,310,42,42],[310,520,42,100]] as const)for(let x=x0;x<x1;x+=2){const t=(x-x0)/(x1-x0),y=x0===180?42+Math.sin(t*Math.PI)*50:top0+(top1-top0)*t+Math.sin(t*Math.PI)*8;r(x,y,2,1,'#f2f2ea');if(x%8===0)r(x,y,1,deck(x)-y,'#dcdcd4')}
-    for(const x of [56,414]){r(x,109,8,11,'#d8d8d0');r(x,109,8,1,'#f2f2ea');r(x+6,109,2,11,'#b8b8b0')}});
-    k.mirror(0,30,480,90,118,.28);k.shimmer(0,120,480,30,1.4);for(let i=0;i<110;i++)r(k.int(470),90+k.int(58),4+k.int(10),1,k.int(2)?'#ffffff28':'#00000020');
+    k.mirror(0,40,480,46,86,.28);
+    // The Rainbow Bridge crossing the bay away from us, as its street shows it: from the near shore off the right edge, high overhead, to the far shore on the left, its piers, twin-legged towers, two decks, cables and hangers smaller as they go.
+    const far=40,t=(x:number)=>(x-far)/440,deckY=(x:number)=>82-t(x)*30,seaY=(x:number)=>88+t(x)*40,topY=(x:number)=>78-t(x)*70;
+    k.shine(()=>{r(32,80,10,7,'#d8d8d0');for(const x of [100,240,420]){const w=2+t(x)*4;r(x,deckY(x),w,seaY(x)-deckY(x),'#d8d8d0');r(x+w-1,deckY(x),1,seaY(x)-deckY(x),'#b8b8b0')}
+    for(const x of [176,300]){const w=2+t(x)*3,gap=w+2+t(x)*6,top=topY(x),h=seaY(x)-top;for(const lx of [x,x+gap]){r(lx,top,w,h,'#f2f2ea');r(lx+w-1,top,1,h,'#c8c8c0')}for(const f of [0,.3,.62])r(x,top+(deckY(x)-top)*f,gap+w,1+t(x)*3,'#f2f2ea');r(x,top,gap+w,1,'#ffffff');r(x-1,seaY(x)-3,gap+w+2,4,'#d8d8d0')}
+    for(const [a,b,sag] of [[far,176,3],[178,300,19],[302,540,8]] as const){const y0=a===far?deckY(far):topY(a),y1=b===540?deckY(540)-2:topY(b);for(let x=a;x<=Math.min(b,479);x++){const q=(x-a)/(b-a),y=y0+(y1-y0)*q+sag*4*q*(1-q);r(x,y,1,1+t(x),'#f2f2ea');if(x%(4+Math.round(t(x)*4))===0&&deckY(x)>y)r(x,y,1,deckY(x)-y,'#dcdcd4')}}
+    for(let x=far;x<480;x++){const th=1+t(x)*3,y=deckY(x);r(x,y,1,th,'#f2f2ea');r(x,y+th,1,th*1.6,'#c8ccd0');if(x%Math.round(5+t(x)*6)===0)r(x,y+th,1,th*1.6,'#9aa0a6');r(x,y+th*2.6,1,1,'#8a9096')}});
+    for(const x of [100,176,240,300,420]){const w=2+t(x)*(x===176||x===300?12:4);for(let y=0;y<8+t(x)*16;y+=2)r(x+(y%4?1:0),seaY(x)+1+y,w,1,'#ffffff30')}
+    k.shimmer(0,120,480,30,1.4);for(let i=0;i<110;i++)r(k.int(470),90+k.int(58),4+k.int(10),1,k.int(2)?'#ffffff28':'#00000020');
     // The houseboats, roofs hung with red lanterns.
     for(const [x,y] of [[60,128],[250,136]] as const){k.ell(x+22,y+6,26,3,'#00000040');r(x,y,44,6,'#6e4a34');r(x,y,44,1,'#8a6248');r(x+2,y-7,40,7,'#f0ead8');k.shine(()=>{for(let i=0;i<6;i++)r(x+4+i*7,y-6,4,4,'#e8b860');for(let i=0;i<7;i++)k.lantern(x+2+i*6,y-12,'#e8735a')});k.eaves(x+22,y-15,46,5,'#5a4a3a')}
     // Liberty on her two-tier white plinth on the deck out over the water.
@@ -309,7 +311,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const [x,y] of [[70,154],[84,156],[176,153],[268,155],[452,154]]){r(x,y,4,2,'#f6f6f2');r(x+3,y-1,2,2,'#f6f6f2');r(x+5,y,1,1,'#e0a030');r(x,y+2,1,1,'#00000030');r(x-1,y,2,1,'#8a9098')}
     for(const [x,y,c] of [[44,186,'#e0483a'],[150,200,'#34b6e0'],[250,204,'#f0c030']] as const){r(x+1,y+1,16,9,'#00000018');r(x,y,16,9,c);for(let i=2;i<16;i+=4)r(x+i,y,2,9,'#f4f4ec');r(x+12,y-3,6,4,'#8a6a48')}
     r(196,196,10,6,'#d4c498');r(198,192,6,5,'#dccca0');r(200,188,2,4,'#dccca0');r(197,191,2,2,'#c4b48c');r(203,191,2,2,'#c4b48c');r(201,186,2,2,'#e0483a');r(194,202,14,1,'#00000020');
-    for(const [x,y,w,h] of [[322,166,98,1],[322,208,98,1],[322,166,1,42],[419,166,1,42]])r(x,y,w,h,'#3a78c2c0');k.shade(322,190,98,2);for(const x of [322,418]){r(x,172,2,18,'#e8e6dc');r(x,172,1,18,'#ffffff')}r(324,174,94,7,'#ffffff50');for(let x=324;x<418;x+=3)r(x,174,1,7,'#f4f4ecb0');r(324,174,94,1,'#f4f4ec');r(324,180,94,1,'#f4f4ec');k.ell(352,200,3,3,'#f4f0e0');r(351,198,2,1,'#e0483a');r(352,201,2,1,'#3a78c2');
+    r(323,167,96,41,'#ffffff18');for(const [x,y,w,h] of [[322,166,98,1],[322,208,98,1],[322,166,1,42],[419,166,1,42]]){r(x,y+1,w,h,'#00000018');r(x,y,w,h,'#fffaf0')}k.shade(322,190,98,2);for(const x of [322,418]){r(x,172,2,18,'#e8e6dc');r(x,172,1,18,'#ffffff')}r(324,174,94,7,'#ffffff50');for(let x=324;x<418;x+=3)r(x,174,1,7,'#f4f4ecb0');r(324,174,94,1,'#f4f4ec');r(324,180,94,1,'#f4f4ec');k.ell(352,200,3,3,'#f4f0e0');r(351,198,2,1,'#e0483a');r(352,201,2,1,'#3a78c2');
     for(const [x,y,c] of [[206,122,'#e86aa0'],[428,116,'#f0c030']] as const){r(x-5,y+12,12,2,'#f4f4ec');for(let i=0;i<12;i++)r(x,y+i,1+Math.round(i*.6),1,i%4?c:'#f4f4ec');r(x-1,y,1,13,'#3a3e40');r(x-3,y+7,2,5,'#2a2e30');for(let i=0;i<4;i++)r(x-10-i*5,y+14,4,1,'#ffffff80')}
     r(120,134,14,2,'#f4f0e0');r(126,126,2,8,'#2a4a6a');r(126,124,2,2,'#e8c8a0');k.line(122,128,131,136,'#6a5240');
     for(const [x,y] of [[60,100],[300,92],[330,98]]){r(x,y,2,1,'#ffffff');r(x+2,y+1,1,1,'#ffffff');r(x+3,y,2,1,'#ffffff')}
@@ -328,7 +330,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     r(372,225,1,95,'#2a343c');r(439,225,1,95,'#2a343c');
   }},
   // Kinkaku-ji: the Mirror Pond in everything, the pavilion on its far shore doubled in it, the crane and turtle islands with their pines; the way runs one way round, the viewing platform at the foot.
-  kinkaku:{layout:{start:[32,296],exit:[424,226],camera:[230,262],solids:[...kyokoRows,[0,0,480,96],[0,251,400,7],[448,251,32,7],...kinkakuPines.map(([x,y]):Box=>[x-3,y-3,8,5])],stands:kinkakuPines.map(([x,y]):Box=>[x-28,y-44,58,50]),lamps:[[310,84,60,0xffd878,.8],[310,150,50,0xffd878,.4,.6],[150,262,44,warm,.6],[370,262,44,warm,.6]]},draw:k=>{
+  kinkaku:{layout:{start:[32,296],exit:[424,226],camera:[230,262],people:[[196,278,2,'up'],[272,282,8,'up'],[284,284,12,'left'],[410,292,5,'up']],roam:40,solids:[...kyokoRows,[0,0,480,96],[0,251,400,7],[448,251,32,7],...kinkakuPines.map(([x,y]):Box=>[x-3,y-3,8,5])],stands:kinkakuPines.map(([x,y]):Box=>[x-28,y-44,58,50]),lamps:[[310,84,60,0xffd878,.8],[310,150,50,0xffd878,.4,.6],[150,262,44,warm,.6],[370,262,44,warm,.6]]},draw:k=>{
     k.lawn(0,0,480,320,'#7f9a66','#6e8a5a');k.ground(0,246,480,74,'#cfc6a8','#bdb495');k.ground(402,220,44,28,'#cfc6a8','#bdb495');
     k.r(0,0,480,96,'#b7d4dc');k.ridge(96,[[70,44,70],[215,26,70],[420,40,85]],'#9dbcc0','#92b2b6',1);k.ridge(96,[[150,34,75],[345,24,60],[475,22,55],[5,20,45]],'#7fa596','#73998c',3);k.ridge(96,[[55,22,75],[255,19,80],[405,24,60]],'#5f8a6c','#527d62',5);k.forest(0,86,480,14,greens[1]);
     for(let y=88;y<256;y++){const [l,r]=kyoko(y);if(r>l){k.r(l-4,y,r-l+8,3,'#4a6a40')}}for(let y=89;y<255;y++){const [l,r]=kyoko(y);if(r>l){k.r(l,y,r-l,1,blend('#3e7684','#4f8795',Math.min(1,(y-89)/60)));k.r(l,y,5,1,'#2e5a64');k.r(r-5,y,5,1,'#34626c')}}
@@ -351,7 +353,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     // The railing all along the pond's side of the gravel, open only before the way out.
     k.stones(176,252,128,24,'#b0a890','#98917b');k.fence(0,250,400,'#5a4634','#8a6c50');k.fence(448,250,32,'#5a4634','#8a6c50');
   }},
-  // Ginkaku-ji: the raked sea of silver sand and its flat-topped moon-viewing cone, the dark Kannon hall by its pond, the abbot's hall, the moss; the hedge lane along the foot.
+  // Ginkaku-ji: the raked sea of silver sand, raised, and beside it the round flat-topped moon-viewing cone, the dark Kannon hall by its pond, the abbot's hall, the moss; the hedge lane along the foot.
   ginkaku:{layout:{start:[440,262],exit:[446,226],camera:[126,236],solids:[[0,0,480,86],[66,44,104,74],[165,104,276,122],...oval(84,176,62,38),[0,288,480,32]],lamps:[[120,110,44,warm,.6],[300,170,120,0xdde8ff,.5,.6],[352,94,44,paper,.6]]},draw:k=>{
     const {r}=k;k.lawn(0,0,480,320,'#5a8248','#4a7240',false);for(let i=0;i<500;i++){const x=k.int(480),y=86+k.int(200);k.ell(x,y,2+k.int(3),1+k.int(2),['#6a9250','#4e7640','#7aa25a'][k.int(3)])}k.forest(0,0,480,70,greens[0]);
     // Maples and pines over the moss, trunks and all.
@@ -361,10 +363,13 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const a of [.3,.42,.55,1.4,1.5,2.3,2.9,3.05,3.9,4.6,4.7,5.6]){const x=84+Math.cos(a)*(60+k.int(5)),y=176+Math.sin(a)*(36+k.int(4)),w=6+k.int(10);k.shade(x-w/2,y+4,w+2,2);k.rock(x-w/2,y-3,w,4+k.int(5),['#7a7a70','#8e8e84','#6a6a62'][k.int(3)]);if(k.int(2))r(x-w/2+1,y-4,w-2,1,'#5f8a4e')}
     k.rock(60,160,16,9);k.rock(100,186,12,7,'#7a7a70');k.rock(70,190,8,5);k.pine(82,166);k.pine(136,196,-1);
     k.ground(140,226,340,60,'#c9c0a6','#b5ac92');k.ground(0,226,140,60,'#c9c0a6','#b5ac92',200);for(let i=0;i<1500;i++)r(k.int(480),226+k.int(60),1,1,['#b4ab92','#d8d0b8'][k.int(2)]);
-    // The sea of silver sand: raised, its edges cut sharp, raked in bands of waves.
-    k.shade(168,226,276,4);r(165,104,276,122,'#a8a69a');r(165,222,276,4,'#c8c6ba');r(168,107,270,116,'#e8e6dc');for(let b=0,y=109;y<220;b++,y+=14){if(b%2){r(168,y,270,14,'#f1efe7');r(168,y,270,1,'#d4d2c6');r(168,y+13,270,1,'#fbfaf4');for(let x=170;x<436;x+=7)r(x+(y%3),y+3+((x*7)%8),2,1,'#dddbd0')}else for(let yy=y+1;yy<Math.min(y+14,222);yy+=4)for(let x=168;x<438;x+=2){const off=Math.round(Math.sin((x+yy*.7)/9)*1.5);r(x,yy+off,2,1,'#c6c4b8');r(x,yy+off+2,2,1,'#f7f5ee')}}r(168,107,270,1,'#ffffff');r(436,107,2,116,'#bab8ac');for(let i=0;i<70;i++)r(170+k.int(264),110+k.int(110),1,1,'#ffffff');
-    // The cone: sand heaped and cut flat, raked down its sides, lit on the left.
-    k.shade(352,208,84,5);for(let i=0;i<46;i++){const w=24+i*1.3,x0=392-w/2;r(x0,162+i,w,1,i%4?'#e4e2d6':'#c8c6ba');r(x0,162+i,w*.25,1,'#f0eee4');r(x0+w*.75,162+i,w*.25,1,'#cfcdc0');if(i%3===0){r(x0,162+i,2,1,'#b6b4a8');r(x0+w-3,162+i,3,1,'#b6b4a8')}}k.ell(392,162,13,3,'#f4f2e8');k.ell(392,162,11,2,'#fbfaf4');
+    // The sea of silver sand, seen from above and before it: raised, its top raked in bands of waves, its cut front face standing over the gravel.
+    const sx=165,sw=196;k.shade(sx+3,224,sw,4);r(sx,104,sw,110,'#a8a69a');r(sx+3,107,sw-6,105,'#d9d7cb');for(let b=0,y=109;y<210;b++,y+=14){const h=Math.min(14,212-y);if(b%2){r(sx+3,y,sw-6,h,'#e3e1d6');r(sx+3,y,sw-6,1,'#bcbaae');r(sx+3,y+h-1,sw-6,1,'#fbfaf4');for(let x=sx+5;x<sx+sw-5;x+=7)r(x+(y%3),y+3+((x*7)%8),2,1,'#c2c0b4')}else for(let yy=y+1;yy<y+h;yy+=4)for(let x=sx+3;x<sx+sw-3;x+=2){const off=Math.round(Math.sin((x+yy*.7)/9)*1.5);r(x,yy+off,2,1,'#aeac9f');r(x,yy+off+2,2,1,'#ecebe1')}}r(sx+3,107,sw-6,1,'#ffffff');r(sx+sw-5,107,2,105,'#bab8ac');for(let i=0;i<60;i++)r(sx+5+k.int(sw-10),110+k.int(100),1,1,'#ffffff');
+    r(sx,212,sw,12,'#c6c4b8');r(sx,212,sw,1,'#fbfaf4');r(sx,213,sw,1,'#e3e1d6');for(let x=sx+2;x<sx+sw;x+=4)r(x,215,1,7,'#b6b4a8');r(sx,221,sw,3,'#a09e92');r(sx+sw-2,212,2,12,'#a09e92');
+    // The moon-viewing cone beside it, on its own bed of sand: round, heaped and cut flat, raked in rings down its sides, lit on the left, its shadow on the right.
+    const cx=402;k.ell(cx,207,46,16,'#a8a69a');k.ell(cx,206,44,14,'#d9d7cb');for(let i=0;i<40;i++)r(cx-38+k.int(76),197+k.int(18),2,1,k.int(2)?'#c2c0b4':'#f4f2e8');k.ell(cx+16,208,34,9,'#00000030');
+    for(let i=46;i>=0;i--){const rx=13+21*i/46,ry=4+7*i/46,y=160+i;k.inside(cx,y,rx,ry,()=>{r(cx-rx,y-ry,rx*2+1,ry*2+1,i%4===3?'#c4c2b6':'#e2e0d4');r(cx-rx,y-ry,rx*.55,ry*2+1,i%4===3?'#d8d6ca':'#f2f0e6');r(cx+rx*.4,y-ry,rx*.6+1,ry*2+1,i%4===3?'#aeac9f':'#c8c6ba')})}
+    k.ell(cx,161,13,4,'#aeac9f');k.ell(cx,160,13,4,'#f4f2e8');k.ell(cx,160,11,3,'#fbfaf4');r(cx+4,161,7,1,'#e3e1d6');
     // The Kannon hall: white shoji below between dark posts, the bell windows in the dark upper storey, shingle roofs, the bronze phoenix.
     r(80,92,80,26,'#3a2e24');for(let x=82;x<156;x+=12){r(x,96,10,20,'#ece8dc');for(let yy=98;yy<116;yy+=4)r(x,yy,10,1,'#b8b0a0');r(x+5,96,1,20,'#b8b0a0')}r(80,92,80,2,'#2a2018');r(112,100,16,18,'#2a2320');r(78,116,84,3,'#6a5a48');k.eaves(120,82,100,10,'#3e3e3a');
     r(94,60,52,22,'#3e3228');for(const [x,rx] of [[120,6],[104,4],[136,4]] as const){k.ell(x,72,rx+1,8,'#1e1814');r(x-rx-1,74,rx*2+2,5,'#1e1814');k.ell(x,72,rx,7,'#b8b0a0');r(x-rx,74,rx*2,4,'#b8b0a0');r(x,66,1,12,'#6a5a48');r(x-rx,72,rx*2,1,'#6a5a48')}r(92,80,56,2,'#6a5a48');k.eaves(120,50,76,10,'#3e3e3a');r(118,44,4,6,'#b8a060');r(115,43,10,2,'#b8a060');r(117,41,2,2,'#d8c080');
@@ -446,16 +451,16 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     flags(180,98,60,144);flags(180,190,220,52);flags(340,190,60,130);for(const [x,y,w,h] of [[180,98,3,144],[237,98,3,92],[180,239,160,3],[340,239,3,81],[397,190,3,130]] as const)r(x,y,w,h,'#6a6458');
     for(const [x,y,w] of [[340,256,60],[340,290,60],[180,128,60],[180,160,60]] as const)for(let i=0;i<3;i++){r(x,y+i*5,w,3,'#c8c0aa');r(x,y+i*5,w,1,'#ddd6c2');r(x,y+i*5+3,w,2,'#6e675a')}
     // The pagoda at the head of the lane: five dark storeys, nearly as wide at the top as at the foot, its spire.
-    k.ground(180,56,60,48,'#a8a290','#948e7c');k.pine(186,92);k.pine(236,90,-1);k.pagoda(210,104,5,58,'#4a3a2e','#3c4648',12);
+    k.ground(180,56,60,48,'#a8a290','#948e7c');k.pine(186,92);k.pine(236,90,-1);k.pagoda(210,104,5,60,'#5a4636','#3c4648',14);
     // The houses: each its own width, roof and noren; shops open along the lanes.
     const colors=['#3d5e7a','#a8402f','#d4a93a','#3a6a4c','#6a4a7a','#ece4cf'];
-    r(0,56,180,264,'#2a2e30');r(240,62,240,128,'#2a2e30');r(400,190,80,130,'#2a2e30');
-    const row=(x0:number,x1:number,y:number,shop=true)=>{let x=x0;while(x<x1-20){const w=Math.min(x1-x,40+k.int(36));if(k.int(6)===0&&w<x1-x){k.wall(x,y+26,w,14,'#d8ccae','#4b5456');softCrown(r,k.rand,x+w/2,y+16,w/2-2,13,[greens[0],greens[1],turning,greens[2]][k.int(4)]);r(x+w/2-2,y+26,4,4,'#5c4636')}else machiya(k,x,y,w,colors[k.int(6)],shop&&k.int(2)?1+k.int(3):0);x+=w}};
+    r(0,56,180,264,'#3c4648');r(240,62,240,128,'#3c4648');r(400,190,80,130,'#3c4648');
+    const row=(x0:number,x1:number,y:number,shop=true)=>{let x=x0;while(x<x1-20){const w=Math.min(x1-x,40+k.int(36));if(k.int(9)===0&&w<x1-x){r(x,y+4,w,36,'#566a4e');k.wall(x,y+28,w,12,'#c4b494','#4b5456');r(x+w/2-2,y+16,4,12,'#5c4636');softCrown(r,k.rand,x+w/2,y+12,Math.min(w/2-5,15),11,[greens[0],greens[1],turning,greens[2]][k.int(4)])}else machiya(k,x,y,w,colors[k.int(6)],shop&&k.int(2)?1+k.int(3):0);x+=w}};
     for(const y of [58,98,138,178,218,258])row(0,180,y,true);for(const y of [64,104,144])row(240,480,y,true);for(const y of [194,234,274])row(400,480,y,true);
     // The trees left standing between them: a maple turning, a pine over a wall.
     for(const [x,y,pal] of [[24,96,turning],[150,214,greens[1]],[468,140,['#5a3a26','#8a4a2c','#b8683a','#d89050']]] as const)softCrown(r,k.rand,x,y,14,10,pal);k.pine(462,108,-1);
     // Below the lower lane, more of the same houses, row behind row down the slope.
-    r(180,242,160,78,'#2a2e30');for(const y of [246,286])row(180,340,y,true);
+    r(180,242,160,78,'#3c4648');for(const y of [246,286])row(180,340,y,true);
     for(const [x,y] of [[200,232],[338,232],[394,286]] as const){r(x-1,y-12,2,12,'#3a2c20');k.lantern(x-3,y-20,'#f6efdc')}
   }},
   // Heian-jingu: the imperial court at five-eighths: the Otenmon behind, an expanse of white gravel, the Daigokuden's green roofs ahead, a corridor down each side to the White Tiger tower and the Blue Dragon's, the orange tree on the left before the hall and the cherry on the right (右近の橘, 左近の桜, named from the throne's side).
@@ -517,7 +522,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const x of [176,398]){k.r(x,216,18,214,'#3d7a5e');for(let y=218;y<430;y+=3)k.r(x,y,18,1,'#2f6048');k.r(x+(x<240?15:0),216,3,214,'#d4502e');for(let y=222;y<430;y+=9)k.r(x+(x<240?18:-2),y,2,6,'#efe9d8')}
     k.hall(296,192,176,20,22,'#d4502e','#3d7a5e','#a8402f','#efe9d8');k.r(222,234,148,3,'#efe9d8');k.r(222,237,148,2,'#b8b2a0');for(const x of [284,296])k.r(x,231,12,6,'#b8b2a0');
     for(const x of [196,396]){k.r(x-11,212,22,22,'#d4502e');for(let i=x-11;i<x+11;i+=5)k.r(i,212,2,22,'#a8402f');k.eaves(x,204,34,8,'#3d7a5e');k.r(x-7,199,14,5,'#d4502e');k.eaves(x,192,24,7,'#3d7a5e');k.r(x-1,189,2,3,'#d8b04a')}
-    k.shade(244,270,16,2);k.r(250,256,3,14,'#5c4636');softCrown(k.r,k.rand,251,250,10,8,blossom);k.shade(334,270,16,2);k.r(340,256,3,14,'#5c4636');softCrown(k.r,k.rand,341,250,9,8,greens[2]);for(let i=0;i<6;i++)k.r(334+k.int(14),245+k.int(11),2,2,'#f0a030');
+    k.shade(334,270,16,2);k.r(340,256,3,14,'#5c4636');softCrown(k.r,k.rand,341,250,10,8,blossom);k.shade(244,270,16,2);k.r(250,256,3,14,'#5c4636');softCrown(k.r,k.rand,251,250,9,8,greens[2]);for(let i=0;i<6;i++)k.r(244+k.int(14),245+k.int(11),2,2,'#f0a030');
     k.gate(296,430,92,'#d4502e','#3d7a5e',26);for(const x of [194,342]){k.r(x,412,56,18,'#efe9d8');k.r(x,409,56,3,'#d4502e')}
     // Kyoto's first tram, kept in the South Garden.
     k.shade(30,420,62);k.r(30,398,60,18,'#6a7a5a');k.r(30,400,60,3,'#e6dcc0');k.r(30,412,60,4,'#3c4638');for(let x=34;x<84;x+=9)k.r(x,403,6,6,'#cfe0e4');k.r(26,392,68,6,'#5a5048');k.r(40,388,40,4,'#6a6058');k.r(36,416,8,5,'#2a2320');k.r(76,416,8,5,'#2a2320');
@@ -615,12 +620,12 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
   }},
   // Shinsekai: Tsutenkaku Hondori, the tower standing on its four legs over the road at the end, slender, white, its deck and the lit sign down its shaft; either side the old blocks stepping down the street, each with its shop under the eaves, the blade signs
   // and the great figures stuck out over the road (the kushikatsu chef, the puffer lantern), wires across the sky; Billiken on his plinth, and the SHINSEKAI gate in gold letters at our end.
-  shinsekai:{layout:{start:[240,304],exit:[172,276],camera:[176,126],solids:[[0,0,170,320],[310,0,170,320],[0,0,480,100],[176,226,16,14]],over:[[170,104,140,36],[170,232,140,22]],lit:[...sekaiRows.flatMap(([side,y,h]):Box[]=>[[side?310:0,y+h-20,170,14],[side?312:148,y+2,20,34]]),[226,72,28,36],[210,38,60,24],[170,236,140,10],[96,96,46,40]],lamps:[[240,130,90,warm,.7],[240,240,60,paper,.7],[140,190,80,paper,.8],[340,190,80,paper,.8],[240,90,60,0xfff0c0,.9],[240,50,40,0xe4f4ff,.8],[320,160,40,0xffffff,.6],[160,140,40,0xffc090,.8],[160,240,40,0xffc090,.8],[320,250,40,0xffc090,.8],[118,116,40,0xffd070,.7]]},draw:k=>{
+  shinsekai:{layout:{start:[240,304],exit:[172,276],camera:[176,126],solids:[[0,0,170,320],[310,0,170,320],[0,0,480,100],[176,226,16,14]],over:[[170,104,140,40],[170,232,140,22]],lit:[...sekaiRows.flatMap(([side,y,h]):Box[]=>[[side?310:0,y+h-20,170,14],[side?312:148,y+2,20,34]]),[226,72,28,36],[210,38,60,24],[170,236,140,10],[96,96,46,40]],lamps:[[240,130,90,warm,.7],[240,240,60,paper,.7],[140,190,80,paper,.8],[340,190,80,paper,.8],[240,90,60,0xfff0c0,.9],[240,50,40,0xe4f4ff,.8],[320,160,40,0xffffff,.6],[160,140,40,0xffc090,.8],[160,240,40,0xffc090,.8],[320,250,40,0xffc090,.8],[118,116,40,0xffd070,.7]]},draw:k=>{
     const {r}=k;gradient(r,0,0,480,100,'#5a96d4','#c8e0ec',8);for(const [x,y,w] of [[40,40,80],[360,36,70],[290,60,50]] as const){k.ell(x,y,w/2,8,'#f4f6f4');k.ell(x+w*.15,y-5,w/3,7,'#ffffff');r(x-w/2,y+5,w,2,'#d8e4ec')}
     // Far off, the city's towers past the end of the street.
     for(const [x,w,h,c] of [[176,22,56,'#9aa8b4'],[300,18,44,'#b0a090'],[160,14,40,'#a8b4bc'],[330,26,32,'#c4bcb0'],[120,30,24,'#b8b0a4'],[380,20,36,'#a0acb8']] as const){r(x,100-h,w,h,c);r(x+w-3,100-h,3,h,'#00000020');for(let y=104-h;y<98;y+=4)r(x+2,y,w-4,1,'#ffffff40')}
     // The road: grey stone flags in the middle, a darker kerb of setts each side, the pattern of red tiles down it.
-    r(170,100,140,220,'#a6a49c');for(let y=100;y<320;y+=6){r(170,y,140,1,'#94928a');for(let x=170+(y%12?0:8);x<310;x+=16)r(x,y,1,6,'#94928a')}for(let y=108;y<320;y+=24){r(234,y,12,12,'#b06a54');r(236,y+2,8,8,'#c88a6a')}for(let i=0;i<220;i++)r(170+k.int(140),100+k.int(220),2,1,'#b6b4ac');
+    r(170,100,140,220,'#a6a49c');for(let y=100;y<320;y+=6){r(170,y,140,1,'#94928a');for(let x=170+(y%12?0:8);x<310;x+=16)r(x,y,1,6,'#94928a')}for(let y=150;y<320;y+=30){r(236,y,8,8,'#a09088');r(238,y+2,4,4,'#b09c90')}for(let i=0;i<220;i++)r(170+k.int(140),100+k.int(220),2,1,'#b6b4ac');
     for(const x of [170,302]){r(x,100,8,220,'#7c7a74');for(let y=100;y<320;y+=4)r(x,y,8,1,'#6a6862')}
     // The blocks, stepping down each side: roof with its tank or its units, the face and its windows, the shop under the eaves with its lanterns, and the blade signs facing up the street.
     for(const [side,y,h] of sekaiRows){const x0=side?310:0,w=170;r(x0,y,w,h,'#3a3e42');
@@ -650,10 +655,10 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     r(310,160,10,3,'#2a2320');k.ell(326,160,16,12,'#f0dca0');k.ell(326,166,12,6,'#fffef2');for(let i=0;i<8;i++)r(312+i*4,150+(i%2),2,3,'#c9a84a');r(320,156,4,4,'#2a2320');r(332,156,4,4,'#2a2320');r(325,164,4,2,'#e0483a');r(341,158,6,5,'#e8c070');
     // Tsutenkaku: the lattice shaft rising from its legs, the lit sign down it, the octagonal deck in white, the mast over it.
     const steel='#e8ece8',rib='#9aa4a8';
-    k.shade(250,110,40,6);for(let y=62;y<112;y++){const w=12+(y-62)*.14;r(240-w,y,w*2,1,'#d0d8d8');r(240-w,y,2,1,'#ffffff');r(240+w-2,y,2,1,rib)}for(let y=64;y<110;y+=6){k.line(229,y,251,y+6,rib);k.line(251,y,229,y+6,rib);r(228,y,24,1,rib)}
+    k.shade(214,140,56,4);for(let y=62;y<112;y++){const w=12+(y-62)*.14;r(240-w,y,w*2,1,'#d0d8d8');r(240-w,y,2,1,'#ffffff');r(240+w-2,y,2,1,rib)}for(let y=64;y<110;y+=6){k.line(229,y,251,y+6,rib);k.line(251,y,229,y+6,rib);r(228,y,24,1,rib)}
     r(226,72,28,36,'#1a1c22');r(228,74,24,32,'#e0483a');r(229,75,22,2,'#ff8a6a');k.text(235,76,'通','#fffef2');k.text(235,86,'天','#fffef2');k.text(235,96,'閣','#fffef2');
     r(208,58,64,5,'#b8c0c0');r(208,62,64,2,rib);r(210,38,60,20,steel);r(210,38,60,2,'#ffffff');r(210,38,3,20,'#ffffff');for(let x=215;x<266;x+=6)r(x,42,4,11,'#4a6a80');r(210,55,60,3,rib);r(266,38,4,20,'#c0c8c8');r(218,34,44,4,'#c8d0d0');r(222,30,36,4,steel);
-    k.above(()=>{for(const s of [-1,1]){for(let i=0;i<26;i++){const t=i/25,x=240+s*(18+t*46),y=110+t*26;r(x-3,y,7,2,steel);r(x-3+(s>0?5:0),y,2,2,rib)}k.line(240+s*20,112,240+s*40,128,rib);k.line(240+s*30,112,240+s*58,134,rib)}for(let i=0;i<50;i++){const t=(i-25)/25;r(240+t*50-1,118-(1-t*t)*8,3,2,'#c8d0d0')}r(180,134,12,6,'#8a8c8a');r(288,134,12,6,'#8a8c8a')});
+    k.above(()=>{r(222,104,36,7,'#d0d8d8');r(222,104,36,1,'#ffffff');r(222,110,36,1,rib);for(const s of [-1,1]){for(let i=0;i<34;i++){const t=i/33,y=106+i,outer=240+s*(17+t*13),inner=240+s*(7+t*9),x=Math.min(outer,inner),w=Math.abs(outer-inner);r(x,y,w,1,'#d0d8d8');r(outer-(s>0?2:0),y,2,1,s>0?rib:'#ffffff');r(inner-(s>0?0:1),y,1,1,rib);if(i%6===5)r(x,y,w,1,rib)}for(let i=0;i<5;i++){const t0=i/5,t1=(i+1)/5;k.line(240+s*(7+t0*9),106+t0*33,240+s*(17+t1*13),106+t1*33,rib)}r(240+s*23-8,139,16,4,'#8a8c8a');r(240+s*23-8,139,16,1,'#b4b6b4')}});
     // Wires across the sky from pole to pole.
     for(const [x0,y0,x1,y1] of [[170,80,310,88],[170,88,310,84],[150,66,330,74]] as const)for(let x=x0;x<x1;x+=2){const t=(x-x0)/(x1-x0);r(x,y0+(y1-y0)*t+Math.sin(t*Math.PI)*5,2,1,'#2a2a2a')}
     // Billiken on his plinth, laughing, soles out.
@@ -832,7 +837,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     gradient(r,0,246,480,74,'#3fa4b0','#2a7a8a',4);for(let i=0;i<40;i++)k.ell(k.int(480),252+k.int(64),10+k.int(20),3,'#5ac0c4');for(let i=0;i<80;i++)r(k.int(460),250+k.int(66),8+k.int(14),1,'#c8ecec');
     for(let i=0;i<18;i++){const x=k.int(450),y=254+k.int(56),w=12+k.int(26);for(let n=0;n<7;n++)r(x-w/2-6-k.int(10),y+3+k.int(8),5+k.int(12),1,'#f4fcfc');for(let n=0;n<3;n++){const ox=(n-1)*w/3+k.int(5)-2,ow=w/3+k.int(w/4)+2,oh=4+k.int(4);k.ell(x+ox,y+8,ow,oh+1,'#2e3634');k.ell(x+ox,y+6,ow,oh,['#5a5e5a','#6a6c66','#4e5452'][k.int(3)]);k.ell(x+ox-2,y+4,ow/2,2,'#8a8c84')}r(x-w/2,y+12,w,1,'#e8f6f6')}
     // The fall at the end, from the rocks above.
-    r(426,226,36,50,'#4a5450');for(let x=432;x<456;x+=3)r(x,226,2,52,k.int(2)?'#e8f6f6':'#c8e8ec');k.ell(443,282,22,7,'#f4fcfc');for(let i=0;i<14;i++)r(424+k.int(40),276+k.int(14),2,1,'#ffffff');
+    r(424,226,40,50,'#4a5450');for(let i=0;i<26;i++){const x=424+k.int(36),y=226+k.int(44);r(x,y,4+k.int(5),3+k.int(3),k.int(2)?'#5c6660':'#3e4844')}for(let y=226;y<278;y++){const a=432+Math.round(Math.sin(y/5)*1.5)+k.int(2),b=453+Math.round(Math.sin(y/7+2)*2)-k.int(2);r(a,y,b-a,1,'#a8d8e0')}for(let i=0;i<70;i++){const x=434+k.int(18);r(x,226+k.int(46),1,4+k.int(9),['#ffffff','#e8f6f6','#d0ecf0','#7fbcc8'][k.int(4)])}k.ell(443,282,22,7,'#f4fcfc');for(let i=0;i<14;i++)r(424+k.int(40),276+k.int(14),2,1,'#ffffff');
   }},
   // Shinkyo: the Daiya coming down between banks overgrown to the water, white over its rocks, the vermilion bridge arched across on its two stone piers, black lacquer underneath, its rails and their capped posts; and the plain road bridge downstream, from which it is seen; over it, the shrine's stone stairs and the priest Shodo with his two snakes.
   shinkyo:{layout:{start:[60,298],exit:[18,268],camera:[132,206],solids:[[172,0,136,118],[172,150,136,100],[172,286,136,34],[0,0,480,60],[0,0,30,250],[400,0,80,250],[352,120,16,20]],people:[[250,266,6,'up'],[226,268,1,'up']],lamps:[[240,124,60,0xffb070,.6],[130,270,50,warm,.6],[350,270,50,warm,.6],[360,110,30,warm,.5]]},draw:k=>{
@@ -951,7 +956,14 @@ export const hasScene=(place:string)=>!!scenes[place];
 /** The way out's sign and the camera's post, as the map draws them: the box to outline, the post below it. */
 export const exitBox=([x,y]:[number,number]):Box[]=>[[x,y,42,14],[x+8,y+14,3,10]];
 export const cameraBox=([x,y]:[number,number]):Box[]=>[[x,y,20,14],[x+3,y-3,7,3],[x+7,y+14,3,8]];
-const postCamera=(k:Kit,[cx,cy]:[number,number])=>{k.shade(cx+4,cy+21,12,2);k.r(cx+7,cy+14,3,8,'#665c49');k.r(cx,cy,20,14,'#f1dfb6');k.r(cx+3,cy-3,7,3,'#e5c997');k.r(cx+9,cy+3,8,8,'#3e6871');k.r(cx+11,cy+5,4,4,'#9ec8c0');k.r(cx+2,cy+3,3,2,'#b66a51');k.r(cx,cy+13,20,2,'#a7916a')};
+/** The signs and the cameras' posts stand on textures of their own (`map-<place>-post-<i>`, in `postsOf`'s order), sorted with the traveller at their foot, who passes behind them as well as before; the picture only holds their shadows. */
+const signPost=([x,y]:[number,number]):Box=>[x,y,42,24],cameraPost=([x,y]:[number,number]):Box=>[x,y-3,20,25];
+export const postsOf=(place:string):Box[]=>{const l=scenes[place]?.layout,a=avenues[place]?.layout;return l?[signPost(l.exit),...(l.way?[signPost(l.way.at)]:[]),cameraPost(l.camera),...(l.second?[cameraPost(l.second.camera)]:[])]:a?[cameraPost(a.camera)]:[]};
+const paintSign=(g:CanvasRenderingContext2D,ja:string,en:string)=>{const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};r(8,14,3,10,'#5b4a38');r(0,0,42,14,'#3d2e24');r(1,1,40,12,'#efe2c0');letter(g,3,2,ja,'#3d2e24',true);letter(g,24,5,en,'#3d2e24')};
+const paintCamera=(g:CanvasRenderingContext2D)=>{const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y+3,w,h)};r(7,14,3,8,'#665c49');r(0,0,20,14,'#f1dfb6');r(3,-3,7,3,'#e5c997');r(9,3,8,8,'#3e6871');r(11,5,4,4,'#9ec8c0');r(2,3,3,2,'#b66a51');r(0,13,20,2,'#a7916a')};
+/** A place's posts, once: their shadows on its picture (`k`), themselves on their textures. */
+const standPosts=(scene:Phaser.Scene,place:string,k:Kit)=>{const l=scenes[place]?.layout,signs:[string,string][]=l?[['出口','EXIT'],...(l.way?[[l.way.ja,l.way.sign] as [string,string]]:[])]:[];
+  postsOf(place).forEach(([x,y,w,h],i)=>{const sign=signs[i];if(sign)k.shade(x+6,y+23,10,2);else k.shade(x+4,y+24,12,2);const key=`map-${place}-post-${i}`;if(scene.textures.exists(key))return;const post=mapCanvas(scene,key,w,h);if(sign)paintSign(post.context,...sign);else paintCamera(post.context);post.refresh()})};
 const seedOf=(place:string)=>[...place].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,7);
 /** Whether anything was painted on a layer. */
 const painted=(c:HTMLCanvasElement)=>c.getContext('2d')!.getImageData(0,0,c.width,c.height).data.some(alpha=>alpha>0);
@@ -960,15 +972,13 @@ const lift=(scene:Phaser.Scene,place:string,picture:HTMLCanvasElement,top:HTMLCa
 /** The layer of what `above` paints, as large as the picture and in its art px. */
 const topLayer=(w:number,h:number)=>{const c=document.createElement('canvas');c.width=w*2;c.height=h*2;const g=c.getContext('2d',{willReadFrequently:true})!;g.scale(2,2);return g};
 /** What an avenue paints over makeSightRoad's street, its picture's height, and the lifting done once it stands. */
-export function dressRoad(scene:Phaser.Scene,place:string){const avenue=avenues[place],top=topLayer(480,avenue.layout.height),glow=topLayer(480,avenue.layout.height);return {height:avenue.layout.height,dress:(g:CanvasRenderingContext2D)=>{const k=kit(g,seedOf(place),top,glow);avenue.draw(k);postCamera(k,avenue.layout.camera)},lifted:(picture:HTMLCanvasElement)=>lift(scene,place,picture,top.canvas,avenue.layout,480,avenue.layout.height,glow.canvas)}}
+export function dressRoad(scene:Phaser.Scene,place:string){const avenue=avenues[place],top=topLayer(480,avenue.layout.height),glow=topLayer(480,avenue.layout.height);return {height:avenue.layout.height,dress:(g:CanvasRenderingContext2D)=>{const k=kit(g,seedOf(place),top,glow);avenue.draw(k);standPosts(scene,place,k)},lifted:(picture:HTMLCanvasElement)=>lift(scene,place,picture,top.canvas,avenue.layout,480,avenue.layout.height,glow.canvas)}}
 /** A place's picture, once: `map-<place>`, with `map-<place>-over`, the boxes of it the traveller walks under, and `map-<place>-lit`, those that shine through the night. */
 export function makeScene(scene:Phaser.Scene,place:string){
   if(scene.textures.exists('map-'+place))return;
   const {layout,draw}=scenes[place],w=layout.width??480,h=layout.height??320,texture=mapCanvas(scene,'map-'+place,w,h),g=texture.context,top=topLayer(w,h),glow=topLayer(w,h),k=kit(g,seedOf(place),top,glow);
   draw(k);
-  const sign=([x,y]:[number,number],ja:string,en:string)=>{k.shade(x+6,y+23,10,2);k.r(x+8,y+14,3,10,'#5b4a38');k.r(x,y,42,14,'#3d2e24');k.r(x+1,y+1,40,12,'#efe2c0');k.text(x+3,y+2,ja,'#3d2e24');letter(g,x+24,y+5,en,'#3d2e24')};
-  sign(layout.exit,'出口','EXIT');if(layout.way)sign(layout.way.at,layout.way.ja,layout.way.sign);
-  postCamera(k,layout.camera);if(layout.second)postCamera(k,layout.second.camera);
+  standPosts(scene,place,k);
   texture.refresh();
   lift(scene,place,g.canvas,top.canvas,layout,w,h,glow.canvas);
   (layout.stands??[]).forEach(([x,y,bw,bh],i)=>{const stand=mapCanvas(scene,`map-${place}-stand-${i}`,bw,bh);stand.context.imageSmoothingEnabled=false;stand.context.drawImage(top.canvas,x*2,y*2,bw*2,bh*2,0,0,bw,bh);stand.refresh()});

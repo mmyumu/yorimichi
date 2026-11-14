@@ -12,9 +12,8 @@ type Rect=[number,number,number,number];
 const inside=([x,y,w,h]:Rect,px:number,py:number)=>px>=x&&px<x+w&&py>=y&&py<y+h;
 /** What the card shows, read when the menu opens (the clock is held meanwhile). */
 export interface PauseFacts {where:[string,string];day:string;time:string;yen:number;memories:[number,number]}
-export interface PauseActions {resume:()=>void;journal:()=>void;stamps:()=>void;title:()=>void;settings?:Setting[]}
+export interface PauseActions {resume:()=>void;journal:()=>void;stamps:()=>void;title:()=>void}
 /** A choice that stays in the menu and changes in place (← → or a press): its `label` read again each frame. */
-export interface Setting {label:()=>string;turn:(by:1|-1)=>void}
 
 /** The veil, drawn once and stretched over the whole game canvas (the picture itself keeps whole-pixel scaling): the scene darkened, a dusk blue dithered over it, deeper towards the foot. */
 function veil(){
@@ -57,13 +56,12 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
     g.font='10px "Yorimichi Bitmap"';crispText(g,'道',x-5,y-5,'#c0463add');
   };
 
-  const settings=actions.settings??[];
-  const choices:[()=>string,()=>void,Setting?][]=[[()=>'つづける · RESUME',()=>close(actions.resume)],...settings.map((setting):[()=>string,()=>void,Setting]=>[()=>`< ${setting.label()} >`,()=>setting.turn(1),setting]),[()=>'旅の日記 · JOURNAL',()=>close(actions.journal)],[()=>'スタンプ帳 · STAMP BOOK',()=>close(actions.stamps)],[()=>'タイトルへ · TITLE SCREEN',()=>close(actions.title)]];
+  const choices:[()=>string,()=>void][]=[[()=>'つづける · RESUME',()=>close(actions.resume)],[()=>'旅の日記 · JOURNAL',()=>close(actions.journal)],[()=>'スタンプ帳 · STAMP BOOK',()=>close(actions.stamps)],[()=>'タイトルへ · TITLE SCREEN',()=>close(actions.title)]];
   const drawChoices=()=>{
     const p:Rect=[44,84,200,196],gap=choices.length>4?22:26;panel(p);
     write(g,'ひとやすみ · PAUSED',p[0]+p[2]/2,p[1]+8,red,'center');box(g,p[0]+12,p[1]+21,p[2]-24,1,rule);
     items=choices.map(([,act],i)=>({rect:[p[0]+16,p[1]+30+i*gap,p[2]-32,18] as Rect,act}));
-    items.forEach(({rect:[x,y,w]},i)=>{const on=i===focus;if(on){box(g,x,y-2,w,20,'#e6d4a6');triangle(x+5,y+4,red)}write(g,choices[i][0](),x+w/2+4,y+3,on?red:choices[i][2]?faint:ink,'center');if(on)box(g,x+18,y+15,w-28,1,red)});
+    items.forEach(({rect:[x,y,w]},i)=>{const on=i===focus;if(on){box(g,x,y-2,w,20,'#e6d4a6');triangle(x+5,y+4,red)}write(g,choices[i][0](),x+w/2+4,y+3,on?red:ink,'center');if(on)box(g,x+18,y+15,w-28,1,red)});
     if(choices.length<=4){dashes(p[0]+12,p[1]+p[3]-30,p[2]-24);write(g,'The journey is kept as you go.',p[0]+p[2]/2,p[1]+p[3]-22,faint,'center')}
   };
   const drawCard=(t:number)=>{
@@ -90,18 +88,16 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
     outlined('寄り道',W/2,26,'32px "Yorimichi Pixel"','#f6dfa0','#1b1530');spaced('YORIMICHI',W/2,62,'#f0d0a8');
     drawChoices();drawCard(t);
     g.restore();
-    const hint=settings.length?'↑↓ choose · ←→ change · Enter or A · Esc or B resume':'↑↓ choose · Enter or A · Esc or B resume';g.font='10px "Yorimichi Bitmap"';const hw=Math.ceil(g.measureText(hint).width)+20;box(g,(W-hw)/2,H-20,hw,15,'#0b0a16d0','#3a3466');write(g,hint,W/2,H-17,'#f0d0a8','center');
+    const hint='↑↓ choose · Enter or A · Esc or B resume';g.font='10px "Yorimichi Bitmap"';const hw=Math.ceil(g.measureText(hint).width)+20;box(g,(W-hw)/2,H-20,hw,15,'#0b0a16d0','#3a3466');write(g,hint,W/2,H-17,'#f0d0a8','center');
     pad();frame=requestAnimationFrame(draw);
   };
 
   function close(then:()=>void){if(over)return;over=true;cancelAnimationFrame(frame);watcher.disconnect();document.removeEventListener('keydown',key,true);overlay.remove();then()}
   const move=(d:number)=>{focus=(focus+d+items.length)%items.length};
-  // Left and right change a setting in place, and move between the others.
-  const side=(d:1|-1)=>{const setting=choices[focus]?.[2];if(setting)setting.turn(d);else move(d)};
   const back=()=>close(actions.resume);
   const choose=()=>items[focus]?.act();
   function key(event:KeyboardEvent){
-    const keys:Record<string,()=>void>={ArrowUp:()=>move(-1),ArrowDown:()=>move(1),ArrowLeft:()=>side(-1),ArrowRight:()=>side(1),KeyW:()=>move(-1),KeyS:()=>move(1),KeyA:()=>side(-1),KeyD:()=>side(1),Enter:choose,Space:choose,KeyE:choose,Escape:back,Backspace:back};
+    const keys:Record<string,()=>void>={ArrowUp:()=>move(-1),ArrowDown:()=>move(1),ArrowLeft:()=>move(-1),ArrowRight:()=>move(1),KeyW:()=>move(-1),KeyS:()=>move(1),KeyA:()=>move(-1),KeyD:()=>move(1),Enter:choose,Space:choose,KeyE:choose,Escape:back,Backspace:back};
     const fn=keys[event.code];event.preventDefault();event.stopPropagation();if(fn&&(!event.repeat||event.code.startsWith('Arrow')))fn();
   }
   document.addEventListener('keydown',key,true);
@@ -110,8 +106,8 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
   let held:boolean[]=connectedPad()?.buttons.map(b=>b.pressed)??[],repeatAt=0,lastDir=0;
   function pad(){
     const p=connectedPad();if(!p)return;const now=performance.now(),pressed=p.buttons.map(b=>b.pressed),edge=(i:number)=>pressed[i]&&!held[i];held=pressed;
-    const ax=p.axes[0]??0,ay=p.axes[1]??0,across=pressed[14]||ax<-.5||pressed[15]||ax>.5,dir=pressed[12]||pressed[14]||ay<-.5||ax<-.5?-1:pressed[13]||pressed[15]||ay>.5||ax>.5?1:0;
-    if(dir&&(dir!==lastDir||now>repeatAt)){repeatAt=now+(dir!==lastDir?380:140);if(across)side(dir);else move(dir)}lastDir=dir;
+    const ax=p.axes[0]??0,ay=p.axes[1]??0,dir=pressed[12]||pressed[14]||ay<-.5||ax<-.5?-1:pressed[13]||pressed[15]||ay>.5||ax>.5?1:0;
+    if(dir&&(dir!==lastDir||now>repeatAt)){repeatAt=now+(dir!==lastDir?380:140);move(dir)}lastDir=dir;
     if(edge(0))choose();else if(edge(1)||edge(9))back();
   }
 

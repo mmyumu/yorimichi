@@ -35,3 +35,5 @@ const hourly=(ja:string,at:number)=>{const day=hours[days.find(([,names])=>names
 export const busiest=(stage:Stage,ja:string)=>Math.round(peaks[stage]*share(ja));
 /** How many people are about on a stage at the station `ja` right now. */
 export const crowdAt=(stage:Stage,ja:string)=>Math.round(peaks[stage]*share(ja)*hourly(ja,minuteOfDay(minutes())));
+/** How many of the `most` strollers of a sight's street are out right now: sightseers' hours. */
+export const strollers=(most:number)=>{const at=minuteOfDay(minutes()),h=Math.floor(at/60);return Math.round(most*(hours.leisure[h]+(hours.leisure[(h+1)%24]-hours.leisure[h])*(at/60-h)))};

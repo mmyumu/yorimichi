@@ -7,6 +7,7 @@ import { paintTicket } from './ticket-gate';
 import { fareBetween, faresFrom, shinkansenMinutes } from './fares';
 import { railLine } from './rail';
 import { renderFareMap } from './tokyo-fares';
+import { onErase } from './save';
 import { accepted, coinCount, heapSpot, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
 
 // `punched` with the hub whose gate let it through on the way in: the gate's punch leaves a hole in it, and the ticket knows where its trip began.
@@ -45,6 +46,7 @@ interface MachineOptions {fixedService?:boolean;lookAtWall?:()=>void;wallet?:Wal
 type TrayItem={value:number|'ticket';ticket?:TravelTicket;fresh?:boolean};
 // Each machine keeps what was left in its outlets (by hub and machine id), so walking away forgets nothing.
 const trays:Record<string,TrayItem[]>=(()=>{try{return JSON.parse(localStorage.getItem('yorimichi-trays')||'{}')}catch{return {}}})();
+onErase(()=>{for(const id in trays)delete trays[id]});
 const saveTrays=()=>localStorage.setItem('yorimichi-trays',JSON.stringify(trays,(key,value)=>key==='fresh'?undefined:value));
 export const trayKey=(hub:Hub|string,id:string)=>hub+'-'+id;
 export const leftInTray=(key:string)=>!!trays[key]?.length;

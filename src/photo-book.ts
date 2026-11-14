@@ -8,6 +8,7 @@ import { busLines, stopNames } from './rail';
 import { memoryPages, roadPage, sights, type Page } from './sights';
 import { crispText, fitPicture } from './ticket-gate';
 import type { Tour } from './story';
+import { onErase } from './save';
 
 /** The photos of each page by its id: public/photos/index.json, written by scripts/import-photos.mjs and, like the photos, kept out of the repository. Without it the album's pages are empty. Always revalidated: a cached index naming photos since replaced would leave every page unavailable. */
 type Shelf=Record<string,string[]>;
@@ -80,6 +81,7 @@ function whereabouts(page:Page):string[]{
 const card:Rect=[left[0]+12,left[1]+204,140,60],scratchKey='yorimichi-scratch';
 const saved:Record<string,string>=(()=>{try{const data=JSON.parse(localStorage.getItem(scratchKey)||'{}');return Array.isArray(data)?Object.fromEntries(data.map((id:string)=>[id,'1'])):data}catch{return {}}})();
 const coats=new Map<string,{canvas:HTMLCanvasElement;mask:Uint8Array;left:number}>();
+onErase(()=>{for(const id in saved)delete saved[id];coats.clear()});
 /** Writes the coats scratched since the last time. */
 function keepCoats(){
   for(const [id,{mask,left}] of coats){if(!left){saved[id]='1';continue}const bytes=new Uint8Array(Math.ceil(mask.length/8));mask.forEach((on,i)=>{if(on)bytes[i>>3]|=1<<(i&7)});saved[id]=btoa(String.fromCharCode(...bytes))}

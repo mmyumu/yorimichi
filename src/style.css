@@ -13,6 +13,8 @@ body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 @font-face{font-family:'Yorimichi JP';src:url('./fonts/NotoSansJP-Regular.woff2') format('woff2');font-style:normal;font-weight:400;font-display:swap}
 .machine-hall,.machine-overlay,.jr-departure-overlay{font-family:'Yorimichi JP',Arial,sans-serif}
+.machine-hall .hall-phone{position:fixed;z-index:13;padding:0;min-height:0;background:none;border:0;box-shadow:none;cursor:pointer}.hall-phone img{display:block;width:100%;height:100%;image-rendering:pixelated}.machine-hall .hall-phone:focus-visible{outline:none}
+.hall-phone-badge{position:absolute;box-sizing:border-box;display:grid;place-items:center;border-radius:50%;background:#d6402e;border:solid #fffef2;color:#fff;font-family:monospace;font-weight:400;line-height:1}.hall-phone-badge[hidden]{display:none}
 .hall-map-detail{position:absolute;inset:0;z-index:12;display:flex;flex-direction:column;gap:10px;padding:12px;background:#172d28;color:#f0e9ce}
 .hall-map-detail-toolbar{display:flex;align-items:center;gap:9px;min-height:48px}
 .hall-map-detail-toolbar strong{font-size:20px;white-space:nowrap}
@@ -219,6 +221,16 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .phone-go{margin-top:6px;padding:8px!important;border-radius:8px;background:#2f6f62!important;color:#fffef2!important;font-size:14px!important}.phone-go:hover{background:#3b8a6e!important}.phone-nomap{margin:16px}
 .phone-compose{padding:8px;border-top:1px solid #dcd8cb}.phone-chip{width:100%;text-align:left;font-size:14px!important;line-height:1.35;padding:8px 10px!important;border:2px solid #3b8a6e!important;border-radius:12px;color:#2f6f62!important;background:#fffef7!important}
 .phone-chip:hover{background:#e3f0ea!important}.phone-field{padding:9px 12px;border-radius:16px;background:#e7e4d8;color:#9aa29a;font-size:12px}
+.phone-from{flex:none;display:flex;align-items:baseline;gap:8px;padding:8px 12px;border-bottom:1px solid #dcd8cb;font-size:12px;color:#6b7772}.phone-from b{font-weight:400;font-size:16px;color:#253634}
+.phone-search{flex:none;margin:8px 10px;padding:9px 12px;border:2px solid #3b8a6e;border-radius:16px;background:#fffef7;color:#253634;font:inherit;font-size:14px;outline:none}.phone-search:focus{border-color:#e2a12f}
+.phone-entries{flex:1;min-height:0}.phone-none{margin:16px}.phone-dots{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px;max-width:70px}.phone-dots i{width:8px;height:8px;border-radius:2px}
+.phone-trip{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:8px 12px 12px}
+.phone-dest{display:flex;align-items:center;gap:6px}.phone-dest-name{display:flex;flex-direction:column}.phone-dest-name b{font-weight:400;font-size:28px;letter-spacing:2px}.phone-dest-name span{font-size:12px;color:#6b7772}
+.phone-lines{display:flex;flex-direction:column;gap:4px}.phone-line{display:flex;align-items:center;gap:6px;font-size:13px}.phone-line i{flex:none;width:12px;height:12px;border-radius:3px}.phone-line b{font-weight:400}.phone-line small{color:#6b7772;font-size:11px}
+.phone-ways{display:flex;flex-direction:column;gap:4px}.phone-way{display:flex;flex-direction:column;align-items:flex-start;padding:6px 10px!important;border:2px solid #dcd8cb!important;border-radius:10px;text-align:left}.phone-way.on{border-color:#3b8a6e!important;background:#e3f0ea!important}.phone-way b{font-weight:400;font-size:15px}.phone-way small{font-size:11px;color:#6b7772}
+.phone-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}.phone-leg{display:flex;flex-direction:column;gap:3px;padding:6px 10px;border-left:6px solid;background:#fffef7;border-radius:0 8px 8px 0;font-size:12px}
+.phone-track{color:#6b7772}.phone-off{color:#2f6f62}.phone-change,.phone-last{font-size:12px;color:#6b7772;padding-left:4px}.phone-change::before{content:'↓ '}.phone-last::before{content:'→ '}
+.phone-fares{display:flex;flex-direction:column;gap:2px;padding-top:6px;border-top:1px solid #dcd8cb;font-size:12px;color:#6b7772}.phone-fares b{font-weight:400;font-size:14px;color:#253634}
 .phone-nav{display:flex;justify-content:space-around;padding-top:5px}.phone-nav button{color:#c9d1cc;font-size:16px;width:48px;padding:3px 0}
 .flight-overlay{position:fixed;inset:0;z-index:96;background:#0b1614;outline:none;cursor:pointer}.flight-overlay canvas{position:absolute;display:block;image-rendering:pixelated}
 .konbini-view .gate-viewport{cursor:default;background:#1d2622}.konbini-view .gate-viewport:active{cursor:default}

@@ -12,7 +12,7 @@ const modeKey='yorimichi-mode';
 export const loadMode=():Mode=>{try{return localStorage.getItem(modeKey)==='story'?'story':'explore'}catch{return 'explore'}};
 export const saveMode=(mode:Mode)=>{try{localStorage.setItem(modeKey,mode)}catch{}};
 
-/** How the story goes: the game's `speed` (the traveller's walk, the rides, the buses; the album keeps its own pace) and the album turned `auto`matically or by hand (Enter, A, a click), chosen in the menu, kept under `yorimichi-story-pace`. */
+/** How the story goes: the game's `speed` (the traveller's walk, the rides, the buses; the album keeps its own pace) and the album turned `auto`matically or by hand (Enter, A, a click), chosen on the top band (main.ts, `storyPace`), kept under `yorimichi-story-pace`. */
 export interface Pace {speed:number;auto:boolean}
 export const speeds=[1,2,5];
 const paceKey='yorimichi-story-pace';
@@ -24,7 +24,7 @@ export interface Tour {text?:string;photos?:Record<number,string>}
 export interface Chapter extends Tour {page:string;time?:string}
 
 /** Shown on arriving at Tokyo Station, before the traveller sets off. */
-export const storyIntro={title:'The journey',text:'Sit back: the traveller goes from memory to memory, in the order of the trip.\nAt each one, the album opens on its photos.\n\nEnter, Space, A or a click: the next photo.\nEsc or B: on to the next place.\n\nThe menu (Esc, Start) sets the speed, and whether the album turns its pages by itself.'};
+export const storyIntro={title:'The journey',text:'Sit back: the traveller goes from memory to memory, in the order of the trip.\nAt each one, the album opens on its photos.\n\nEnter, Space, A or a click: the next photo.\nEsc or B: on to the next place.\n\nThe story waits for you: press PLAY on the top band (or Space, Enter, A) to set off, and again to pause.\nThe band also sets the speed, and whether the album turns its pages by itself.'};
 /** Shown once the last page has been seen. */
 export const storyEnd={title:'The end of the journey',text:'Every memory of the trip is in the album now.\nYou can take over and wander about, or look through the album again from the menu.'};
 

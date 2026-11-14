@@ -12,7 +12,7 @@ import { Shop, type Chain } from './konbini';
 import { Vending } from './vending';
 import { Cat } from './cat';
 import { Pigeons } from './pigeons';
-import { busiest, crowdAt, type Stage } from './crowd';
+import { busiest, crowdAt, strollers, type Stage } from './crowd';
 import type { Item, VendorId } from './goods';
 import { playFlight } from './flight';
 import { playRopeway } from './ropeway';
@@ -36,8 +36,8 @@ import { looks, type Figure } from './people';
 import { BusFare } from './bus-fare';
 import { PhotoBook } from './photo-book';
 import { StampBook } from './stamp-book';
-import { avenueOf, cameraBox, dressRoad, exitBox, layoutOf, makeScene } from './sight-scenes';
-import { chapters, loadMode, loadPace, savePace, speeds, storyEnd, storyIntro } from './story';
+import { avenueOf, cameraBox, dressRoad, exitBox, layoutOf, makeScene, postsOf } from './sight-scenes';
+import { chapters, loadMode, loadPace, savePace, speeds, storyEnd, storyIntro, type Pace } from './story';
 import { memoryPages, roadTo, scenic, sightOf, sightOfRoad, sights, walkFrom, type Sight } from './sights';
 import { routes, exitName, inKyoto, home, kyotoHome, places, konbiniFor, isHub, hasShinkansen, platformsAt, stationAt, stationOf, stations, trackOf, tracksFor, type Hub, type Place, type Service, type Side } from './network';
 import { busFare, busLines, connectionsAt, firstLegs, linesAt, railLine, stopNames, type Connection, type RailLine } from './rail';
@@ -90,6 +90,8 @@ const lineNames=(lines:RailLine[],or=' / ')=>lines.length>1?lines.map(line=>line
 type PadChoice=[Phaser.GameObjects.Rectangle,()=>void];
 /** A connection icon's width, to fit its symbol and, on a bus, the little bus. */
 const tagWidth=(tag:Connection)=>Math.max(14,tag.mark.length*7+4)+(tag.bus?11:0);
+/** Where the strollers of a sight's street keep to, in art px: the pavement before the sight. */
+const pavement:[number,number,number,number]=[20,142,440,50];
 class Journey extends Phaser.Scene {
   private player!: Phaser.GameObjects.Container;
   private sprite!:Phaser.GameObjects.Image;
@@ -215,7 +217,7 @@ class Journey extends Phaser.Scene {
   private story=loadMode()==='story';
   private chapter=loadSave().story??0;
   /** A ticket bought for the ride ahead; whether the chapter has just begun (its time of day still to set); when the director looks again; the last thing it walked to and how often, to cut short a walk that never gets there. */
-  private storyTicket=false;private storyFresh=true;private storyIdle=0;private pace=loadPace();private storyTry:[string,number]=['',0];
+  private storyTicket=false;private storyFresh=true;private storyIdle=0;private pace=loadPace();private storyHeld=true;private storyTry:[string,number]=['',0];
   constructor(){super('Journey')}
   create(){
     makeArt(this);vivid(this);startClock(loadSave().clock);this.fedAt=minutes();
@@ -226,7 +228,7 @@ class Journey extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE,()=>{if(this.player)this.nightfall()});
     this.input.addPointer(3);
     this.keys=this.input.keyboard!.createCursorKeys();
-    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat)this.interact();else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyF'&&!event.repeat&&debugAllowed&&!this.modal){this.needs=freshNeeds();this.fedAt=minutes();this.keep()}else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
+    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat){if(this.story&&!this.modal)this.storyToggle();else this.interact()}else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyF'&&!event.repeat&&debugAllowed&&!this.modal){this.needs=freshNeeds();this.fedAt=minutes();this.keep()}else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
     this.input.keyboard!.on('keyup',(event:KeyboardEvent)=>this.held.delete(event.code));
     this.game.events.on('blur',()=>this.held.clear());
     // Back where the traveller last stood (waking up at home the first time: out of the apartment is the lane to Higashi-Nakano's west exit).
@@ -381,10 +383,13 @@ class Journey extends Phaser.Scene {
     this.sprite=this.add.image(0,0,'traveller-down-0').setOrigin(.5,.85).setScale(2);this.player.add(this.sprite);this.dizzy=this.add.graphics();this.player.add(this.dizzy);
     // What the traveller walks under at a sight, and what drifts up from its burner or fountain.
     (layoutOf(place)?.stands??[]).forEach(([,y,,h],i,stands)=>this.world.add(this.add.image(stands[i][0]*2,(y+h)*2-15,`map-${place}-stand-${i}`).setOrigin(0,1-15/(h*2))));
+    postsOf(place).forEach(([x,y,,h],i)=>this.world.add(this.add.image(x*2,(y+h)*2-15,`map-${place}-post-${i}`).setOrigin(0,1-15/(h*2))));
     if(place==='town'||road){makePoles(this);const kyoto=place==='town'&&inKyoto(this.townId());for(const x of townLights)this.world.add(this.add.image((x-2)*2,520,kyoto?'pole-light-kyoto':'pole-light').setOrigin(0,1));if(road?this.busesTo(road).length:this.trips().length)this.world.add(this.add.image(busStop*2,520,'pole-bus').setOrigin(0,1))}
     // Above all else, the street's sorting included: it stands at the map's foot.
     if(avenue?.over)this.world.add(this.add.image(0,this.mapHeight,`map-${place}-over`).setOrigin(0,1));
     // A sight's people stroll about their spot (wander), a first pause before setting off.
+    // A sight's street has its strollers too, on the pavement before it: more where the sight is crowded, by the hour (`strollers`).
+    if(road){const inside=layoutOf(road.id),plain=looks.map((_,i)=>i).filter(i=>looks[i].length!=='robe'&&!looks[i].cane);for(let k=strollers(inside?.busy||road.street?7:Math.min(6,2+Math.ceil((inside?.people?.length??0)/2)));k>0;k--){const look=pick(plain),face=pick(['up','down','left','right'] as const);let x=0,y=0;for(let tries=0;tries<20&&!(x&&this.canWalk(x,y));tries++){x=between(60,900);y=between(290,380)}const image=this.add.image(x,y,`commuter-${look}-${face}-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1));this.world.add(image);this.commuters.push({image,look,steps:[{wait:between(0,4000),face}],speed:.03*(1+(look*7%5)*.15)*(looks[look].pace??1),home:{x,y}})}}
     // A scramble crossing: its lights, sorted with the people at their pole's foot, the crowd beyond those listed coming in from off the screen.
     const crossing=layoutOf(place)?.crossing;this.traffic=[];if(crossing){makeSignals(this);makeTraffic(this)}this.signals=(crossing?.poles??[]).map(([x,y,side])=>{const image=this.add.image(x*2,y*2,`signal-${side}-g-s`).setOrigin((side==='L'?4:44)/signalSize[0],1);this.world.add(image);return image});
     if(crossing)crossing.cars.lanes.forEach(([,dir],lane)=>{this.trafficDue[lane]=between(0,2500);for(let x=between(60,260);x<900;x+=between(180,420))this.addCar(lane,dir>0?x:960-x)});
@@ -403,8 +408,10 @@ class Journey extends Phaser.Scene {
     this.hudHover=-1;this.refreshPurse();this.hud.add(this.add.image(0,0,'hud-band').setOrigin(0));
     const zone=([x,y,w,h]:readonly number[],fn:()=>void,i=-1)=>{const z=this.add.zone(x*2,y*2,w*2,h*2).setOrigin(0).setInteractive({useHandCursor:true}).on('pointerdown',fn);if(i>=0)z.on('pointerover',()=>{this.hudHover=i;this.refreshHud()}).on('pointerout',()=>{if(this.hudHover===i){this.hudHover=-1;this.refreshHud()}});this.hud.add(z)};
     zone(hudLayout.clock,()=>this.debugTime());[()=>this.menu(),()=>this.inventory(),()=>this.album()].forEach((fn,i)=>zone(hudLayout.buttons[i],fn,i));
+    // In the story, its controls in place of the needs and purse: play / pause, the speeds, the album's turning.
+    if(this.story){const {play,speeds:at,album}=hudLayout.story;zone(play,()=>this.storyToggle(),3);at.forEach((rect,i)=>zone(rect,()=>this.storyPace({speed:speeds[i]}),4+i));zone(album,()=>this.storyPace({auto:!this.pace.auto}),7)}
     // Hunger and thirst, each its icon and bar over the band's inset (kept up in update).
-    this.needGlows=[];this.needBars=(['hunger','thirst'] as const).map((need,i)=>{const y=hudLayout.needRows[i]*2,x=hudLayout.needs[0]*2+16;this.needGlows.push(this.add.container(x,y+8,[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]].map(([dx,dy])=>this.add.image(dx*2,dy*2,`need-${need}`).setScale(2).setTintFill(0xff3a24))).setAlpha(0));this.hud.add(this.needGlows[i]);this.hud.add(this.add.image(x,y+8,`need-${need}`).setScale(2));return this.rect(hudLayout.needBar*2,y+4,104,8,0xffffff,this.hud).setOrigin(0)});
+    this.needGlows=[];this.needBars=this.story?[]:(['hunger','thirst'] as const).map((need,i)=>{const y=hudLayout.needRows[i]*2,x=hudLayout.needs[0]*2+16;this.needGlows.push(this.add.container(x,y+8,[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]].map(([dx,dy])=>this.add.image(dx*2,dy*2,`need-${need}`).setScale(2).setTintFill(0xff3a24))).setAlpha(0));this.hud.add(this.needGlows[i]);this.hud.add(this.add.image(x,y+8,`need-${need}`).setScale(2));return this.rect(hudLayout.needBar*2,y+4,104,8,0xffffff,this.hud).setOrigin(0)});
     // The phone in the corner, a badge counting what is unread: a click on it (or P, or the pad's RB) takes it out.
     this.mini=this.add.container(916,580);this.hud.add(this.mini);this.mini.add(this.add.image(0,0,'phone-mini').setScale(2).setInteractive({useHandCursor:true}).on('pointerdown',()=>this.openPhone()));
     this.badgeText=this.add.text(0,0,'',{fontFamily:'monospace',fontSize:12,color:'#ffffff'}).setOrigin(.5);this.badge=this.add.container(16,-30,[this.add.circle(0,0,10,0xd6402e).setStrokeStyle(2,0xfffef2),this.badgeText]);this.mini.add(this.badge);this.refreshPhone();
@@ -660,7 +667,7 @@ class Journey extends Phaser.Scene {
     const state=pad?.buttons.map(b=>b.pressed)??[],ax=dead(pad?.axes[0]),ay=dead(pad?.axes[1]);
     state[20]=!!state[12]||ay<-.5;state[21]=!!state[13]||ay>.5;
     const prev=this.padPrev,edge=(i:number)=>state[i]&&!prev[i];this.padPrev=state;
-    if(!pad||this.hall||this.machine||this.gate||this.atm||this.shopView||this.vendingView||this.fareBox)return {x:0,y:0};
+    if(!pad||!this.phoneUi&&(this.hall||this.machine||this.gate||this.atm||this.shopView||this.vendingView||this.fareBox))return {x:0,y:0};
     const step=edge(20)?-1:edge(21)?1:0;
     if(this.bag){if(edge(1)||edge(2))this.bag.close();else if(edge(0))this.bag.press();else if(step||edge(14)||edge(15))this.bag.step(step||(edge(14)?-1:1))}
     else if(this.phoneUi){if(edge(5))this.phoneUi.close();else{this.phoneUi.pad(step||(edge(14)?-1:edge(15)?1:0),edge(0),edge(1));if(edge(7))this.phoneUi.zoom(1);else if(edge(6))this.phoneUi.zoom(-1)}}
@@ -677,7 +684,7 @@ class Journey extends Phaser.Scene {
       if(edge(0))choices[c.getData('focus')][1]();else if(edge(1))choices[choices.length-1][1]();
       return {x:state[14]?-1:state[15]?1:ax,y:0};
     }else{
-      if(edge(0))this.interact();else if(edge(2))this.inventory();else if(edge(3))this.album();else if(edge(5))this.openPhone();else if(edge(9))this.menu();
+      if(edge(0)){if(this.story)this.storyToggle();else this.interact()}else if(edge(2))this.inventory();else if(edge(3))this.album();else if(edge(5))this.openPhone();else if(edge(9))this.menu();
       return {x:state[14]?-1:state[15]?1:ax,y:state[12]?-1:state[13]?1:ay};
     }
     return {x:0,y:0};
@@ -1125,9 +1132,7 @@ class Journey extends Phaser.Scene {
     this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20).setData('pause',true);
     const done=()=>{this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()};
     openPauseMenu({where:this.whereabouts(),day:dayLabel(),time:hhmm(minutes()),yen:walletTotal(this.wallet),memories:[this.collected.size,memoryPages.length]},
-      {resume:done,journal:()=>{done();this.album()},stamps:()=>{done();this.stampBook(null)},title:()=>{this.keep();location.reload()},
-        settings:this.story?[{label:()=>`SPEED · ×${this.pace.speed}`,turn:by=>{this.pace.speed=speeds[(speeds.indexOf(this.pace.speed)+by+speeds.length)%speeds.length];savePace(this.pace);this.storySpeed()}},
-          {label:()=>`ALBUM · ${this.pace.auto?'TURNS ITSELF':'BY HAND'}`,turn:()=>{this.pace.auto=!this.pace.auto;savePace(this.pace)}}]:undefined});
+      {resume:done,journal:()=>{done();this.album()},stamps:()=>{done();this.stampBook(null)},title:()=>{this.keep();location.reload()}});
   }
   /** Where the traveller stands, in Japanese and English, for the menu's card. */
   private whereabouts():[string,string]{
@@ -1177,10 +1182,14 @@ class Journey extends Phaser.Scene {
       // The hall shows the concourse's own commuters, read live from their top-down sprites (the simulation keeps running under the hall).
       figures:()=>this.commuters.map(c=>({look:c.look,x:c.image.x,y:c.image.y,alpha:c.image.alpha,face:c.image.texture.key.split('-')[2] as Figure['face'],moving:!c.face&&!!c.steps.length&&!('wait' in c.steps[0])})),
       standAt:machine=>{this.hallSpot='machine'+machine},busy:machine=>this.inUse('machine'+machine),start:this.machineAhead(),
-    },hallView);
+    },hallView,{icon:(this.textures.get('phone-mini').getSourceImage() as HTMLCanvasElement).toDataURL(),open:()=>this.openPhone(()=>this.hall?.phoneClosed()),
+      corner:()=>{const r=this.game.canvas.getBoundingClientRect(),k=r.width/960;return {x:r.left+916*k,y:r.top+580*k,k,unread:Object.values(this.phone.unread).reduce((a,b)=>a+b,0)}}});
   }
   private refreshPurse(){this.burden=walkFactor(this.wallet,carried(this.tickets,this.groceries));this.refreshHud()}
-  private refreshHud(){this.hudTime=hhmm(minutes());paintHud(this,{day:dayLabel(),time:this.hudTime,coins:coinCount(this.wallet),yen:walletTotal(this.wallet),heavy:this.burden<1,hover:this.hudHover})}
+  private refreshHud(){this.hudTime=hhmm(minutes());paintHud(this,{day:dayLabel(),time:this.hudTime,coins:coinCount(this.wallet),yen:walletTotal(this.wallet),heavy:this.burden<1,hover:this.hudHover,story:this.story?{held:this.storyHeld,speed:this.pace.speed,speeds,auto:this.pace.auto}:undefined})}
+  /** The story's controls on the top band: held (as it starts) or under way, its speed, the album turning by itself or by hand; also Space, Enter, E or A for play / pause. */
+  private storyToggle(){if(!this.story)return;this.storyHeld=!this.storyHeld;if(!this.storyHeld)this.storyIdle=this.storyAfter(200);this.refreshHud()}
+  private storyPace(change:Partial<Pace>){if(!this.story)return;Object.assign(this.pace,change);savePace(this.pace);this.storySpeed();this.refreshHud()}
   private album(){if(!this.modal)this.photoBook(null)}
   /** The story mode's director, each time the traveller stands idle: one step towards the chapter's memory, through the places as a player would go (a hotspot walked to and used, `storyUse`),
    * the machines, gates and fare boxes passed without their screens (`storyAct`), the trains ridden as a card (`storyRide`); there, the album's slideshow (`storyMemory`), then the next chapter. */
@@ -1592,8 +1601,8 @@ class Journey extends Phaser.Scene {
     c.steps=[...this.route(here,spot(side)),wait(side)];
   }
   private wander(c:Commuter){
-    if(layoutOf(this.place)!.crossing){this.scramble(c);return}
-    const {roam=55,busy}=layoutOf(this.place)!,here={x:c.image.x,y:c.image.y},face=pick(['up','down','left','right']);
+    if(layoutOf(this.place)?.crossing){this.scramble(c);return}
+    const {roam=55,busy}=layoutOf(this.place)??{roam:pavement},here={x:c.image.x,y:c.image.y},face=pick(['up','down','left','right']);
     for(let tries=0;tries<(busy?16:8)&&(busy||Math.random()<.75);tries++){
       const to=typeof roam==='number'?{x:c.home!.x+between(-roam,roam)*2,y:c.home!.y+between(-roam,roam)}:{x:between(roam[0],roam[0]+roam[2])*2,y:between(roam[1],roam[1]+roam[3])*2};if(!this.canWalk(to.x,to.y))continue;
       const {path,distance}=this.gridPath(here.x,here.y,to.x,to.y);if(distance>=16*16)continue;
@@ -1619,11 +1628,11 @@ class Journey extends Phaser.Scene {
     }
   }
   /** Out of doors (the street, an exit's own map) night falls; the platforms, under their roof, only dim. */
-  /** The phone, taken out of the corner over the paused scene. */
-  private openPhone(){
-    if(this.modal)return;
-    this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);this.mini.setVisible(false);
-    this.phoneUi=new Phone(this.phone,{send:contact=>this.send(contact),changed:()=>{this.keep();this.refreshPhone()},close:()=>{this.phoneUi=null;this.mini.setVisible(true);this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()},walks:()=>this.walks(),walk:id=>this.walkTo(id)});
+  /** The phone, taken out of the corner over the paused scene, or over the ticket hall (`over`, told when it is put away: the hall keeps its own modal). */
+  private openPhone(over?:()=>void){
+    if(this.phoneUi||this.modal&&!over)return;
+    if(!over){this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);this.mini.setVisible(false)}
+    this.phoneUi=new Phone(this.phone,{send:contact=>this.send(contact),changed:()=>{this.keep();this.refreshPhone()},close:()=>{this.phoneUi=null;if(over)over();else{this.mini.setVisible(true);this.modal?.destroy(true);this.modal=null}this.input.keyboard?.resetKeys()},walks:()=>this.walks(),walk:id=>this.walkTo(id),here:()=>stations[this.nearestStation()].ja});
   }
   private refreshPhone(){const n=Object.values(this.phone.unread).reduce((a,b)=>a+b,0);this.badge.setVisible(n>0);this.badgeText.setText(String(n))}
   /** The suggested reply sent: only to Lorenzo, asked to come while he is still in Hong Kong, or to come and pick the traveller up once he is in Japan (his answer follows in lorenzo). */
@@ -1772,7 +1781,7 @@ class Journey extends Phaser.Scene {
     if(!this.player)return;
     const paused=!!this.modal?.getData('pause');if(paused!==!!this.pausedAt)this.pause(paused);
     if(paused){hold();this.gamepad();return}
-    tick();if(this.story)this.needs=freshNeeds();spend(this.needs,Math.max(0,minutes()-this.fedAt));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040);
+    if(this.story&&this.storyHeld)hold();else tick();if(this.story)this.needs=freshNeeds();spend(this.needs,Math.max(0,minutes()-this.fedAt));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040);
       // Walking slowed by it (the emptier, below half): a red outline pulses round its icon, so that the slowness has a cause.
       const other=i?this.needs.hunger:this.needs.thirst,slowing=this.moving&&!this.modal&&level<50&&level<=other;this.needGlows[i]?.setAlpha(slowing?.55+.45*Math.sin(this.time.now/140):0)});
     if(hhmm(minutes())!==this.hudTime)this.refreshHud();
@@ -1793,7 +1802,7 @@ class Journey extends Phaser.Scene {
     if(this.signals.length){this.signal+=delta;this.paintSignals();this.drive(Math.min(delta,100));if(this.walkLeft()>4000&&!this.carsInside()){const cycle=Math.floor(this.signal/signalPeriod);for(const c of this.commuters){const step=c.steps[0];if(c.crossed!==cycle&&step&&'wait' in step&&step.wait>1e8)step.wait=between(0,1200)}}}
     if(layoutOf(this.place)?.people)this.commuters.forEach((commuter,i)=>{commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});
     // In the apartment, the traveller passes behind the sofa, the island and the fridge.
-    if(this.place==='apartment'||layoutOf(this.place)?.stands||layoutOf(this.place)?.people||sightOfRoad(this.place)){this.world.sort('y');if(this.lifted&&layoutOf(this.place)?.people)this.world.bringToTop(this.lifted);this.world.bringToTop(this.glow)}
+    if(this.place==='apartment'||layoutOf(this.place)||sightOfRoad(this.place)){this.world.sort('y');if(this.lifted&&layoutOf(this.place))this.world.bringToTop(this.lifted);this.world.bringToTop(this.glow)}
     // The traveller passes behind Lorenzo's Uber from the pavement, in front of it from across the road.
     if(this.laneSign)this.player.y<this.laneSign.y?this.world.moveAbove<Phaser.GameObjects.GameObject>(this.laneSign,this.player):this.world.moveBelow<Phaser.GameObjects.GameObject>(this.laneSign,this.player);
     if(this.car)this.player.y<this.car.y+26?this.world.moveAbove<Phaser.GameObjects.GameObject>(this.car,this.player):this.world.moveBelow<Phaser.GameObjects.GameObject>(this.car,this.player);
@@ -1820,7 +1829,7 @@ class Journey extends Phaser.Scene {
       const push=(18-d)*.25/(d||1),nx=this.player.x+dx*push,ny=this.player.y+dy/1.6*push;if((x||y||this.path.length)&&d&&this.canWalk(nx,ny))this.player.setPosition(nx,ny);
     }
     const speed=(this.story?380*this.pace.speed:380*this.burden*needFactor(this.needs))*this.bump*Math.min(delta,40)/1000;
-    if(this.path.length){
+    if(this.path.length&&!(this.story&&this.storyHeld)){
       let target=this.path[0];
       while(target&&Phaser.Math.Distance.Between(this.player.x,this.player.y,target.x,target.y)<=speed){
         this.player.setPosition(target.x,target.y);this.path.shift();target=this.path[0];
@@ -1840,9 +1849,9 @@ class Journey extends Phaser.Scene {
     if(this.pending.startsWith('door')&&near===this.pending){this.boardAt=near;this.pending=''}
     if(this.boardAt&&near!==this.boardAt)this.boardAt='';
     if(this.boardAt&&this.boardable(near)){this.tryBoard(near);return}
-    if(this.pending&&near===this.pending){this.pending='';this.stopNavigation();this.interact();return}
+    if(this.pending&&near===this.pending&&!(this.story&&this.storyHeld)){this.pending='';this.stopNavigation();this.interact();return}
     if(!this.path.length)this.pending='';
-    if(this.story&&!this.path.length&&!this.pending&&!this.stun&&this.time.now>=this.storyIdle&&!this.cameras.main.fadeEffect.isRunning){this.storyIdle=this.storyAfter(500);this.storyNext()}
+    if(this.story&&!this.storyHeld&&!this.path.length&&!this.pending&&!this.stun&&this.time.now>=this.storyIdle&&!this.cameras.main.fadeEffect.isRunning){this.storyIdle=this.storyAfter(500);this.storyNext()}
     // On the platform, the only prompt is the one to board, once it is the traveller's turn.
     const say=this.place!=='platform'?near&&`${this.promptFor(near)??messages[near]}`:near.startsWith('door')&&this.boardable(near)?this.deck!.service==='shinkansen'?`Board · ${this.carOf(this.trains[+near[4]],+near.split('-')[1])}号車`:'Board':'';
     this.prompt.setText(say&&!this.story?`◎ ${say} · E / Ⓐ / click`:'').setVisible(!!say&&!this.story);

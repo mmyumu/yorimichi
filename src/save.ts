@@ -23,6 +23,9 @@ export function loadSave():Save{
   }}catch{}
   return {tickets:[],phone:newPhone(),groceries:[],needs:freshNeeds()};
 }
-/** Everything the game keeps in this browser, gone: the journey, wallet, bank, memories and machines' trays. */
-export const eraseAll=()=>{for(const name of Object.keys(localStorage))if(name.startsWith('yorimichi-'))localStorage.removeItem(name)};
+const erasers:(()=>void)[]=[];
+/** What a module read from `localStorage` once at load and keeps in memory, forgotten by `eraseAll` (which runs after every module has loaded, without a reload). */
+export const onErase=(forget:()=>void)=>{erasers.push(forget)};
+/** Everything the game keeps in this browser, gone: the journey, wallet, bank, memories, scratch cards and machines' trays. */
+export const eraseAll=()=>{for(const name of Object.keys(localStorage))if(name.startsWith('yorimichi-'))localStorage.removeItem(name);for(const forget of erasers)forget()};
 export const writeSave=(save:Save)=>{try{localStorage.setItem(key,JSON.stringify({version,...save}))}catch{}};

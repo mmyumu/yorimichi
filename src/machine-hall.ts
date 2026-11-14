@@ -51,7 +51,10 @@ export class MachineHall {
   private devices:Device[];
   // Pixel view: the stick and D-pad as last read (sideways, up / down), so each push steps once.
   private lastStep=[0,0];
-  constructor(private hub:Hub,initial:Service,private open:(kind:MachineKind,id:string)=>void,private exit:()=>void,private crowd?:{figures:()=>Figure[];standAt:(machine:number)=>void;busy:(machine:number)=>boolean;start?:number},view:'3d'|'pixel'|'voxel'='3d'){
+  // The phone is out over the hall or its map: the hall keeps going on behind it but reads neither the keys nor the pad.
+  private calling=false;
+  private phoneButton:HTMLButtonElement|null=null;private phoneAt='';
+  constructor(private hub:Hub,initial:Service,private open:(kind:MachineKind,id:string)=>void,private exit:()=>void,private crowd?:{figures:()=>Figure[];standAt:(machine:number)=>void;busy:(machine:number)=>boolean;start?:number},view:'3d'|'pixel'|'voxel'='3d',private phone?:{icon:string;open:()=>void;corner:()=>{x:number;y:number;k:number;unread:number}}){
     const pixel=this.pixel=view==='pixel';
     const devices=this.devices=bank(hub);
     if(initial==='shinkansen')this.x=this.targetX=3100;
@@ -69,6 +72,8 @@ export class MachineHall {
     this.viewport.addEventListener('pointercancel',()=>this.drag=null);
     this.viewport.addEventListener('pointerleave',()=>this.hover(null));
     this.viewport.addEventListener('wheel',this.wheel,{passive:false});
+    // The phone in the corner, as on the concourse: a click, P or RB takes it out, over the machines or the enlarged map.
+    if(phone){const b=this.phoneButton=this.button(this.overlay,'',()=>this.call(),'hall-phone');b.setAttribute('aria-label','Phone');b.title='Phone (P)';const img=this.el(b,'img') as HTMLImageElement;img.src=phone.icon;img.alt='';this.el(b,'b','','hall-phone-badge');this.placePhone()}
     document.body.append(this.overlay);this.viewport.focus();this.frame=requestAnimationFrame(this.tick);
   }
   private el(parent:HTMLElement,tag:string,text='',cls=''){const e=document.createElement(tag);e.className=cls;e.textContent=text;parent.append(e);return e;}
@@ -144,6 +149,15 @@ export class MachineHall {
   private lift(direction:number){if(direction>0)this.lookAtMap();else this.lookAtMachines();}
   /** Pixel view: arrived in front of the machine walked to, so a held key or stick walks on. */
   private arrived(){return Math.abs(this.x-this.targetX)<30}
+  /** The phone drawn where the concourse's own sits on the game's canvas, at its size, with its badge, and hidden while it is out, so that it looks the same over the hall. */
+  private placePhone(){
+    const b=this.phoneButton;if(!b||!this.phone)return;const {x,y,k,unread}=this.phone.corner(),at=`${x}|${y}|${k}|${unread}|${this.calling}`;if(at===this.phoneAt)return;this.phoneAt=at;
+    Object.assign(b.style,{left:`${x-18*k}px`,top:`${y-32*k}px`,width:`${36*k}px`,height:`${64*k}px`,visibility:this.calling?'hidden':''});
+    const badge=b.querySelector<HTMLElement>('.hall-phone-badge')!;badge.hidden=!unread;badge.textContent=String(unread);Object.assign(badge.style,{left:`${(18+16-11)*k}px`,top:`${(32-30-11)*k}px`,width:`${22*k}px`,height:`${22*k}px`,borderWidth:`${2*k}px`,fontSize:`${12*k}px`});
+  }
+  private call(){if(!this.phone||this.calling||this.paused)return;this.calling=true;this.keys.clear();this.drag=null;this.phone.open()}
+  /** The phone put away: back to the hall or the map as it was, the button that closed it not read again here. */
+  phoneClosed(){this.calling=false;this.lastPadButtons=connectedPad()?.buttons.map(b=>b.pressed)??[];if(!this.disposed)(this.mapDetail?.querySelector<HTMLElement>('.hall-map-canvas')??this.viewport).focus()}
   pause(){this.paused=true;this.overlay.hidden=true;this.keys.clear();this.drag=null;}
   resume(map=false){if(this.disposed)return;this.paused=false;this.overlay.hidden=false;this.lastPadButtons=connectedPad()?.buttons.map(b=>b.pressed)??[];if(map){this.lookAtMap();this.viewport.focus();this.openMapDetail();if(this.mapDetail)this.mapFrom=this.nearest();}else{this.lookAtMachines();this.viewport.focus();}}
   destroy(){if(this.disposed)return;this.disposed=true;cancelAnimationFrame(this.frame);this.scene.dispose();window.removeEventListener('blur',this.blur);this.overlay.remove();this.previousFocus?.focus();}
@@ -156,6 +170,7 @@ export class MachineHall {
       const all=Array.from(this.overlay.querySelectorAll<HTMLElement>(selector));
       if(event.shiftKey&&document.activeElement===all[0]){event.preventDefault();all.at(-1)?.focus()}else if(!event.shiftKey&&document.activeElement===all.at(-1)){event.preventDefault();all[0]?.focus()}return;
     }
+    if(event.code==='KeyP'&&!event.repeat){event.preventDefault();this.call();return}
     if(event.key==='Escape'){event.preventDefault();if(this.mapDetail)this.closeMapDetail();else this.close();return;}
     if(this.mapDetail)return;
     const move=moveKeys[event.code];if(move){event.preventDefault();if(!this.pixel)this.keys.add(move);else if(move==='left'||move==='right'){if(!event.repeat||this.arrived())this.step(move==='left'?-1:1)}else if(!event.repeat)this.lift(move==='up'||move==='lookUp'?1:-1)}
@@ -194,11 +209,13 @@ export class MachineHall {
     if(!this.paused){
       let strafe=(this.keys.has('right')?1:0)-(this.keys.has('left')?1:0);
       let vertical=(this.keys.has('up')?1:0)-(this.keys.has('down')?1:0);
-      const pad=connectedPad();
+      this.placePhone();
+      const pad=this.calling?null:connectedPad();
       if(pad){
         const dead=(v:number)=>Math.abs(v)>.18?v:0;
         if(!this.mapDetail){strafe+=dead(pad.axes[0]??0);vertical-=dead(pad.axes[1]??0);if(!this.pixel)this.yaw=clamp(this.yaw+dead(pad.axes[2]??0)*65*dt,-35,35);this.pitch=clamp(this.pitch-dead(pad.axes[3]??0)*55*dt,-20,30)}
         const pressed=pad.buttons.map(b=>b.pressed);
+        if(pressed[5]&&!this.lastPadButtons[5]){this.lastPadButtons=pressed;this.call();return void(this.frame=requestAnimationFrame(this.tick))}
         if(pressed[0]&&!this.lastPadButtons[0]&&!this.mapDetail)this.activate()
         if(pressed[1]&&!this.lastPadButtons[1]){if(this.mapDetail)this.closeMapDetail();else this.close()}
         // On the enlarged map, the triggers zoom (LT out, RT in) and either stick pans.

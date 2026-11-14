@@ -8,7 +8,7 @@ import { kmBetween } from './fares';
 import { busLines } from './rail';
 
 export type Ground='lawn'|'gravel'|'moss'|'street';
-export type Piece=['temple',string,string]|['gate',string,string]|['pagoda',number,string,string]|['torii',string]|['pavilion',string,string]|['kyotoTower']|['tsutenkaku']|['bridge',string]|['rainbow']|['lake']|['neon',string]|['jizo']|['bamboo']|['ropeway'];
+export type Piece=['temple',string,string]|['gate',string,string]|['pagoda',number,string,string]|['torii',string]|['pavilion',string,string]|['kyotoTower']|['tsutenkaku']|['bridge',string]|['rainbow']|['lake']|['neon',string]|['jizo']|['bamboo']|['ropeway']|['machiya'];
 export interface Sight {id:string;ja:string;en:string;at?:LonLat;walk?:string[];foot?:Record<string,number>;ground?:Ground;pieces?:Piece[];garden?:string;parts?:Page[];ropeway?:boolean;open?:boolean;street?:boolean}
 /** An album page and memory of its own: every sight has one, and `parts` adds those of a place too large for one (each with its camera, its id the place it stands in). */
 export interface Page {id:string;ja:string;en:string}
@@ -23,7 +23,7 @@ export const sights:Sight[]=[
   {id:'daitoku',ja:'大徳寺',en:'Daitoku-ji',at:[135.7466,35.0432],ground:'gravel',foot:{京都:6.5,円町:3,北大路:1.3,三条:5,祇園四条:5.5},pieces:[['gate','#a8402f','#4d5a5c']]},
   {id:'kenkun',ja:'建勲神社',en:'Kenkun-jinja',at:[135.7500,35.0389],foot:{京都:6.5,円町:3.2,北大路:1.2},pieces:[['temple','#c2513a','#5a4a3a'],['torii','#d4502e']]},
   {id:'yasaka',ja:'八坂神社',en:'Yasaka-jinja',at:[135.7785,35.0037],walk:['祇園四条'],ground:'gravel',pieces:[['temple','#d9d2bd','#4d5a5c']]},
-  {id:'higashiyama',open:true,ja:'東山',en:'Higashiyama',at:[135.7789,34.9985],walk:['祇園四条','清水五条'],ground:'gravel',foot:{京都:3,北大路:7.5},pieces:[['pagoda',5,'#4a3a2e','#3c4648'],['gate','#4a3a2e','#3c4648']]},
+  {id:'higashiyama',open:true,ja:'東山',en:'Higashiyama',at:[135.7789,34.9985],walk:['祇園四条','清水五条'],ground:'gravel',foot:{京都:3,北大路:7.5},pieces:[['pagoda',5,'#4a3a2e','#3c4648'],['machiya']]},
   {id:'heian',ja:'平安神宮',en:'Heian-jingu',at:[135.7824,35.0160],walk:['神宮丸太町'],ground:'gravel',foot:{京都:5,三条:1.8},pieces:[['temple','#d4502e','#3d7a5e']],garden:'heian-garden',parts:[{id:'heian-garden',ja:'神苑',en:'Heian-jingu · The garden'},{id:'heian-road',ja:'大鳥居',en:'Heian-jingu · The great torii'}]},
   {id:'lanterns',ja:'提灯の社',en:'The lantern shrine',at:[135.7850,35.0300],ground:'moss',foot:{京都:5.5,三条:3.2,円町:6,北大路:4},pieces:[['temple','#6e5138','#4a4238'],['torii','#a7a596']]},
   {id:'kyoto-tower',street:true,ja:'京都タワー',en:'Kyoto Tower',at:[135.7595,34.9875],walk:['京都','四条'],ground:'street',pieces:[['kyotoTower']]},
