@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { exitName, hasShinkansen, inKyoto, machineKinds, stations, tracksFor, type Hub, type Konbini, type Platform, type Service } from './network';
 import { loadLook, paintTraveller } from './look';
-import { looks } from './people';
+import { looks, type Look } from './people';
 import { onTokyoBoard } from './tokyo-fares';
 import { stampInk } from './stamps';
 import { type Piece, type Sight } from './sights';
@@ -420,10 +420,12 @@ export function makeHub(scene:Phaser.Scene,hub:Hub){
 
 /** The hall's commuters seen from above: the same outfits as in the first-person hall, in the traveller's 20 × 28 frames. */
 function makeCommuters(scene:Phaser.Scene){
-  looks.forEach((look,index)=>{
-    const skin=look.skin??'#e9c4a0',hair=look.hair,ink='#283e40';
-    for(const face of ['down','up','left','right'])for(let frame=0;frame<3;frame++){
-      const texture=scene.textures.createCanvas(`commuter-${index}-${face}-${frame}`,20,28)!;const g=texture.context;
+  looks.forEach((look,index)=>{for(const face of ['down','up','left','right'])for(let frame=0;frame<3;frame++){const texture=scene.textures.createCanvas(`commuter-${index}-${face}-${frame}`,20,28)!;paintCommuter(texture.context,look,face,frame);texture.refresh()}});
+}
+/** One of the commuters' frames, 20 × 28, facing `face`, walk frame 0–2: anyone dressed as `look` (the friends of outing.ts too). */
+export function paintCommuter(g:CanvasRenderingContext2D,look:Look,face:string,frame:number){
+    {
+      const skin=look.skin??'#e9c4a0',hair=look.hair,ink='#283e40';
       const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};
       const bob=frame===1?1:0,side=face==='left'||face==='right',back=face==='up',flip=(x:number,w=1)=>face==='left'?20-x-w:x;
       r(4,25,12,2,'#00000040');
@@ -451,9 +453,7 @@ function makeCommuters(scene:Phaser.Scene){
       else if(look.style==='ponytail'){if(back)r(10,11+bob,2,6,hair);else if(side)r(flip(4,2),7+bob,2,7,hair)}
       if(face==='down'){r(9,9+bob,1,1,ink);r(12,9+bob,1,1,ink);if(look.mask)r(8,10+bob,6,3,'#f4f4ee')}
       else if(side){r(flip(13),9+bob,1,1,ink);if(look.mask)r(flip(10,5),10+bob,5,3,'#f4f4ee')}
-      texture.refresh();
     }
-  });
 }
 
 /** The area map's picture window in the street (art px, x y w h), left of its legend: read up close, it shows the street itself there again (areaMapView in main.ts). */

@@ -983,3 +983,10 @@ export function makeScene(scene:Phaser.Scene,place:string){
   lift(scene,place,g.canvas,top.canvas,layout,w,h,glow.canvas);
   (layout.stands??[]).forEach(([x,y,bw,bh],i)=>{const stand=mapCanvas(scene,`map-${place}-stand-${i}`,bw,bh);stand.context.imageSmoothingEnabled=false;stand.context.drawImage(top.canvas,x*2,y*2,bw*2,bh*2,0,0,bw,bh);stand.refresh()});
 }
+/** A picture painted with the scenes' painters for a place that is no album page (outing.ts): `map-<key>`, `w`×`h` art px, and `map-<key>-lit`, the `lit` boxes of what `shine` and `night` paint. */
+export function paintScene(scene:Phaser.Scene,key:string,w:number,h:number,draw:(k:Kit)=>void,lit?:Box[]){
+  if(scene.textures.exists('map-'+key))return;
+  const texture=mapCanvas(scene,'map-'+key,w,h),g=texture.context,top=topLayer(w,h),glow=topLayer(w,h),k=kit(g,seedOf(key),top,glow);
+  draw(k);texture.refresh();lift(scene,key,g.canvas,top.canvas,{lit},w,h,glow.canvas);
+}
+export { gradient, greens, type Kit };

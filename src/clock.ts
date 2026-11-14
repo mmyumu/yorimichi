@@ -22,11 +22,18 @@ export function startClock(saved?:number){
   const today=new Date(),ms=saved??Date.UTC(today.getFullYear(),today.getMonth(),today.getDate(),wake/60),m=/^(\d{1,2}):(\d\d)$/.exec(new URLSearchParams(location.search).get('time')??'');
   now=ms;last=performance.now();if(m)setTimeOfDay(m[0]);else refresh();
 }
-/** Debug: the clock set to `time` ("H:MM") on its day (earlier or later); false if it does not read as a time. */
+/** Debug: the clock set to `time`: "H:MM" on its day (earlier or later), with a day before it or alone: a date ("2026-11-15", "11-15", "15/11"), or days on or back ("+1", "-2");
+ * the time of day kept where none is given. False if it does not read so. */
 export function setTimeOfDay(time:string){
-  const m=/^\s*(\d{1,2})[:h](\d\d)\s*$/.exec(time);if(!m||+m[1]>23||+m[2]>59)return false;
-  now=Math.floor(now/864e5)*864e5+(+m[1]*60+ +m[2])*60000;last=performance.now();refresh();return true;
+  const m=/^\s*(?:(?:(\d{4})-)?(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})|([+-]\d+)d?)?\s*(?:(\d{1,2})[:h](\d\d))?\s*$/.exec(time);
+  if(!m||!m.slice(1).some(Boolean)||(m[7]&&(+m[7]>23||+m[8]>59)))return false;
+  const today=new Date(now),y=m[1]?+m[1]:today.getUTCFullYear();let day=Math.floor(now/864e5);
+  if(m[2]||m[4]){const [mo,d]=m[2]?[+m[2],+m[3]]:[+m[5],+m[4]];if(mo<1||mo>12||d<1||d>31)return false;day=Date.UTC(y,mo-1,d)/864e5}
+  else if(m[6])day+=+m[6];
+  now=day*864e5+(m[7]?(+m[7]*60+ +m[8])*60000:now-Math.floor(now/864e5)*864e5);last=performance.now();refresh();return true;
 }
+/** Debug: the clock set to `ms` (the clock picker's choice). */
+export function setClock(ms:number){now=ms;last=performance.now();refresh()}
 /** On by the real time gone by since the last tick, read from the browser's clock rather than the scene's frame time: Phaser stops in a hidden tab and caps its steps
  * in a throttled one, but the journey's clock keeps going (the trains catch up with it when the scene runs again). */
 export function tick(){const t=performance.now();now+=(t-last)*speed;last=t;refresh()}

@@ -45,7 +45,9 @@ export const railLine=(id:string)=>{const line=railLines.find(line=>line.id===id
 /** The lines stopping at a station, in board order. */
 export const linesAt=(station:string,service?:RailLine['service'])=>railLines.filter(line=>line.stops.includes(station)&&(!service||line.service===service));
 /** The line symbols on the maps' connection icons (the operators' own letters; the Shinkansen have none, hence 新). */
-const marks:Record<string,string>={yamanote:'JY','chuo-rapid':'JC',saikyo:'JA','keihin-tohoku':'JK',utsunomiya:'JU',takasaki:'JU',joban:'JJ',tokaido:'JT','yokosuka-sobu':'JO','chuo-main':'CO','chuo-sobu':'JB',keiyo:'JE','joban-local':'JL',sotobo:'JO',nikko:'JN','biwako-kyoto':'A',kosei:'B',nara:'D',sagano:'E',karasuma:'K',keihan:'KH','tokaido-shinkansen':'新','tohoku-shinkansen':'新'};
+const marks:Record<string,string>={yamanote:'JY','chuo-rapid':'JC',saikyo:'JA','keihin-tohoku':'JK',utsunomiya:'JU',takasaki:'JU',joban:'JJ',tokaido:'JT','yokosuka-sobu':'JO','chuo-main':'CO','chuo-sobu':'JB',keiyo:'JE','joban-local':'JL',sotobo:'JO',nikko:'JN','biwako-kyoto':'A',kosei:'B',nara:'D',sagano:'E',karasuma:'K',keihan:'KH',yurikamome:'U','tokaido-shinkansen':'新','tohoku-shinkansen':'新'};
+// Every line has its symbol (a missing one would break the maps' icons).
+for(const line of railLines)if(!marks[line.id])throw Error(`No symbol for ${line.en}`);
 /** The buses to the places with no station of their own (sights.ts): caught at the stop in the street outside the stations in `stops`, and shown on the maps' connection icons. `sights` are where they go, not their own stops: no stations, no tickets, a flat fare (`busFare`). */
 export interface BusLine {no:string;stops:string[];sights:[string,string][]}
 export const busFare=230;

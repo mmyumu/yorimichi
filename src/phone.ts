@@ -1,5 +1,6 @@
 import { labelled, mapHeight, mapWidth, onMap, paintArea, place, spotOf, stationLabel, type Area, type LonLat } from './city-maps';
 import { dayLabel, hhmm, minutes } from './clock';
+import { askNamiko, type NamikoPlan } from './outing';
 import { portraitUrl } from './portraits';
 import { entries, enOf, lookUp, plain, tripBetween, waysFrom, type Entry, type Trip } from './transit';
 
@@ -8,18 +9,20 @@ export type Contact='jennifer'|'namiko'|'lorenzo';
 export interface Message {me?:boolean;text:string;at?:number}
 /** The phone kept in the save: the conversations, what is still unread, and Lorenzo's trip: in Hong Kong (`home`), asked to come (his OK on its way), flying,
  * then waiting with his Uber at the station nearest the traveller when he landed, or the street outside the sight they were at (`at`); called again from there (`called`, his answer on its way), then on his way (`driving`). */
-export interface PhoneState {chats:Record<Contact,Message[]>;unread:Record<Contact,number>;lorenzo:{state:'home'|'asked'|'flying'|'here'|'called'|'driving';at?:string}}
+export interface PhoneState {chats:Record<Contact,Message[]>;unread:Record<Contact,number>;lorenzo:{state:'home'|'asked'|'flying'|'here'|'called'|'driving';at?:string};namiko:NamikoPlan}
 export const contacts:Record<Contact,{name:string;color:string}>={jennifer:{name:'Jennifer',color:'#c45a82'},namiko:{name:'Namiko',color:'#3f8f7a'},lorenzo:{name:'Lorenzo',color:'#c97b2e'}};
 /** What the traveller can send Lorenzo while he is still in Hong Kong. */
 export const askLorenzo='Hey Lorenzo! I’m in Japan. Can you come and join me?';
 /** And once he is in Japan, to have him come over by Uber to the station nearest the traveller. */
 export const callLorenzo='Can you come and pick me up?';
 export const newPhone=():PhoneState=>({chats:{jennifer:[{text:'Have a wonderful trip! Don’t forget to send me photos.'}],namiko:[{text:'Welcome to Japan! If the trains get confusing, just ask me.'}],
-  lorenzo:[{text:'Ciao! How is Japan? I’m stuck in Hong Kong for work this week.'}]},unread:{jennifer:1,namiko:1,lorenzo:1},lorenzo:{state:'home'}});
+  lorenzo:[{text:'Ciao! How is Japan? I’m stuck in Hong Kong for work this week.'}]},unread:{jennifer:1,namiko:1,lorenzo:1},lorenzo:{state:'home'},namiko:{state:'none'}});
 const ids=Object.keys(contacts) as Contact[];
 /** A saved phone if it still reads (Lorenzo's station still `known`), else a new one. */
 export function readPhone(raw:unknown,known:(hub:string)=>boolean):PhoneState{
   const p=raw as PhoneState|undefined;
+  // Namiko's outing, kept since a later version: none in an older save.
+  if(p&&!(['none','asked','meet','done'].includes(p.namiko?.state)&&(p.namiko.state!=='meet'||Number.isFinite(p.namiko.at))))p.namiko={state:'none'};
   return p&&ids.every(id=>Array.isArray(p.chats?.[id])&&Number.isFinite(p.unread?.[id]))&&['home','asked','flying','here','called','driving'].includes(p.lorenzo?.state)&&(!['here','called'].includes(p.lorenzo.state)||known(p.lorenzo.at??''))?p:newPhone();
 }
 /** A pixel glyph from rows of '#', as an image URL. */
@@ -101,10 +104,10 @@ export class Phone {
       const log=el(box,'div','phone-log');
       const said=()=>{const row=el(log,'div','phone-said');this.avatar(row,s);return row};
       for(const message of this.state.chats[s]){const b=el(message.me?log:said(),'div','phone-bubble'+(message.me?' me':''),message.text);el(b,'small','',this.when(message))}
-      if(s==='lorenzo'&&(this.state.lorenzo.state==='asked'||this.state.lorenzo.state==='called'))el(said(),'div','phone-bubble typing','•••');
+      if(s==='lorenzo'&&(this.state.lorenzo.state==='asked'||this.state.lorenzo.state==='called')||s==='namiko'&&this.state.namiko.state==='asked')el(said(),'div','phone-bubble typing','•••');
       const compose=el(box,'div','phone-compose');
-      const suggested=s==='lorenzo'?{home:askLorenzo,here:callLorenzo}[this.state.lorenzo.state as string]:undefined;
-      if(suggested)this.button(compose,'phone-chip',()=>this.on.send('lorenzo'),suggested);else el(compose,'div','phone-field','Text message');
+      const suggested=s==='lorenzo'?{home:askLorenzo,here:callLorenzo}[this.state.lorenzo.state as string]:s==='namiko'&&this.state.namiko.state==='none'?askNamiko:undefined;
+      if(suggested)this.button(compose,'phone-chip',()=>this.on.send(s),suggested);else el(compose,'div','phone-field','Text message');
       log.scrollTop=log.scrollHeight;
     }
     this.tick();(box.querySelector<HTMLElement>(s==='trains'?'.phone-search,.phone-way.on,.phone-entry':s==='maps'?'.phone-go,.phone-pin,.phone-zoom button':s==='home'||s==='list'?'button:not(:disabled)':'.phone-chip')??box.querySelector('button')??this.overlay.querySelector('button'))?.focus();
