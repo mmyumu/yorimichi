@@ -1,11 +1,17 @@
 import { goodNamed, isDrink, type Item, type Kind } from './goods';
 
-/** The traveller's body, each from 100 (full) to 0: hunger and thirst fall as the journey's clock runs (`spend`, faster on foot through the phone's Maps), and what was bought puts them back (`filling`). Below half, the emptier of the two slows the walk (`needFactor`), down to 40% at nothing. */
-export interface Needs {hunger:number;thirst:number}
+/** The traveller's body, each from 100 (full) to 0: hunger and thirst fall as the journey's clock runs while the traveller walks (`spend`; standing still, riding or sleeping costs nothing; three times faster on foot through the phone's Maps), and what was bought puts them back (`filling`). Below half, the emptier of the two slows the walk (`needFactor`), down to 40% at nothing. */
+export interface Needs {hunger:number;thirst:number;blessed?:number}
 export const freshNeeds=():Needs=>({hunger:100,thirst:100});
 /** The game hours from full to empty. */
 const lasts={hunger:14,thirst:10};
 export const spend=(needs:Needs,minutes:number)=>{needs.hunger=Math.max(0,needs.hunger-minutes*100/(lasts.hunger*60));needs.thirst=Math.max(0,needs.thirst-minutes*100/(lasts.thirst*60))};
+/** A temple's blessing (ご利益), until `blessed` (the clock's minutes): each coin landed in an offering bowl once its charm is earned (coin-toss.ts) adds an hour of it, two for a ¥5 coin (ご縁), at most `blessCap` minutes ahead; meanwhile hunger and thirst fall at `blessedPace`. */
+export const blessedPace=.6,blessCap=8*60;
+export const blessing=(needs:Needs,now:number)=>needs.blessed!==undefined&&now<needs.blessed?blessedPace:1;
+/** Blesses the traveller for a coin of `value`; the minutes of blessing left. */
+export const bless=(needs:Needs,now:number,value:number)=>{needs.blessed=Math.min(now+blessCap,Math.max(now,needs.blessed??0)+(value===5?120:60));return needs.blessed-now};
+export const blessedFor=(needs:Needs,now:number)=>Math.max(0,(needs.blessed??0)-now);
 export const needFactor=(needs:Needs)=>.4+.6*Math.min(1,Math.min(needs.hunger,needs.thirst)/50);
 const eats:Partial<Record<Kind,number>>={sando:35,pack:35,bigbag:30,melon:25,bun:25,long:25,croissant:25,onigiri:25,bare:25,maki:25,donut:20,pouch:20,tube:20,cup:15,bag:15};
 const drinks:Partial<Record<Kind,number>>={pet2:80,pet:45,tall:35,bottle:40,can:30,bottlecan:30,carton:30,ramune:30,cup:20};
@@ -15,5 +21,5 @@ export const feed=(needs:Needs,{hunger=0,thirst=0}:Partial<Needs>)=>{needs.hunge
 const heft:Partial<Record<Kind,number>>={pet2:6,bottle:4,pet:2,tall:2,can:1.5,bottlecan:1.5,carton:1.5,ramune:1.5};
 /** How many products the backpack takes, the heaviest of them, each then a tenth of its weight. */
 const backpack=4;
-/** What the bag weighs besides the purse, a coin being 1 (wallet.ts `walkFactor`): tickets next to nothing, a product what its `heft` says (a 2 l bottle, six coins), hardly anything for those in the backpack. */
+/** What the bag weighs besides the purse, a coin being 1 (wallet.ts `drainFactor`): tickets next to nothing, a product what its `heft` says (a 2 l bottle, six coins), hardly anything for those in the backpack. */
 export const carried=(tickets:unknown[],groceries:[string,string][])=>tickets.length*.2+groceries.map(([ja])=>heft[goodNamed(ja)?.[3] as Kind]??1).sort((a,b)=>b-a).reduce((sum,weight,i)=>sum+weight*(i<backpack?.1:1),0);

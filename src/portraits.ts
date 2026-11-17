@@ -1,6 +1,8 @@
 import type { Contact } from './phone';
-/** Whoever speaks face to face: the phone's contacts, and Namiko's daughter Lilly (outing.ts). */
-export type Speaker=Contact|'lilly';
+/** Whoever speaks face to face: the phone's contacts, Namiko's daughter Lilly (outing.ts), Jennifer's partner Mike (dinner.ts) and the yakiniku's waiter. */
+export type Speaker=Contact|'lilly'|'mike'|'waiter';
+/** Their names over the talk box. */
+export const speakerNames:Record<Exclude<Speaker,Contact>,string>={lilly:'Lilly',mike:'Mike',waiter:'Waiter'};
 
 /** The friends' faces: a drawing dropped in src/portraits/<contact>.png (any size, square, pixel art; 64×64 suggested) replaces the placeholder,
  * in the phone (its avatars, shrunk) and in the talk box (`Journey.talk`, 144 px across). */
@@ -14,7 +16,11 @@ const faces:Record<Speaker,{rows:string[];ink:Record<string,string>}>={
   lorenzo:{rows:['................','................','.....hhhhhh.....','....hhhhhhhh....','...hhhhhhhhhh...','...hsssssssssh..','...sssessesss...','....ssssssss....','....bssssssb....','....bbbmmbbb....','.....bbbbbb.....','......ssss......','....cccssccc....','..cccccccccccc..','.cccccccccccccc.','cccccccccccccccc'],
     ink:{h:'#33241a',s:'#dba77e',e:'#2a1f1a',m:'#a8524a',b:'#4a3424',c:'#5f8cc4'}},
   lilly:{rows:['................','................','.......hh.......','....hhhhhhhh....','...hhhhhhhhhh...','..hhhhhhhhhhhhp.','..hhssssssssshpp','..hsseesseessh.p','..hssssssssssh..','..hrrssmmssrrh..','...hssssssssh...','....ssssssss....','......ssss......','....cccwwccc....','..cccccccccccc..','.cccccccccccccc.'],
-    ink:{h:'#1e1b26',s:'#f8dcc0',e:'#241e28',r:'#f4a8a8',m:'#d0505a',c:'#e88aa8',w:'#f4f1ea',p:'#f0c040'}}};
+    ink:{h:'#1e1b26',s:'#f8dcc0',e:'#241e28',r:'#f4a8a8',m:'#d0505a',c:'#e88aa8',w:'#f4f1ea',p:'#f0c040'}},
+  mike:{rows:['................','................','....hhhhhhhh....','...hhhhhhhhhh...','...hhhhhhhhhh...','...hssssssssh...','...sssessesss...','....ssssssss....','....ssssssss....','....sssmmsss....','.....ssssss.....','......ssss......','....cccwwccc....','..cccccccccccc..','.cccccccccccccc.','cccccccccccccccc'],
+    ink:{h:'#141414',s:'#c08a5e',e:'#1e1814',m:'#8a3a34',c:'#2f6f5a',w:'#e8e2cf'}},
+  waiter:{rows:['................','................','....hhhhhhhh....','...hhhhhhhhhh...','...hhsssssshh...','...sssssssssss..','...sssessesss...','....ssssssss....','....sssmmsss....','.....ssssss.....','......ssss......','....cccwwccc....','..ccccwttwcccc..','.ccccccttcccccc.','ccccccccccccccc.','cccccccccccccccc'],
+    ink:{h:'#141414',s:'#ecc8a4',e:'#241e1a',m:'#b0504a',c:'#1e1e22',w:'#f4f4ee',t:'#6c3b3b'}}};
 const placeholders:Partial<Record<Speaker,HTMLCanvasElement>>={};
 const placeholder=(id:Speaker)=>placeholders[id]??=(()=>{const {rows,ink}=faces[id],c=document.createElement('canvas');c.width=c.height=16;const g=c.getContext('2d')!;rows.forEach((row,y)=>[...row].forEach((d,x)=>{if(ink[d]){g.fillStyle=ink[d];g.fillRect(x,y,1,1)}}));return c})();
 const own=(id:Speaker)=>drawn[`./portraits/${id}.png`];

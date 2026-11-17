@@ -1,5 +1,5 @@
-import { fareBetween, localMinutes, shinkansenFare, shinkansenMinutes } from './fares';
-import { busLines, linesAt, stopNames, type RailLine } from './rail';
+import { fareBetween, kmBetween, localMinutes, shinkansenFare, shinkansenMinutes } from './fares';
+import { busLines, linesAt, railLines, stopNames, type RailLine } from './rail';
 import { exitName, inKyoto, stationAt, stations, type Side } from './network';
 import { runOf } from './platform';
 import { sights } from './sights';
@@ -30,6 +30,15 @@ export function lookUp(query:string){
   const starts=(entry:Entry)=>fold(entry.en).startsWith(q)&&q||plain(entry.ja).startsWith(raw)&&raw?0:1;
   return hits.sort((a,b)=>starts(a)-starts(b));
 }
+/** Browsing without typing: the entries by km along the local lines from `from` (a place by its nearest station), the nearest first; null km where no local line leads. */
+export const nearFrom=(from:string)=>entries.map(entry=>{const kms=(entry.kind==='station'?[entry.ja]:entry.ways.map(way=>way.station)).map(ja=>kmBetween(from,ja)).filter((km):km is number=>km!==null);return {entry,km:kms.length?Math.min(...kms):null}})
+  .sort((a,b)=>(a.km??Infinity)-(b.km??Infinity)||a.entry.en.localeCompare(b.entry.en));
+/** Every station and place A to Z by English name. */
+export const byName=()=>[...entries].sort((a,b)=>a.en.localeCompare(b.en));
+/** The lines by where they run: the Kanto's, the Kansai's, then the Shinkansen. */
+export const lineGroups:[string,RailLine[]][]=(['Kanto','Kansai','Shinkansen'] as const).map(group=>[group,railLines.filter(line=>(line.service==='shinkansen'?'Shinkansen':region(line.stops[0]))===group)]);
+/** A station's entry by its Japanese name. */
+export const stationEntry=(ja:string)=>entries.find(entry=>entry.kind==='station'&&entry.ja===ja);
 /** One train of a trip: its line, where it is boarded and left, which way it runs (what its trains show) and from which track. */
 export interface Leg {line:RailLine;from:string;to:string;stops:number;toward:string;towardEn:string;tracks:number[];minutes:number}
 /** A ticket the trip needs: a fare ticket for each run of local trains (changes between them are free), a Shinkansen ticket for each Shinkansen. */

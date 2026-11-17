@@ -19,11 +19,15 @@ import { playRopeway } from './ropeway';
 import { wakeWheel, type WakeWheel } from './alarm';
 import { Phone, askLorenzo, callLorenzo, contacts, walkTime, type Contact } from './phone';
 import { loadSave, writeSave } from './save';
-import { portraitTexture, type Speaker } from './portraits';
+import { portraitTexture, speakerNames, type Speaker } from './portraits';
 import { goodbye, iceCream, meeting, phoneLines, restaurant, vineyard } from './outing-lines';
-import { Robot, Walker, askNamiko, meetAt, meetingFrom, missed, waiting } from './outing';
-import { makeOutingSprites, makeShabu, makeVineyard, musicians, ourTable, robotDock, shabuDoor, shabuSolids, softServe, vineSign, vineSolids, vineBulbs, vineStage } from './outing-art';
-import { concertLength, playConcert, robotChime } from './concert';
+import { Robot, Walker, askNamiko, lunch, meetAt, meetingFrom, missed, waiting } from './outing';
+import { askJennifer, dinner } from './dinner';
+import { cardGame as gameLines, goodbye as dinnerGoodbye, meeting as dinnerMeeting, phoneLines as dinnerPhone, restaurant as yakiLines } from './dinner-lines';
+import { kitchen, makeDinnerSprites, makeYakiniku, yakiDoor, yakiSolids, yakiTable } from './dinner-art';
+import { playCardGame, type Outcome } from './card-game';
+import { friendLooks, makeOutingSprites, makeShabu, makeVineyard, musicians, ourTable, robotDock, shabuDoor, shabuSolids, softServe, vineSign, vineSolids, vineBulbs, vineStage } from './outing-art';
+import { concertLength, playConcert, robotChime, sizzle } from './concert';
 import { showTitle } from './title';
 import { openPauseMenu } from './pause-menu';
 import { openClockPicker } from './clock-picker';
@@ -33,15 +37,16 @@ import { areaAround, kmApart, onMap, spotOf } from './city-maps';
 import { fareBetween, kmBetween, localMinutes, shinkansenMinutes } from './fares';
 import { addMinutes, clockMs, darkness, dayLabel, dayOf, hhmm, inService, minuteMs, minuteOfDay, minutes, opens, hold, setClock, skipTo, startClock, stationOpen, tick, trainsRun, wake } from './clock';
 import { openDepartures, onTokyoBoard, tokyoStations } from './tokyo-fares';
-import { carried, feed, filling, freshNeeds, needFactor, spend } from './needs';
+import { bless, blessedFor, blessing, carried, feed, filling, freshNeeds, needFactor, spend } from './needs';
 import { goodNamed } from './goods';
-import { coinCount, loadWallet, machineSound, walkFactor, walletTotal } from './wallet';
+import { coinCount, debugMoney, drainFactor, loadWallet, machineSound, walletTotal } from './wallet';
 
 import { looks, type Figure } from './people';
 import { BusFare } from './bus-fare';
 import { PhotoBook } from './photo-book';
 import { StampBook } from './stamp-book';
-import { avenueOf, cameraBox, dressRoad, exitBox, layoutOf, makeScene, postsOf } from './sight-scenes';
+import { avenueOf, bowlBox, bowlFoot, cameraBox, dressRoad, exitBox, layoutOf, makeScene, postsOf } from './sight-scenes';
+import { tossCoins } from './coin-toss';
 import { chapters, loadMode, loadPace, savePace, speeds, storyEnd, storyIntro, type Pace } from './story';
 import { memoryPages, roadTo, scenic, sightOf, sightOfRoad, sights, walkFrom, type Sight } from './sights';
 import { routes, exitName, inKyoto, home, kyotoHome, places, konbiniFor, isHub, hasShinkansen, platformsAt, stationAt, stationOf, stations, trackOf, tracksFor, type Hub, type Place, type Service, type Side } from './network';
@@ -202,18 +207,20 @@ class Journey extends Phaser.Scene {
   private bin:[number,number]|null=null;
   private phoneUi:Phone|null=null;
   /** Namiko's outing under way (outing.ts): its step (waiting before Tachikawa Station, leading the way, waiting to be followed, at the table, the meal, the dessert, the concert, over), and the cone carried for Lilly.
-   * Its people and things are rebuilt by each loadPlace: Namiko and Lilly, the robot, the band and the audience under the vines, the music, the props (plates, cones), the timers. */
-  private outing:{step:'wait'|'lead'|'follow'|'table'|'meal'|'dessert'|'concert'|'over';cone?:boolean}|null=null;
-  private friends:{namiko:Walker;lilly:Walker}|null=null;
+   * Its people and things are rebuilt by each loadPlace: Namiko and Lilly (`friends`, Jennifer and Mike at the dinner), the robot or the waiter, the band and the audience under the vines, the music, the props (plates, cones), the timers.
+   * Jennifer's dinner (dinner.ts, `who` 'jennifer') runs the same way: waiting before Miyamaedaira Station, leading, followed, at the yakiniku's table, the meal, the card game. */
+  private outing:{who:'namiko'|'jennifer';step:'wait'|'lead'|'follow'|'table'|'meal'|'dessert'|'concert'|'game'|'over';cone?:boolean}|null=null;
+  private friends:{lead:Walker;other:Walker}|null=null;
   private robot:Robot|null=null;
+  private waiter:Walker|null=null;
   private band:Phaser.GameObjects.Image[]=[];
   private audience:Phaser.GameObjects.Image[]=[];
   private music:{stop:()=>void}|null=null;
   private outingProps:Phaser.GameObjects.Image[]=[];
   private outingTimers:(Phaser.Time.TimerEvent|Phaser.Tweens.Tween)[]=[];
-  /** Namiko's answer, and her message after the outing (`namikoNote`), due at `namikoDue` (scene ms). */
-  private namikoDue=0;
-  private namikoNote='';
+  /** Each friend's answer, and their message after the outing (`note`), due at `due` (scene ms). */
+  private due={namiko:0,jennifer:0};
+  private note={namiko:'',jennifer:''};
   private friendsAt='';
   private flight:{skip:()=>void}|null=null;
   // When Lorenzo's next move is due (his OK, then his flight), in scene ms.
@@ -247,7 +254,7 @@ class Journey extends Phaser.Scene {
     this.events.on(Phaser.Scenes.Events.POST_UPDATE,()=>{if(this.player)this.nightfall()});
     this.input.addPointer(3);
     this.keys=this.input.keyboard!.createCursorKeys();
-    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat){if(this.story&&!this.modal)this.storyToggle();else this.interact()}else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyF'&&!event.repeat&&debugAllowed&&!this.modal){this.needs=freshNeeds();this.fedAt=minutes();this.keep()}else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
+    this.input.keyboard!.on('keydown',(event:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD'].includes(event.code))this.held.add(event.code);else if(['KeyE','Space','Enter'].includes(event.code)&&!event.repeat){if(this.story&&!this.modal)this.storyToggle();else this.interact()}else if(this.modal?.getData('talk')&&event.code.startsWith('Arrow')&&!event.repeat){const c=this.modal;(c.getData('ring') as Phaser.GameObjects.Rectangle).setVisible(true);this.focusChoice(c,c.getData('focus')+(event.code==='ArrowLeft'||event.code==='ArrowUp'?-1:1))}else if(event.code==='KeyT'&&!event.repeat)this.debugTime();else if(event.code==='KeyG'&&!event.repeat&&debugAllowed)this.debugGo();else if(event.code==='KeyF'&&!event.repeat&&debugAllowed&&!this.modal){this.needs=freshNeeds();this.fedAt=minutes();this.keep()}else if(event.code==='KeyM'&&!event.repeat&&debugAllowed&&!this.modal){debugMoney(this.wallet);machineSound('coin');this.refreshPurse()}else if(event.code==='KeyP'&&!event.repeat)this.openPhone();else if(event.code==='Escape'&&!event.repeat){if(!this.modal)this.menu();else (this.modal.getData('choices') as PadChoice[]|undefined)?.at(-1)?.[1]()}});
     this.input.keyboard!.on('keyup',(event:KeyboardEvent)=>this.held.delete(event.code));
     this.game.events.on('blur',()=>this.held.clear());
     // Back where the traveller last stood (waking up at home the first time: out of the apartment is the lane to Higashi-Nakano's west exit).
@@ -282,12 +289,12 @@ class Journey extends Phaser.Scene {
     const back=this.outside?.from===place?this.outside:null;if(isHub(place))this.outside=null;
     if(isHub(place))makeHub(this,place);
     this.modal?.destroy();this.modal=null;this.world?.destroy(true);this.hud?.destroy(true);this.over.removeAll(true);this.shutter=this.neon=this.pane=this.laneSign=null;this.car=this.bus=null;
-    this.music?.stop();this.music=null;for(const t of this.outingTimers)t.remove();this.outingTimers=[];this.friends=null;this.robot=null;this.band=[];this.audience=[];this.outingProps=[];this.friendsAt='';
-    if(this.outing&&!(place==='shabu'||place==='vineyard'||place==='town'&&this.outing.step==='wait'))this.outing=null;
+    this.music?.stop();this.music=null;for(const t of this.outingTimers)t.remove();this.outingTimers=[];this.friends=null;this.robot=null;this.waiter=null;this.band=[];this.audience=[];this.outingProps=[];this.friendsAt='';
+    if(this.outing&&!((this.outing.who==='namiko'?place==='shabu'||place==='vineyard':place==='yakiniku')||place==='town'&&this.outing.step==='wait'))this.outing=null;
     this.place=place;this.boardAt='';this.stayed=-1;this.overhead=[];this.commuters=[];this.spots.clear();this.playerSpot=this.hallSpot='';this.bump=1;this.stun=0;this.path=[];this.solids=[];this.direction={x:0,y:0};
     // The stations sit lower under the top band, leaving the back wall room for the station's name.
     if(scenic(place))makeScene(this,place);
-    makeOutingSprites(this);if(place==='shabu')makeShabu(this);if(place==='vineyard')makeVineyard(this);
+    makeOutingSprites(this);makeDinnerSprites(this);if(place==='yakiniku')makeYakiniku(this);if(place==='shabu')makeShabu(this);if(place==='vineyard')makeVineyard(this);
     const road=sightOfRoad(place);const avenue=avenueOf(place);if(road)makeSightRoad(this,place,road,this.busesTo(road).length>0,avenue&&dressRoad(this,place));
     this.world=this.add.container(0,isHub(place)?24:0);this.hud=this.add.container(0,0).setDepth(10);
     this.world.add(this.add.image(0,0,place==='town'?this.townMap():place==='corridor'?this.corridorMap():place==='platform'?this.platformMap():'map-'+place).setOrigin(0));const size=layoutOf(place);this.mapWidth=place==='platform'?platformWidth*2:place==='home-street'?homeStreetWidth*2:(size?.width??480)*2;this.mapHeight=place==='corridor'?this.corridor().height*2:place==='apartment'?832:place==='kyoto-house'?680:avenue?avenue.height*2:(size?.height??320)*2;
@@ -301,6 +308,8 @@ class Journey extends Phaser.Scene {
       const out=`return-${place}`,photo=`photo-${place}`;approach[out]=[(exit[0]+10)*2,(exit[1]+26)*2];approach[photo]=[(camera[0]+9)*2,(camera[1]+24)*2];hotspotFrames[out]=[(exit[0]-6)*2,(exit[1]-4)*2,108,92];hotspotShapes[out]=exitBox(exit);outlines[out]=outline(hotspotShapes[out]);hotspotFrames[photo]=[(camera[0]-8)*2,(camera[1]-6)*2,72,72];hotspotShapes[photo]=cameraBox(camera);outlines[photo]=outline(hotspotShapes[photo]);
       const second=layoutOf(place)!.second;if(second){const key=`photo2-${place}`,[x,y]=second.camera;approach[key]=[(x+9)*2,(y+28)*2];hotspotFrames[key]=[(x-8)*2,(y-6)*2,72,72];hotspotShapes[key]=cameraBox(second.camera);outlines[key]=outline(hotspotShapes[key])}
       const way=layoutOf(place)!.way;if(way)this.signpost(`way-${place}`,way.at);
+      // A temple's offering bowl on its stone (coin-toss.ts), solid at its foot.
+      const bowl=layoutOf(place)!.bowl;if(bowl){const key=`bowl-${place}`,[x,y]=bowl,[fx,fy,fw,fh]=bowlFoot(bowl);this.solids.push(new Phaser.Geom.Rectangle(fx*2,fy*2,fw*2,fh*2));approach[key]=[(x+11)*2,(y+30)*2];hotspotFrames[key]=[(x-6)*2,(y-6)*2,68,68];hotspotShapes[key]=bowlBox(bowl);outlines[key]=outline(hotspotShapes[key])}
     }
     // A sight's street lights its own signs, windows and lanterns (makeSightRoad).
     if(road&&!avenue){this.neon=this.add.image(0,0,`map-${place}-lit`).setOrigin(0).setAlpha(0);this.over.add(this.neon)}
@@ -332,7 +341,7 @@ class Journey extends Phaser.Scene {
     // and its furniture (apartmentSolids), the sofa, the island and the fridge standing in the room, sorted with the traveller (see makeApartment).
     if(place==='home-street')this.solids.push(new Phaser.Geom.Rectangle(0,0,this.mapWidth,234),new Phaser.Geom.Rectangle(0,396,this.mapWidth,244));
     if(place==='kyoto-lane'){this.solids.push(new Phaser.Geom.Rectangle(0,0,960,290),new Phaser.Geom.Rectangle(0,290,696,54),new Phaser.Geom.Rectangle(0,500,960,140));for(let y=164;y<250;y+=4)this.solids.push(new Phaser.Geom.Rectangle(laneOuter(y)*2-8,y*2,960,8))}
-    if(place==='shabu'||place==='vineyard')this.solids.push(...(place==='shabu'?shabuSolids:vineSolids).map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));
+    if(place==='shabu'||place==='vineyard'||place==='yakiniku')this.solids.push(...(place==='shabu'?shabuSolids:place==='yakiniku'?yakiSolids:vineSolids).map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));
     if(place==='vineyard'){this.neon=this.add.image(0,0,'map-vineyard-lit').setOrigin(0).setAlpha(0);this.over.add(this.neon)}
     if(this.kyotoHouse(place))this.solids.push(...kyotoSolids[place].map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));
     if(place==='apartment'){this.solids.push(...apartmentSolids.map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));for(const {name,x,base} of apartmentProps)this.world.add(this.add.image(x*2,base*2,`apartment-${name}`).setOrigin(0,1))}
@@ -402,7 +411,7 @@ class Journey extends Phaser.Scene {
     this.marker=this.add.circle(0,0,9,0xf3d28e,.35).setStrokeStyle(2,0xffedb9).setVisible(false);this.world.add(this.marker);
     this.player=this.add.container(...(back?[back.side==='west'?150:810,520]:[480,isHub(place)?490:place==='town'?328:place==='corridor'?this.corridor().gates*2-56:place==='platform'?320:410]) as [number,number]);if(at&&this.canWalk(at.x,at.y))this.player.setPosition(at.x,at.y);this.world.add(this.player);
     if(scenic(place)&&!(at&&this.canWalk(at.x,at.y))){const [x,y]=layoutOf(place)!.start;this.player.setPosition(x*2,y*2)}
-    if(place==='home-street'&&!at)this.player.setPosition(1310,340);if(place==='kyoto-lane'&&!at)this.player.setPosition(840,306);if(place==='apartment'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(438,780);if(place==='kyoto-house'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(96,620);if(place==='kyoto-upstairs'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(686,276);if(place==='shabu'&&!at)this.player.setPosition(120,520);if(place==='vineyard'&&!at)this.player.setPosition(190,560);
+    if(place==='home-street'&&!at)this.player.setPosition(1310,340);if(place==='kyoto-lane'&&!at)this.player.setPosition(840,306);if(place==='apartment'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(438,780);if(place==='kyoto-house'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(96,620);if(place==='kyoto-upstairs'&&!(at&&this.canWalk(at.x,at.y)))this.player.setPosition(686,276);if((place==='shabu'||place==='yakiniku')&&!at)this.player.setPosition(120,520);if(place==='vineyard'&&!at)this.player.setPosition(190,560);
     if(place==='corridor'||place==='home-street'||place==='apartment'||this.kyotoHouse(place)||this.mapWidth>960||this.mapHeight>640&&!isHub(place))this.scroll();
     this.sprite=this.add.image(0,0,'traveller-down-0').setOrigin(.5,.85).setScale(2);this.player.add(this.sprite);this.dizzy=this.add.graphics();this.player.add(this.dizzy);
     // What the traveller walks under at a sight, and what drifts up from its burner or fountain.
@@ -487,7 +496,7 @@ class Journey extends Phaser.Scene {
     this.rect(x-2,y-2,w+4,h+4,0x9b9e7d,parent);this.rect(x,y+3,w,h,0x182f2c,parent);const b=this.rect(x,y,w,h,0x415c4f,parent).setInteractive({useHandCursor:true});this.label(x+w/2,y+h/2,text,16,'#fff0d4',parent).setOrigin(.5);b.on('pointerdown',fn);return b;
   }
   private kyotoHouse(place:Place):place is 'kyoto-house'|'kyoto-upstairs'{return place==='kyoto-house'||place==='kyoto-upstairs'}
-  private shapeKey(spot:string){return (spot==='return'||spot==='photo'||spot==='photo2'||spot==='way')&&scenic(this.place)||spot==='photo'&&avenueOf(this.place)?`${spot}-${this.place}`:(spot==='return'||spot==='adjust'||spot==='window')&&['town','corridor','home-street','kyoto-lane','apartment','kyoto-house'].includes(this.place)||(spot==='home'||spot==='konbini')&&this.place==='kyoto-lane'?spot+'-'+this.place:spot}
+  private shapeKey(spot:string){return (spot==='return'||spot==='photo'||spot==='photo2'||spot==='way'||spot==='bowl')&&scenic(this.place)||spot==='photo'&&avenueOf(this.place)?`${spot}-${this.place}`:(spot==='return'||spot==='adjust'||spot==='window')&&['town','corridor','home-street','kyoto-lane','apartment','kyoto-house'].includes(this.place)||(spot==='home'||spot==='konbini')&&this.place==='kyoto-lane'?spot+'-'+this.place:spot}
   private frameFor(spot:string){return hotspotFrames[this.shapeKey(spot)]}
   /** Every hotspot of the current place. */
   /** A second signpost's hotspot, on the exit sign's pattern. */
@@ -501,7 +510,7 @@ class Journey extends Phaser.Scene {
     if(place==='town'){const n=roll(`${this.townId()}-${this.outside?.side}`);return n%2?[n&2?690:176,372]:null}
     return null;
   }
-  private placeSpots(){if(this.place==='shabu'||this.place==='vineyard')return this.outingSpots();return isHub(this.place)?[...(stationOpen()?['staff','ticket','local',this.right(this.place)]:[]),'stamp','westExit','eastExit']:this.place==='town'?[...(this.friendsHere()?['friends']:[]),'return','konbini','atm','vending-town-red','vending-town-blue','areaMap',...(this.trips().length?['bus']:[]),...(this.laneText()?['lane']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='home-street'?['return','home','vending-home-red','vending-home-white']:this.place==='kyoto-lane'?['return','konbini','home']:this.place==='apartment'?['return','bed']:this.place==='kyoto-house'?['return','upstairs']:this.place==='kyoto-upstairs'?['downstairs','bedE','bedD','bedC']:sightOfRoad(this.place)?['entrance','walkBack',...(avenueOf(this.place)?['photo']:[]),...(this.busesTo(sightOfRoad(this.place)!).length?['bus']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='corridor'?['return','adjust','window',...this.corridorPlatforms().flatMap((_,i)=>[`stairs${i}L`,`stairs${i}R`])]:this.place==='platform'?['downL','downR','route',...this.openDoors()]:['return','photo',...(layoutOf(this.place)?.second?['photo2']:[]),...(layoutOf(this.place)?.way?['way']:[])]}
+  private placeSpots(){if(this.place==='shabu'||this.place==='vineyard'||this.place==='yakiniku')return this.outingSpots();return isHub(this.place)?[...(stationOpen()?['staff','ticket','local',this.right(this.place)]:[]),'stamp','westExit','eastExit']:this.place==='town'?[...(this.friendsHere()?['friends']:[]),'return','konbini','atm','vending-town-red','vending-town-blue','areaMap',...(this.trips().length?['bus']:[]),...(this.laneText()?['lane']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='home-street'?['return','home','vending-home-red','vending-home-white']:this.place==='kyoto-lane'?['return','konbini','home']:this.place==='apartment'?['return','bed']:this.place==='kyoto-house'?['return','upstairs']:this.place==='kyoto-upstairs'?['downstairs','bedE','bedD','bedC']:sightOfRoad(this.place)?['entrance','walkBack',...(avenueOf(this.place)?['photo']:[]),...(this.busesTo(sightOfRoad(this.place)!).length?['bus']:[]),...(this.car?.getData('parked')?['uber']:[])]:this.place==='corridor'?['return','adjust','window',...this.corridorPlatforms().flatMap((_,i)=>[`stairs${i}L`,`stairs${i}R`])]:this.place==='platform'?['downL','downR','route',...this.openDoors()]:['return','photo',...(layoutOf(this.place)?.second?['photo2']:[]),...(layoutOf(this.place)?.way?['way']:[]),...(layoutOf(this.place)?.bowl?['bowl']:[])]}
   private hotspotAt(x:number,y:number){
     if(this.place==='platform'){
       const doors=this.doorXs(),k=doors.reduce((best,door,k)=>Math.abs(door-x)<Math.abs(doors[best]-x)?k:best,0);
@@ -544,10 +553,10 @@ class Journey extends Phaser.Scene {
       if(x<96&&y>270&&y<400)return 'walkBack';
       if(x>760&&x<860&&y>470&&y<540&&this.busesTo(sightOfRoad(this.place)!).length)return 'bus';
       const camera=avenueOf(this.place)?.camera;if(camera&&Phaser.Math.Distance.Between(x,y,(camera[0]+9)*2,(camera[1]+20)*2)<64)return 'photo';
-    }else if(this.place==='shabu'||this.place==='vineyard'){
+    }else if(this.place==='shabu'||this.place==='vineyard'||this.place==='yakiniku'){
       return this.outingNear();
     }else if(this.place==='town'){
-      if(this.friendsHere()&&Phaser.Math.Distance.Between(x,y,this.friends!.namiko.x+16,this.friends!.namiko.y)<80)return 'friends';
+      if(this.friendsHere()&&Phaser.Math.Distance.Between(x,y,this.friends!.lead.x+16,this.friends!.lead.y)<80)return 'friends';
       if(this.car?.getData('parked')&&Phaser.Math.Distance.Between(x,y,638,417)<84)return 'uber';
       if(x>380&&x<580&&y<310)return 'return';
       if(x>850&&x<945&&y<323)return 'atm';
@@ -575,7 +584,8 @@ class Journey extends Phaser.Scene {
       if(y>740&&x>396&&x<480)return 'return';
       if(x>140&&x<260&&y<280)return 'bed';
     }else{
-      const {exit,camera,way,second}=layoutOf(this.place)!;
+      const {exit,camera,way,second,bowl}=layoutOf(this.place)!;
+      if(bowl&&Phaser.Math.Distance.Between(x,y,(bowl[0]+11)*2,(bowl[1]+14)*2)<48)return 'bowl';
       if(second&&Phaser.Math.Distance.Between(x,y,(second.camera[0]+9)*2,(second.camera[1]+28)*2)<64)return 'photo2';
       if(way&&Phaser.Math.Distance.Between(x,y,(way.at[0]+10)*2,(way.at[1]+22)*2)<64)return 'way';
       if(Phaser.Math.Distance.Between(x,y,(exit[0]+10)*2,(exit[1]+22)*2)<64)return 'return';
@@ -612,6 +622,12 @@ class Journey extends Phaser.Scene {
   }
   /** What was bought goes into the bag. */
   private stash=(goods:Item[])=>{this.groceries.push(...goods.map(([ja,en]):[string,string]=>[ja,en]));this.keep()};
+  /** Before a temple's offering bowl (coin-toss.ts), over the paused scene: coins from the purse tossed at it, its charm the first time one lands in, a blessing for each one after (needs.ts `bless`). */
+  private offering(){
+    const sight=sightOf(this.place)!;this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20).setData('pause',true);
+    const hall=sight.pieces?.find(piece=>piece[0]==='temple'||piece[0]==='gate'||piece[0]==='pavilion') as [string,string,string]|undefined;
+    tossCoins(sight.id,[sight.ja,sight.en],sight.id==='kinkaku'?'pond':sight.ground==='moss'?'moss':'gravel',hall?[hall[1],hall[2]]:['#b5402f','#4d5a5c'],this.wallet,()=>this.refreshPurse(),value=>bless(this.needs,minutes(),value),()=>blessedFor(this.needs,minutes()),()=>{this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();this.keep()});
+  }
   /** Before a street vending machine, in first person; the scene waits under it. */
   private vending(vendor:VendorId){
     this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
@@ -639,7 +655,7 @@ class Journey extends Phaser.Scene {
     g.fillStyle(0x0a0f30).fillRect(X+18,Y+20,148,148).lineStyle(2,0xf4f4fa).strokeRect(X+18,Y+20,148,148);
     portraitTexture(this,who,key=>{if(c.active)c.add(this.add.image(X+20,Y+22,key).setOrigin(0).setDisplaySize(144,144))});
     const font='"Yorimichi Pixel","Yorimichi JP",monospace';void document.fonts.load('20px "Yorimichi Pixel"');
-    c.add(this.add.text(tx,Y+18,who==='lilly'?'Lilly':contacts[who].name,{fontFamily:font,fontSize:22,color:'#ffe27a'}));
+    c.add(this.add.text(tx,Y+18,who in contacts?contacts[who as Contact].name:speakerNames[who as keyof typeof speakerNames],{fontFamily:font,fontSize:22,color:'#ffe27a'}));
     const text=this.add.text(tx,Y+54,'',{fontFamily:font,fontSize:20,color:'#ffffff',lineSpacing:8,wordWrap:{width:X+W-tx-28}}),more=this.add.text(X+W-34,Y+H-34,'▼',{fontFamily:font,fontSize:16,color:'#ffffff'}).setVisible(false);c.add([text,more]);
     const ring=this.add.rectangle(0,0,1,1).setOrigin(0).setVisible(false);c.add(ring);
     let page=0,shown=0,asking=false;
@@ -777,6 +793,7 @@ class Journey extends Phaser.Scene {
       case 'entrance':if(sightOfRoad(this.place)!.ropeway)this.ropeway(true);else this.loadPlace(sightOfRoad(this.place)!.id);break;
       case 'way':this.loadPlace(layoutOf(this.place)!.way!.to);break;
       case 'walkBack':this.walkBack();break;
+      case 'bowl':this.offering();break;
       case 'photo':case 'photo2':{const page=near==='photo2'?layoutOf(this.place)!.second!.page:this.pageHere();this.collected.add(page);localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]));this.photoBook(page);break}
       default:this.dialog('Welcome to Japan','Tap the map to move, or tap a spot to walk there.\nKeyboard: arrows or WASD (ZQSD on AZERTY), E or Space to interact.\nGamepad: stick or D-pad, A to interact.\nPhone: tap it in the corner, P or RB.\n\nTicket machines on the back wall.\nFollow the signs or ask at the ticket office.');
     }
@@ -904,7 +921,10 @@ class Journey extends Phaser.Scene {
       ...homes.map(([at,place])=>to(`Home · ${places[place]}`,place,()=>{out(at.hub,at.side)();this.loadPlace(place)})),
       // Namiko's outing: waiting before Tachikawa Station now, at the restaurant's table, or the concert about to start under the vines.
       to('Outing · Namiko and Lilly waiting at Tachikawa','namiko lilly outing tachikawa meet',()=>{this.phone.namiko={state:'meet',at:Math.floor(minutes())};this.outing=null;out(meetAt as Hub,'west')();this.loadPlace('town')}),
-      ...(['shabu','vineyard'] as const).map(place=>to(`Outing · ${places[place]}`,`${place} namiko lilly outing tachikawa`,()=>{out(meetAt as Hub,'west')();this.outing=place==='vineyard'?{step:'concert'}:null;this.loadPlace(place)})),
+      // Jennifer's dinner: Jenn and Mike waiting before Miyamaedaira Station now, or at the yakiniku's table.
+      to('Outing · Jenn and Mike waiting at Miyamaedaira','jennifer jenn mike dinner yakiniku miyamaedaira meet',()=>{this.phone.jennifer={state:'meet',at:Math.floor(minutes())};this.outing=null;out(dinner.meetAt as Hub,'west')();this.loadPlace('town')}),
+      to(`Outing · ${places.yakiniku}`,'yakiniku jennifer jenn mike dinner card game miyamaedaira',()=>{out(dinner.meetAt as Hub,'west')();this.outing=null;this.loadPlace('yakiniku')}),
+      ...(['shabu','vineyard'] as const).map(place=>to(`Outing · ${places[place]}`,`${place} namiko lilly outing tachikawa`,()=>{out(meetAt as Hub,'west')();this.outing=place==='vineyard'?{who:'namiko',step:'concert'}:null;this.loadPlace(place)})),
       ...sights.flatMap(sight=>{const hub=stationOfSight(sight),side:Side=sight.pieces?'west':'east',go=(place:string)=>()=>{out(hub,side)();this.loadPlace(place)};return [
         ...sight.street?[]:[to(`Sight · ${sight.en}`,`${sight.id} ${sight.ja}`,go(sight.id))],
         ...sight.pieces?[to(`Sight · ${places[roadTo(sight.id)]}`,`${sight.id} ${sight.ja} road street`,go(roadTo(sight.id)))]:[],
@@ -1155,7 +1175,7 @@ class Journey extends Phaser.Scene {
   private keep(){
     if(!this.player)return;
     const deck=this.place==='platform'?this.deck:null,out=deck?.service==='shinkansen'?deck.hub:undefined;
-    const away=this.place==='shabu'||this.place==='vineyard';if(away)this.outside={from:meetAt as Hub,side:'west'};
+    const away=this.place==='shabu'||this.place==='vineyard'||this.place==='yakiniku';if(away)this.outside={from:(this.place==='yakiniku'?dinner.meetAt:meetAt) as Hub,side:'west'};
     const at=away?{place:'town' as Place,x:480,y:340}:!deck?{place:this.place,x:Math.round(this.player.x),y:Math.round(this.player.y)}:out?{place:out as Place,x:836,y:262}:{place:'corridor' as Place,...this.stairsSpot(deck)};
     writeSave({tickets:out?this.tickets.filter(t=>!t.punched||t.punched===out):this.tickets,at:{...at,outside:this.outside,gate:this.gateway},clock:clockMs(),alarm:this.alarm,phone:this.phone,groceries:this.groceries,needs:this.needs,story:this.chapter});this.kept=this.time.now;if(this.hud?.active)this.refreshPurse();
   }
@@ -1182,7 +1202,7 @@ class Journey extends Phaser.Scene {
     if(p==='town'&&this.outside){const {from,side}=this.outside,[ja,en]=exitName(from,side);return [`${stations[from].ja}駅 ${ja}`,`${stations[from].en} Station · ${en}`]}
     if(p==='corridor'&&this.gateway){const s=stations[this.gateway.hub];return [`${s.ja}駅`,`${s.en} Station · To the platforms`]}
     if(p==='platform'&&this.deck)return [`${this.deck.ja}駅`,`${this.deck.en} Station · On the platform`];
-    if(p==='shabu'||p==='vineyard')return [p==='shabu'?'しゃぶしゃぶ':'ぶどう園',places[p]];
+    if(p==='shabu'||p==='vineyard'||p==='yakiniku')return [p==='shabu'?'しゃぶしゃぶ':p==='yakiniku'?'焼肉':'ぶどう園',places[p]];
     return [(sightOf(p)??sightOfRoad(p))?.ja??'',places[p]??p];
   }
   /** The bag from the top band (or X), or at a bin: tickets, groceries and wallet, over the paused scene. */
@@ -1190,7 +1210,7 @@ class Journey extends Phaser.Scene {
     if(this.modal)return;
     this.stopNavigation();this.direction={x:0,y:0};this.modal=this.add.container(0,0).setDepth(20);
     const drop=(ja:string)=>{const i=this.groceries.findIndex(good=>good[0]===ja);if(i>=0)this.groceries.splice(i,1)};
-    this.bag=openInventory(this.tickets,this.groceries,this.wallet,{bin,pace:()=>this.burden,consume:ja=>{feed(this.needs,filling(goodNamed(ja)));drop(ja);this.keep()},toss:thing=>{if(typeof thing==='string')drop(thing);else this.tickets.splice(this.tickets.indexOf(thing),1);machineSound('drop');this.keep()}},()=>{this.bag=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
+    this.bag=openInventory(this.tickets,this.groceries,this.wallet,{bin,pace:()=>this.burden,blessed:()=>blessedFor(this.needs,minutes()),consume:ja=>{feed(this.needs,filling(goodNamed(ja)));drop(ja);this.keep()},toss:thing=>{if(typeof thing==='string')drop(thing);else this.tickets.splice(this.tickets.indexOf(thing),1);machineSound('drop');this.keep()}},()=>{this.bag=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys()});
   }
   private stationHelp(){
     const hub=isHub(this.place)?this.place:'tokyo';
@@ -1227,8 +1247,8 @@ class Journey extends Phaser.Scene {
     },hallView,{icon:(this.textures.get('phone-mini').getSourceImage() as HTMLCanvasElement).toDataURL(),open:()=>this.openPhone(()=>this.hall?.phoneClosed()),
       corner:()=>{const r=this.game.canvas.getBoundingClientRect(),k=r.width/960;return {x:r.left+916*k,y:r.top+580*k,k,unread:Object.values(this.phone.unread).reduce((a,b)=>a+b,0)}}});
   }
-  private refreshPurse(){this.burden=walkFactor(this.wallet,carried(this.tickets,this.groceries));this.refreshHud()}
-  private refreshHud(){this.hudTime=hhmm(minutes());paintHud(this,{day:dayLabel(),time:this.hudTime,coins:coinCount(this.wallet),yen:walletTotal(this.wallet),heavy:this.burden<1,hover:this.hudHover,story:this.story?{held:this.storyHeld,speed:this.pace.speed,speeds,auto:this.pace.auto}:undefined})}
+  private refreshPurse(){this.burden=drainFactor(this.wallet,carried(this.tickets,this.groceries));this.refreshHud()}
+  private refreshHud(){this.hudTime=hhmm(minutes());paintHud(this,{day:dayLabel(),time:this.hudTime,coins:coinCount(this.wallet),yen:walletTotal(this.wallet),heavy:this.burden>1,hover:this.hudHover,story:this.story?{held:this.storyHeld,speed:this.pace.speed,speeds,auto:this.pace.auto}:undefined})}
   /** The story's controls on the top band: held (as it starts) or under way, its speed, the album turning by itself or by hand; also Space, Enter, E or A for play / pause. */
   private storyToggle(){if(!this.story)return;this.storyHeld=!this.storyHeld;if(!this.storyHeld)this.storyIdle=this.storyAfter(200);this.refreshHud()}
   private storyPace(change:Partial<Pace>){if(!this.story)return;Object.assign(this.pace,change);savePace(this.pace);this.storySpeed();this.refreshHud()}
@@ -1381,7 +1401,7 @@ class Journey extends Phaser.Scene {
       const steps=this.time.addEvent({delay:120,loop:true,callback:()=>{frame++;walker.setTexture(`traveller-right-${frame%3}`);if(picture!=='rest')for(const dash of dashes)dash.x=(dash.x-(picture?90:30)+1080)%1080-60}});
       const counter=this.tweens.addCounter({from:start,to:start+length,duration:spell,onUpdate:tween=>{if(clock.active)clock.setText(`${hhmm(start)} → ${hhmm(tween.getValue()??start)}`)}});c.once('destroy',()=>{counter.remove();steps.remove()});
       camera.fadeFrom(300,0,0,0,true);
-      this.time.delayedCall(Math.max(spell,400*this.time.timeScale),()=>{fade(()=>{addMinutes(length);spend(this.needs,length*2);c.destroy(true);this.modal=null;arrive();camera.fadeIn(400)})});
+      this.time.delayedCall(Math.max(spell,400*this.time.timeScale),()=>{fade(()=>{const from=minutes();addMinutes(length);spend(this.needs,length*3*this.burden*blessing(this.needs,from));c.destroy(true);this.modal=null;arrive();camera.fadeIn(400)})});
     });
   }
   /** The stop with no bus running: its timetable on the pole, a sheet for each line, beside the ways that remain. */
@@ -1679,7 +1699,7 @@ class Journey extends Phaser.Scene {
   private refreshPhone(){const n=Object.values(this.phone.unread).reduce((a,b)=>a+b,0);this.badge.setVisible(n>0);this.badgeText.setText(String(n))}
   /** The suggested reply sent: only to Lorenzo, asked to come while he is still in Hong Kong, or to come and pick the traveller up once he is in Japan (his answer follows in lorenzo). */
   private send(contact:Contact){
-    if(contact==='namiko'){const plan=this.phone.namiko;if(plan.state!=='none'||this.story)return;this.phone.chats.namiko.push({me:true,text:askNamiko,at:clockMs()});plan.state='asked';this.namikoDue=this.time.now+2200;this.keep();this.phoneUi?.refresh();return}
+    if(contact==='namiko'||contact==='jennifer'){const plan=this.phone[contact];if(plan.state!=='none'||this.story)return;this.phone.chats[contact].push({me:true,text:contact==='namiko'?askNamiko:askJennifer,at:clockMs()});plan.state='asked';this.due[contact]=this.time.now+2200;this.keep();this.phoneUi?.refresh();return}
     const trip=this.phone.lorenzo;if(contact!=='lorenzo'||trip.state!=='home'&&trip.state!=='here')return;
     this.phone.chats.lorenzo.push({me:true,text:trip.state==='home'?askLorenzo:callLorenzo,at:clockMs()});trip.state=trip.state==='home'?'asked':'called';this.phoneDue=this.time.now+1600;this.keep();this.phoneUi?.refresh();
   }
@@ -1772,39 +1792,50 @@ class Journey extends Phaser.Scene {
       camera.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE,()=>{this.modal?.destroy(true);this.modal=null});
     });
   }
-  /** Namiko on the phone: her answer to the traveller's message (a time to meet in front of Tachikawa Station, outing.ts `meetingFrom`), her regrets once the time is long past with nobody come,
-   * Namiko and Lilly coming out of the station when the traveller is already waiting there, and her message after the outing. */
-  private namiko(){
-    const plan=this.phone.namiko;
-    if(plan.state==='asked'&&this.time.now>=this.namikoDue){
-      const at=meetingFrom(),when=dayOf(at)===dayOf()?'today':'tomorrow',exit=exitName(meetAt as Hub,'west')[1];plan.state='meet';plan.at=at;
-      this.receive('namiko',phoneLines.answer(when,hhmm(at),exit));
+  /** Namiko and Jennifer on the phone: the answer to the traveller's message (a time to meet in front of their station, outing.ts `meetingFrom`), their regrets once the time is long past with nobody come,
+   * the two friends coming out of the station when the traveller is already waiting there, and the message after the outing. */
+  private invites(){
+    for(const who of ['namiko','jennifer'] as const){
+      const plan=this.phone[who],invite=this.inviteOf(who),lines=who==='namiko'?phoneLines:dinnerPhone;
+      if(plan.state==='asked'&&this.time.now>=this.due[who]){
+        const at=meetingFrom(minutes(),invite),when=dayOf(at)===dayOf()?'today':'tomorrow',exit=exitName(invite.meetAt as Hub,'west')[1];plan.state='meet';plan.at=at;
+        this.receive(who,lines.answer(when,hhmm(at),exit));
+      }
+      if(plan.state==='meet'&&!this.outing&&missed(plan.at!,minutes(),invite)){plan.state='none';plan.at=undefined;this.receive(who,lines.missed)}
+      if(plan.state==='meet'&&!this.outing&&!this.story&&!this.modal&&this.atMeeting()===who&&waiting(plan.at!,minutes(),invite))this.meetFriends(who,true);
+      if(this.note[who]&&this.time.now>=this.due[who]&&!this.modal){this.receive(who,this.note[who]);this.note[who]=''}
     }
-    if(plan.state==='meet'&&!this.outing&&missed(plan.at!)){plan.state='none';plan.at=undefined;this.receive('namiko',phoneLines.missed)}
-    if(plan.state==='meet'&&!this.outing&&!this.story&&!this.modal&&this.atMeeting()&&waiting(plan.at!))this.meetFriends(true);
-    if(this.namikoNote&&this.time.now>=this.namikoDue&&!this.modal){this.receive('namiko',this.namikoNote);this.namikoNote=''}
   }
-  /** In the street outside Tachikawa's west exit, where Namiko said to meet. */
-  private atMeeting(){return this.place==='town'&&this.outside?.from===meetAt&&this.outside.side==='west'}
-  /** Namiko and Lilly waiting there, or walking out of the station to their spot (`out`). */
-  private meetFriends(out:boolean){
-    const namiko=new Walker(this,this.world,'namiko',out?470:560,out?300:352,1.9*.95),lilly=new Walker(this,this.world,'lilly',out?494:592,out?304:358,1.9*.6,'down',.12);
-    this.friends={namiko,lilly};this.outing={step:'wait'};
-    if(out){namiko.go([[560,352]],()=>namiko.turn('down'));lilly.go([[592,358]],()=>lilly.turn('down'))}
+  private inviteOf(who:'namiko'|'jennifer'){return who==='namiko'?lunch:dinner}
+  /** Whose meeting place the traveller stands in: the street outside the west exit of Tachikawa (Namiko) or Miyamaedaira (Jennifer). */
+  private atMeeting(){return this.place==='town'&&this.outside?.side==='west'?this.outside.from===meetAt?'namiko':this.outside.from===dinner.meetAt?'jennifer':null:null}
+  /** Namiko and Lilly, or Jennifer and Mike, waiting there, or walking out of the station to their spot (`out`). */
+  private meetFriends(who:'namiko'|'jennifer',out:boolean){
+    const [a,b]=who==='namiko'?['namiko','lilly'] as const:['jennifer','mike'] as const,lead=new Walker(this,this.world,a,out?470:560,out?300:352,1.9*(friendLooks[a].height??1)),other=new Walker(this,this.world,b,out?494:592,out?304:358,1.9*(friendLooks[b].height??1),'down',who==='namiko'?.12:.11);
+    this.friends={lead,other};this.outing={who,step:'wait'};
+    if(out){lead.go([[560,352]],()=>lead.turn('down'));other.go([[592,358]],()=>other.turn('down'))}
   }
-  private friendsHere(){return !!this.friends&&!!this.outing&&(this.outing.step==='wait'||this.outing.step==='follow')&&!this.friends.namiko.moving}
+  private friendsHere(){return !!this.friends&&!!this.outing&&(this.outing.step==='wait'||this.outing.step==='follow')&&!this.friends.lead.moving}
   /** What the outing adds to a place as it loads: Namiko and Lilly before the station; in the restaurant, at the table, the robot and the hotspots; under the vines, the band, the audience and them on their mat. */
   private outingSetup(){
-    const plan=this.phone.namiko;
-    if(this.atMeeting()&&plan.state==='meet'&&!this.story&&waiting(plan.at!))this.meetFriends(false);
-    if(this.place!=='shabu'&&this.place!=='vineyard')return;
+    {const who=this.atMeeting(),plan=who&&this.phone[who];if(who&&plan&&plan.state==='meet'&&!this.story&&waiting(plan.at!,minutes(),this.inviteOf(who)))this.meetFriends(who,false)}
+    if(this.place!=='shabu'&&this.place!=='vineyard'&&this.place!=='yakiniku')return;
     const spot=(key:string,shape:[number,number,number,number][],to:[number,number],frame?:[number,number,number,number])=>{hotspotShapes[key]=shape;outlines[key]=outline(shape);approach[key]=to;const l=Math.min(...shape.map(s=>s[0])),t=Math.min(...shape.map(s=>s[1])),r=Math.max(...shape.map(s=>s[0]+s[2])),b=Math.max(...shape.map(s=>s[1]+s[3]));hotspotFrames[key]=frame??[l*2-12,t*2-12,(r-l)*2+24,(b-t)*2+24]};
-    if(this.place==='shabu'){
+    if(this.place==='yakiniku'){
+      // A teleport straight in (debug) sits down to the meal as if Jennifer had led the way.
+      if(!this.outing||this.outing.who!=='jennifer'||this.outing.step==='wait'||this.outing.step==='lead'||this.outing.step==='follow')this.outing={who:'jennifer',step:'table'};
+      const [cx,top]=yakiTable;this.waiter=new Walker(this,this.world,'waiter',kitchen[0]*2,kitchen[1]*2+8,1.9*.98);
+      if(this.outing.step==='table'){
+        const jenn=new Walker(this,this.world,'jennifer',0,0,1.9*.97),mike=new Walker(this,this.world,'mike',0,0,1.9);jenn.sit((cx-16)*2,top*2,'down');mike.sit((cx+16)*2,top*2,'down');this.friends={lead:jenn,other:mike};
+        this.outingTimers.push(this.time.delayedCall(500,()=>{if(!this.modal)this.talk('jennifer',yakiLines.arrive)}));
+      }
+      spot('leave',[yakiDoor],[44,540]);spot('seat',[[cx-22,top+24,12,6]],[(cx-16)*2,372]);spot('friends',[[cx-22,top-17,12,17],[cx+10,top-18,12,18]],[cx*2,372]);
+    }else if(this.place==='shabu'){
       // A teleport straight in (debug) sits down to the meal as if Namiko had led the way.
-      if(!this.outing||this.outing.step==='wait'||this.outing.step==='lead'||this.outing.step==='follow')this.outing={step:'table'};
+      if(!this.outing||this.outing.step==='wait'||this.outing.step==='lead'||this.outing.step==='follow')this.outing={who:'namiko',step:'table'};
       const [cx,top]=ourTable;this.robot=new Robot(this,this.world,[robotDock[0]*2,robotDock[1]*2],244,{x:200,y:380},[[400,320],[800,320],[400,470],[600,470],[800,470]]);
       if(this.outing.step==='table'||this.outing.step==='dessert'){
-        const namiko=new Walker(this,this.world,'namiko',0,0,1.9*.95),lilly=new Walker(this,this.world,'lilly',0,0,1.9*.6);namiko.sit((cx-16)*2,top*2,'down');lilly.sit((cx+16)*2,top*2,'down');this.friends={namiko,lilly};
+        const namiko=new Walker(this,this.world,'namiko',0,0,1.9*.95),lilly=new Walker(this,this.world,'lilly',0,0,1.9*.6);namiko.sit((cx-16)*2,top*2,'down');lilly.sit((cx+16)*2,top*2,'down');this.friends={lead:namiko,other:lilly};
       }
       spot('leave',[shabuDoor],[44,540]);spot('seat',[[cx-22,top+24,12,6]],[(cx-16)*2,372]);spot('friends',[[cx-22,top-17,12,17],[cx+12,top-11,8,11]],[(cx)*2,372]);
       {const [x,y,w,h]=softServe;spot('icecream',[[x,y,w,h]],[916,272])}
@@ -1814,7 +1845,7 @@ class Journey extends Phaser.Scene {
       const plain=looks.map((_,i)=>i).filter(i=>looks[i].length!=='robe');
       for(const [x,y] of [[160,190],[184,188],[318,188],[346,190],[192,226],[214,228],[312,228],[340,226],[140,166],[392,228],[420,150]] as const){const look=plain[(x*7+y)%plain.length],image=this.add.image(x*2,y*2,`commuter-${look}-up-0`).setOrigin(.5,.85).setScale(1.9*(looks[look].height??1));this.world.add(image);this.audience.push(image)}
       if(this.outing?.step==='concert'){
-        const namiko=new Walker(this,this.world,'namiko',472,370,1.9*.95,'up'),lilly=new Walker(this,this.world,'lilly',524,374,1.9*.6,'up');this.friends={namiko,lilly};
+        const namiko=new Walker(this,this.world,'namiko',472,370,1.9*.95,'up'),lilly=new Walker(this,this.world,'lilly',524,374,1.9*.6,'up');this.friends={lead:namiko,other:lilly};
         this.outingTimers.push(this.time.delayedCall(500,()=>this.talk('namiko',vineyard.namiko,[],()=>this.talk('lilly',vineyard.lilly,[],()=>this.concert(true)))));
       }
       {const [x,y]=vineSign;spot('leave',[[x,y,42,14],[x+8,y+14,3,10]],[74,584])}
@@ -1824,6 +1855,7 @@ class Journey extends Phaser.Scene {
   private outingSpots(){
     const step=this.outing?.step;
     if(this.place==='vineyard')return ['leave',...(!this.music&&step!=='concert'?['stage']:[])];
+    if(this.place==='yakiniku')return ['leave',...(step==='table'?['seat','friends']:[])];
     return ['leave',...(step==='table'?['seat']:[]),...(step==='dessert'?['friends']:[]),...(step==='dessert'&&!this.outing!.cone?['icecream']:[])];
   }
   private outingNear(){
@@ -1831,28 +1863,30 @@ class Journey extends Phaser.Scene {
     return ['leave','seat','friends','icecream','stage'].find(spot=>near(spot,spot==='stage'?90:spot==='friends'?80:60))??'';
   }
   private outingPrompt(spot:string){
+    if(spot==='friends'&&this.outing?.who==='jennifer')return this.place==='town'&&this.outing.step==='follow'?'Follow Jenn':'Jenn & Mike';
     if(spot==='friends')return this.place==='town'?this.outing?.step==='follow'?'Follow Namiko':'Namiko & Lilly':this.outing?.cone?'Give Lilly the ice cream':'Namiko & Lilly';
     if(spot==='seat')return 'Sit down';if(spot==='icecream')return 'Soft-serve ice cream';if(spot==='stage')return 'Encore!';
-    if(spot==='leave')return this.place==='shabu'?'Leave':'Walk to Tachikawa Station';
+    if(spot==='leave')return this.place==='shabu'||this.place==='yakiniku'?'Leave':'Walk to Tachikawa Station';
     return null;
   }
   /** Namiko, Lilly and the robot walking, and the outline round the two friends kept on them in the street. */
   private outingStep(delta:number){
-    if(!this.friends&&!this.robot)return;
-    this.friends?.namiko.update(delta);this.friends?.lilly.update(delta);this.robot?.update(delta);
+    if(!this.friends&&!this.robot&&!this.waiter)return;
+    this.friends?.lead.update(delta);this.friends?.other.update(delta);this.robot?.update(delta);this.waiter?.update(delta);
     if(this.place==='town'&&this.friends){
-      const {namiko,lilly}=this.friends,key=`${Math.round(namiko.x)},${Math.round(namiko.y)},${Math.round(lilly.x)}`;if(key===this.friendsAt)return;this.friendsAt=key;
-      const shape:[number,number,number,number][]=[[Math.round(namiko.x/2)-5,Math.round(namiko.y/2)-22,10,23],[Math.round(lilly.x/2)-3,Math.round(lilly.y/2)-13,7,14]];
+      const {lead:namiko,other:lilly}=this.friends,key=`${Math.round(namiko.x)},${Math.round(namiko.y)},${Math.round(lilly.x)}`;if(key===this.friendsAt)return;this.friendsAt=key;
+      const shape:[number,number,number,number][]=[[Math.round(namiko.x/2)-5,Math.round(namiko.y/2)-22,10,23],this.outing?.who==='jennifer'?[Math.round(lilly.x/2)-5,Math.round(lilly.y/2)-23,10,24]:[Math.round(lilly.x/2)-3,Math.round(lilly.y/2)-13,7,14]];
       hotspotShapes.friends=shape;outlines.friends=outline(shape);approach.friends=[namiko.x+16,namiko.y+24];hotspotFrames.friends=[namiko.x-30,namiko.y-60,lilly.x-namiko.x+60,80];
     }
   }
   private outingUse(spot:string){
     const step=this.outing?.step,{friends}=this;
+    if(this.outing?.who==='jennifer'){this.dinnerUse(spot);return}
     if(spot==='friends'&&this.place==='town'&&friends){
       if(step==='follow'){this.walking('Shabu-shabu, near Tachikawa Station',4,()=>this.loadPlace('shabu'),'Following Namiko');return}
-      friends.namiko.turn('down');friends.lilly.turn('down');
+      friends.lead.turn('down');friends.other.turn('down');
       this.talk('namiko',meeting.namiko(minutes()>this.phone.namiko.at!+10),[],()=>this.talk('lilly',meeting.lilly,[],()=>this.talk('namiko',meeting.namikoThen,[],()=>{
-        this.outing={step:'lead'};friends.namiko.go([[320,356],[70,346]],()=>{friends.namiko.turn('right');this.outing={step:'follow'}});friends.lilly.go([[350,362],[100,352]],()=>friends.lilly.turn('right'));
+        this.outing={who:'namiko',step:'lead'};friends.lead.go([[320,356],[70,346]],()=>{friends.lead.turn('right');this.outing={who:'namiko',step:'follow'}});friends.other.go([[350,362],[100,352]],()=>friends.other.turn('right'));
       })));
       return;
     }
@@ -1867,9 +1901,76 @@ class Journey extends Phaser.Scene {
     else if(spot==='leave')this.walking('Tachikawa Station',15,()=>{this.outside={from:meetAt as Hub,side:'west'};this.loadPlace('town',{x:480,y:340})});
     else if(spot==='stage')this.concert(false);
   }
+  /** Jennifer's dinner: in front of Miyamaedaira Station, the greetings, then following them to the yakiniku; there, sitting down to the meal, or leaving (Jenn asks first while at the table). */
+  private dinnerUse(spot:string){
+    const step=this.outing!.step,{friends}=this,home=()=>{this.outside={from:dinner.meetAt as Hub,side:'west'}};
+    if(spot==='friends'&&this.place==='town'&&friends){
+      if(step==='follow'){this.walking('Yakiniku, near Miyamaedaira Station',3,()=>this.loadPlace('yakiniku'),'Following Jenn');return}
+      friends.lead.turn('down');friends.other.turn('down');
+      this.talk('jennifer',dinnerMeeting.jennifer(minutes()>this.phone.jennifer.at!+10),[],()=>this.talk('mike',dinnerMeeting.mike,[],()=>this.talk('jennifer',dinnerMeeting.jenniferThen,[],()=>{
+        this.outing={who:'jennifer',step:'lead'};friends.lead.go([[320,356],[70,346]],()=>{friends.lead.turn('right');this.outing={who:'jennifer',step:'follow'}});friends.other.go([[350,362],[100,352]],()=>friends.other.turn('right'));
+      })));
+      return;
+    }
+    if(spot==='seat')this.dinnerMeal();
+    else if(spot==='friends'||spot==='leave'&&step==='table')this.talk('jennifer',yakiLines.leaving(true),[[yakiLines.leaveChoices[0],()=>this.dinnerGoodbye(null)],[yakiLines.leaveChoices[1],()=>{}]]);
+    else if(spot==='leave'){home();this.loadPlace('town',{x:120,y:340})}
+  }
+  /** Sat at the yakiniku's table: Jenn orders on the tablet, the waiter brings the plates, the cuts sizzle on the grill, the meal (the clock on by an hour and a half, hunger gone);
+   * then Mike takes out his card game. */
+  private dinnerMeal(){
+    const [cx,top]=yakiTable,waiter=this.waiter!;this.outing!.step='meal';this.stopNavigation();this.direction={x:0,y:0};
+    this.player.setPosition((cx-16)*2,(top+24)*2+8);this.facing='up';this.sprite.setTexture('traveller-up-0').setCrop(0,0,20,20);
+    const hold=()=>{this.modal?.destroy(true);this.modal=this.add.container(0,0)},prop=(key:string,x:number,y:number)=>{const image=this.add.image(x*2,y*2,key).setScale(2).setOrigin(.5,1);this.world.add(image);this.outingProps.push(image);return image};
+    const path:[number,number][]=[[kitchen[0]*2,250],[200,250],[200,390],[(cx+48)*2,390],[(cx+48)*2,(top+22)*2]];
+    this.talk('jennifer',yakiLines.order,[],()=>this.talk('mike',yakiLines.orderMike,[],()=>{
+      hold();
+      waiter.go(path,()=>{
+        waiter.turn('left');const plates=[prop('plate-yaki',cx-24,top+15),prop('plate-yaki',cx+24,top+15),prop('mug',cx-10,top+18),prop('mug',cx+12,top+18)];
+        this.talk('waiter',yakiLines.waiter,[],()=>{
+          waiter.go([...path].reverse().slice(1),()=>waiter.turn('down'));hold();
+          // The first cuts laid on the grill: they sizzle, and the smoke curls up and down into it.
+          const pieces=[[-5,8,0],[5,8,1],[-5,14,2],[5,14,4]].map(([dx,dy,k])=>prop(`grill-${k}`,cx+dx,top+dy));this.music=sizzle();
+          const smoke=this.time.addEvent({delay:260,loop:true,callback:()=>{const puff=this.add.image((cx+Phaser.Math.Between(-9,9))*2,(top+6)*2,'smoke').setScale(1.5).setAlpha(.7);this.world.add(puff);this.tweens.add({targets:puff,y:puff.y-36,x:puff.x+Phaser.Math.Between(-10,10),alpha:0,scale:2.4,duration:1300,onComplete:()=>puff.destroy()})}});this.outingTimers.push(smoke);
+          this.time.delayedCall(1200,()=>this.talk('mike',yakiLines.grillMike,[],()=>this.talk('jennifer',yakiLines.grillJennifer,[],()=>{
+            hold();const camera=this.cameras.main;
+            camera.fade(500,0,0,0,true,(_:unknown,p:number)=>{if(p<1)return;
+              smoke.remove();this.music?.stop();this.music=null;for(const piece of pieces)piece.destroy();for(const plate of plates)if(plate.texture.key==='plate-yaki')plate.setTexture('plate-done');
+              addMinutes(90);feed(this.needs,{hunger:100,thirst:70});
+              const later=this.label(480,300,yakiLines.later,22,'#fff0d4',this.hud).setOrigin(.5);camera.fadeIn(600);this.outingTimers.push(this.time.delayedCall(1600,()=>later.destroy()));
+              this.outingTimers.push(this.time.delayedCall(1700,()=>this.talk('jennifer',yakiLines.full,[],()=>this.talk('mike',yakiLines.game,[],()=>
+                this.talk('jennifer',yakiLines.ask,[[yakiLines.askChoices[0],()=>this.cardGame()],[yakiLines.askChoices[1],()=>this.dinnerGoodbye(null)]])))));
+            });
+          })));
+        });
+      });
+    }));
+  }
+  /** Mike's card game at the table (card-game.ts), over the paused scene; then who won says so, and the goodbye. Played out, it takes the clock on by half an hour. */
+  private cardGame(){
+    this.outing!.step='game';
+    this.talk('mike',gameLines.rules,[],()=>{
+      this.modal?.destroy(true);this.modal=this.add.container(0,0).setDepth(20).setData('pause',true);
+      playCardGame((outcome:Outcome|null)=>{
+        this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();
+        if(!outcome){this.talk('jennifer',gameLines.quit,[],()=>this.dinnerGoodbye(null));return}
+        addMinutes(30);const [first]=outcome.winners,won=outcome.winners.includes('you'),end=()=>this.dinnerGoodbye(won);
+        if(won)this.talk('mike',gameLines.you,[],()=>this.talk('jennifer',gameLines.youJennifer,[],end));
+        else if(first==='jennifer')this.talk('jennifer',gameLines.jennifer,[],()=>this.talk('mike',gameLines.jenniferMike,[],end));
+        else this.talk('mike',gameLines.mike,[],()=>this.talk('jennifer',gameLines.mikeJennifer,[],end));
+      });
+    });
+  }
+  /** Jenn and Mike's goodbye at the table: dinner is on them, and they all walk back to the station; `won`: the game's outcome for the traveller, null if none was played out. */
+  private dinnerGoodbye(won:boolean|null){
+    this.talk('jennifer',dinnerGoodbye.jennifer(minuteOfDay()>=22*60),[],()=>this.talk('mike',dinnerGoodbye.mike,[],()=>{
+      this.phone.jennifer={state:'done'};this.note.jennifer=won===null?dinnerPhone.afterDinner:dinnerPhone.afterGame(won);this.due.jennifer=this.time.now+40000;this.outing=null;this.sprite.setCrop();
+      this.walking('Miyamaedaira Station',3,()=>{this.outside={from:dinner.meetAt as Hub,side:'west'};this.loadPlace('town',{x:480,y:340})});
+    }));
+  }
   /** Sat at the table: Namiko orders, the robot brings the plates, the meal (the clock on by an hour and a quarter, hunger gone), then Lilly's wish for an ice cream. */
   private meal(){
-    const [cx,top]=ourTable,{namiko,lilly}=this.friends!;this.outing!.step='meal';this.stopNavigation();this.direction={x:0,y:0};
+    const [cx,top]=ourTable,{lead:namiko,other:lilly}=this.friends!;this.outing!.step='meal';this.stopNavigation();this.direction={x:0,y:0};
     // On the near stool, seen from behind: the frame cut at the stool, the table beyond.
     this.player.setPosition((cx-16)*2,(top+24)*2+8);this.facing='up';this.sprite.setTexture('traveller-up-0').setCrop(0,0,20,20);
     const hold=()=>{this.modal?.destroy(true);this.modal=this.add.container(0,0)},plate=(key:string,x:number,y:number)=>{const image=this.add.image(x*2,y*2,key).setScale(2).setOrigin(.5,1);this.world.add(image);this.outingProps.push(image);return image};
@@ -1892,16 +1993,16 @@ class Journey extends Phaser.Scene {
   }
   /** The cone handed over: Lilly is delighted, and Namiko asks the traveller along to the concert in the vineyard up the road. */
   private giveCone(){
-    const {lilly}=this.friends!,cone=this.outingProps.find(p=>p.texture.key==='cone');cone?.destroy();this.outing!.cone=false;
+    const {other:lilly}=this.friends!,cone=this.outingProps.find(p=>p.texture.key==='cone');cone?.destroy();this.outing!.cone=false;
     const held=this.add.image(lilly.x+10,lilly.y-26,'cone').setScale(1.4);this.world.add(held);this.outingProps.push(held);
     this.talk('lilly',iceCream.lilly,[],()=>this.talk('namiko',iceCream.namiko(minuteOfDay()>=17*60),[],()=>{
-      this.outing={step:'concert'};this.walking('The vineyard, up the road',12,()=>this.loadPlace('vineyard'),'With Namiko and Lilly');
+      this.outing={who:'namiko',step:'concert'};this.walking('The vineyard, up the road',12,()=>this.loadPlace('vineyard'),'With Namiko and Lilly');
     }));
   }
   /** Namiko's goodbye at the restaurant (no ice cream, no concert): she treats, they part outside the station. */
   private goodbye(){
     this.talk('namiko',goodbye.namiko,[],()=>this.talk('lilly',goodbye.lilly,[],()=>{
-      this.phone.namiko={state:'done'};this.namikoNote=phoneLines.afterLunch;this.namikoDue=this.time.now+40000;this.outing=null;
+      this.phone.namiko={state:'done'};this.note.namiko=phoneLines.afterLunch;this.due.namiko=this.time.now+40000;this.outing=null;
       this.walking('Tachikawa Station',4,()=>{this.outside={from:meetAt as Hub,side:'west'};this.loadPlace('town',{x:480,y:340})});
     }));
   }
@@ -1910,16 +2011,16 @@ class Journey extends Phaser.Scene {
     if(this.music)return;
     if(withFriends){this.phone.namiko={state:'done'};this.keep()}
     this.music=playConcert();let beat=0;
-    const sway=this.audience.map((image,i)=>this.tweens.add({targets:image,y:image.y-3,duration:750,delay:i*130,yoyo:true,repeat:-1}));this.outingTimers.push(...sway);this.friends?.lilly.dance(true);
+    const sway=this.audience.map((image,i)=>this.tweens.add({targets:image,y:image.y-3,duration:750,delay:i*130,yoyo:true,repeat:-1}));this.outingTimers.push(...sway);this.friends?.other.dance(true);
     const ticks=this.time.addEvent({delay:500,loop:true,callback:()=>{beat++;this.band.forEach((image,k)=>image.setTexture(`musician-${k}-${(beat+k)%2}`));
       if(beat%2){const from=this.band[beat%3],note=this.add.image(from.x+Phaser.Math.Between(-12,12),from.y-56,'note').setScale(2);this.world.add(note);this.tweens.add({targets:note,y:note.y-70,x:note.x+Phaser.Math.Between(-30,30),alpha:0,duration:2400,onComplete:()=>note.destroy()})}}});
     this.outingTimers.push(ticks);
     this.outingTimers.push(this.time.delayedCall(concertLength*1000,()=>{
-      ticks.remove();for(const t of sway)t.remove();this.band.forEach((image,k)=>image.setTexture(`musician-${k}-0`));this.music=null;this.friends?.lilly.dance(false);
+      ticks.remove();for(const t of sway)t.remove();this.band.forEach((image,k)=>image.setTexture(`musician-${k}-0`));this.music=null;this.friends?.other.dance(false);
       if(!withFriends||!this.friends)return;
-      const {namiko,lilly}=this.friends;
+      const {lead:namiko,other:lilly}=this.friends;
       this.talk('namiko',vineyard.namikoAfter(minuteOfDay()>=18*60),[],()=>this.talk('lilly',vineyard.lillyAfter,[],()=>{
-        this.outing={step:'over'};this.namikoNote=phoneLines.afterConcert;this.namikoDue=this.time.now+45000;
+        this.outing={who:'namiko',step:'over'};this.note.namiko=phoneLines.afterConcert;this.due.namiko=this.time.now+45000;
         namiko.go([[300,520],[60,610]],()=>namiko.image.setVisible(false));lilly.go([[330,530],[90,616]],()=>lilly.image.setVisible(false));
       }));
     }));
@@ -1977,7 +2078,7 @@ class Journey extends Phaser.Scene {
     if(!this.player)return;
     const paused=!!this.modal?.getData('pause');if(paused!==!!this.pausedAt)this.pause(paused);
     if(paused){hold();this.gamepad();return}
-    if(this.story&&this.storyHeld)hold();else tick();if(this.story)this.needs=freshNeeds();spend(this.needs,Math.max(0,minutes()-this.fedAt));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040);
+    if(this.story&&this.storyHeld)hold();else tick();if(this.story)this.needs=freshNeeds();if(this.moving&&!this.modal)spend(this.needs,Math.max(0,minutes()-this.fedAt)*this.burden*blessing(this.needs,minutes()));this.fedAt=minutes();this.needBars.forEach((bar,i)=>{const level=i?this.needs.thirst:this.needs.hunger;bar.setScale(level/100,1).setFillStyle(level<25?0xd6402e:i?0x4aa8e0:0xe8a040);
       // Walking slowed by it (the emptier, below half): a red outline pulses round its icon, so that the slowness has a cause.
       const other=i?this.needs.hunger:this.needs.thirst,slowing=this.moving&&!this.modal&&level<50&&level<=other;this.needGlows[i]?.setAlpha(slowing?.55+.45*Math.sin(this.time.now/140):0)});
     if(hhmm(minutes())!==this.hudTime)this.refreshHud();
@@ -1999,11 +2100,11 @@ class Journey extends Phaser.Scene {
     if(this.signals.length){this.signal+=delta;this.paintSignals();this.drive(Math.min(delta,100));if(this.walkLeft()>4000&&!this.carsInside()){const cycle=Math.floor(this.signal/signalPeriod);for(const c of this.commuters){const step=c.steps[0];if(c.crossed!==cycle&&step&&'wait' in step&&step.wait>1e8)step.wait=between(0,1200)}}}
     if(layoutOf(this.place)?.people)this.commuters.forEach((commuter,i)=>{commuter.bump=Math.min(1,(commuter.bump??1)+delta/700);this.stepCommuter(commuter,i,Math.min(delta,100))});
     // In the apartment, the traveller passes behind the sofa, the island and the fridge.
-    if(this.place==='apartment'||this.place==='shabu'||this.place==='vineyard'||layoutOf(this.place)||sightOfRoad(this.place)){this.world.sort('y');if(this.lifted&&layoutOf(this.place))this.world.bringToTop(this.lifted);this.world.bringToTop(this.glow)}
+    if(this.place==='apartment'||this.place==='shabu'||this.place==='vineyard'||this.place==='yakiniku'||layoutOf(this.place)||sightOfRoad(this.place)){this.world.sort('y');if(this.lifted&&layoutOf(this.place))this.world.bringToTop(this.lifted);this.world.bringToTop(this.glow)}
     // The traveller passes behind Lorenzo's Uber from the pavement, in front of it from across the road.
     if(this.laneSign)this.player.y<this.laneSign.y?this.world.moveAbove<Phaser.GameObjects.GameObject>(this.laneSign,this.player):this.world.moveBelow<Phaser.GameObjects.GameObject>(this.laneSign,this.player);
     if(this.car)this.player.y<this.car.y+26?this.world.moveAbove<Phaser.GameObjects.GameObject>(this.car,this.player):this.world.moveBelow<Phaser.GameObjects.GameObject>(this.car,this.player);
-    const pad=this.gamepad();this.lorenzo();this.namiko();
+    const pad=this.gamepad();this.lorenzo();this.invites();
     this.wheel?.turn((this.keys.right.isDown?1:0)-(this.keys.left.isDown?1:0)||Math.sign(pad.x));
     if(this.place==='corridor'||this.place==='platform'||this.place==='home-street'||this.place==='apartment'||this.kyotoHouse(this.place)||this.mapWidth>960||this.mapHeight>640)this.scroll(Math.min(1,delta/150));
     if(this.modal){this.glow.clear();this.prompt.setVisible(false);this.held.clear();this.pending='';return;}
@@ -2025,7 +2126,7 @@ class Journey extends Phaser.Scene {
       const step=c.steps[0];if(!this.stun&&step&&'off' in step&&step.off){const to=this.player.x+(dx<0?-1:1)*18;this.stun=stunned;this.stayed=step.off[0];x=y=0;this.stopNavigation();this.pending=this.boardAt='';if(this.canWalk(to,this.player.y))this.tweens.add({targets:this.player,x:to,duration:120})}
       const push=(18-d)*.25/(d||1),nx=this.player.x+dx*push,ny=this.player.y+dy/1.6*push;if((x||y||this.path.length)&&d&&this.canWalk(nx,ny))this.player.setPosition(nx,ny);
     }
-    const speed=(this.story?380*this.pace.speed:380*this.burden*needFactor(this.needs))*this.bump*Math.min(delta,40)/1000;
+    const speed=(this.story?380*this.pace.speed:380*needFactor(this.needs))*this.bump*Math.min(delta,40)/1000;
     if(this.path.length&&!(this.story&&this.storyHeld)){
       let target=this.path[0];
       while(target&&Phaser.Math.Distance.Between(this.player.x,this.player.y,target.x,target.y)<=speed){
@@ -2040,7 +2141,7 @@ class Journey extends Phaser.Scene {
     const was=this.moving;this.moving=!!(x||y);if(this.moving)this.stayed=-1;this.walk+=delta;if(this.moving?this.time.now-this.kept>1000:was)this.keep();
     if(this.moving)this.facing=Math.abs(x)>Math.abs(y)?(x<0?'left':'right'):(y<0?'up':'down');
     this.sprite.setTexture(`traveller-${this.facing}-${this.moving?Math.floor(this.walk/75)%3:0}`);
-    const messages:Record<string,string>={adjust:'Fare adjustment',window:'Staff window',ticket:'Buy a ticket',local:'Ticket gates',shinkansen:'Shinkansen gates',shop:'NewDays',stamp:'Station stamp',staff:'Staff',exit:'Exit',areaMap:'Area map',bus:'Bus stop',bin:'Bin',atm:'ATM',konbini:'Konbini',lane:'← The way home',home:'102 · Home',bed:'Bed',uber:'Uber · Lorenzo',return:'Back to the station',photo:'Keep a memory',photo2:'Keep a memory'};
+    const messages:Record<string,string>={adjust:'Fare adjustment',window:'Staff window',ticket:'Buy a ticket',local:'Ticket gates',shinkansen:'Shinkansen gates',shop:'NewDays',stamp:'Station stamp',staff:'Staff',exit:'Exit',areaMap:'Area map',bus:'Bus stop',bin:'Bin',atm:'ATM',konbini:'Konbini',lane:'← The way home',home:'102 · Home',bed:'Bed',uber:'Uber · Lorenzo',return:'Back to the station',photo:'Keep a memory',photo2:'Keep a memory',bowl:'Offering bowl'};
     const near=this.nearby();
     // Only a deliberate queue click before arrival or a door click after arrival arms automatic boarding.
     if(this.pending.startsWith('door')&&near===this.pending){this.boardAt=near;this.pending=''}

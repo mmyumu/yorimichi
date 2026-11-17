@@ -16,7 +16,7 @@ export interface PauseActions {resume:()=>void;journal:()=>void;stamps:()=>void;
 /** A choice that stays in the menu and changes in place (← → or a press): its `label` read again each frame. */
 
 /** The veil, drawn once and stretched over the whole game canvas (the picture itself keeps whole-pixel scaling): the scene darkened, a dusk blue dithered over it, deeper towards the foot. */
-function veil(){
+export function veil(){
   const c=document.createElement('canvas');c.width=W;c.height=H;c.className='veil';const g=c.getContext('2d')!;
   g.fillStyle='#0b0a1680';g.fillRect(0,0,W,H);
   for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(bayer[(y&3)*4+(x&3)]<4+Math.floor(y/H*5)){g.fillStyle=y<H*.5?'#23264f':'#171a3c';g.fillRect(x,y,1,1)}
@@ -105,7 +105,7 @@ export function openPauseMenu(facts:PauseFacts,actions:PauseActions){
   // The pad: D-pad or stick to choose, held to repeat; A to take, B or Start to go back.
   let held:boolean[]=connectedPad()?.buttons.map(b=>b.pressed)??[],repeatAt=0,lastDir=0;
   function pad(){
-    const p=connectedPad();if(!p)return;const now=performance.now(),pressed=p.buttons.map(b=>b.pressed),edge=(i:number)=>pressed[i]&&!held[i];held=pressed;
+    const p=connectedPad();if(!p)return;const now=performance.now(),pressed=p.buttons.map(b=>b.pressed),before=held,edge=(i:number)=>pressed[i]&&!before[i];held=pressed;
     const ax=p.axes[0]??0,ay=p.axes[1]??0,dir=pressed[12]||pressed[14]||ay<-.5||ax<-.5?-1:pressed[13]||pressed[15]||ay>.5||ax>.5?1:0;
     if(dir&&(dir!==lastDir||now>repeatAt)){repeatAt=now+(dir!==lastDir?380:140);move(dir)}lastDir=dir;
     if(edge(0))choose();else if(edge(1)||edge(9))back();

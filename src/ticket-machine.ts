@@ -8,7 +8,7 @@ import { fareBetween, faresFrom, shinkansenMinutes } from './fares';
 import { railLine } from './rail';
 import { renderFareMap } from './tokyo-fares';
 import { onErase } from './save';
-import { accepted, coinCount, heapSpot, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, walkFactor, type Wallet } from './wallet';
+import { accepted, coinCount, heapSpot, isCoin, loadWallet, machineSound, makeChange, notes, coins, pieceArt, saveWallet, walletTotal, drainFactor, type Wallet } from './wallet';
 
 // `punched` with the hub whose gate let it through on the way in: the gate's punch leaves a hole in it, and the ticket knows where its trip began.
 /** A Shinkansen ticket's reservation: the day it is good for (`date`, dayOf) and, for a reserved seat, the train (`due`, its departure on the journey's clock, `train` its name), the car and the seat;
@@ -305,8 +305,8 @@ export class TicketMachine {
     }
     const keypad=this.element(cash,'div','','keypad');for(const key of '123456789*0#')this.element(keypad,'span',key);
     const purse=this.element(this.design,'div','','machine-wallet pay-control');
-    const heavy=walkFactor(this.wallet)<1;
-    this.element(purse,'div',`財布 / WALLET   ¥${walletTotal(this.wallet).toLocaleString('en-US')}\n◉ ${coinCount(this.wallet)} ${this.tr('枚','coins')}${heavy?this.tr('・重くて歩くのが遅い',' · heavy, slower walk'):''}`,'wallet-head'+(heavy?' heavy':''));
+    const heavy=drainFactor(this.wallet)>1;
+    this.element(purse,'div',`財布 / WALLET   ¥${walletTotal(this.wallet).toLocaleString('en-US')}\n◉ ${coinCount(this.wallet)} ${this.tr('枚','coins')}${heavy?this.tr('・重い',' · heavy'):''}`,'wallet-head'+(heavy?' heavy':''));
     // At the fare adjustment machine, the tickets carried above the money: dragged onto the ticket slot, or clicked.
     if(this.uiOptions.adjust){
       const pocket=this.element(purse,'div','','wallet-tickets'),tickets=this.uiOptions.adjust.pocket();

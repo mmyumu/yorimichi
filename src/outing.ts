@@ -6,18 +6,23 @@ import Phaser from 'phaser';
 import { minuteOfDay, minutes } from './clock';
 import { phoneLines } from './outing-lines';
 
-/** Namiko's side of the phone's save: not asked yet, asked (her answer on its way), a meeting at `at` (game minutes) in front of Tachikawa Station, or done. */
+/** A friend's side of the phone's save (Namiko's, Jennifer's): not asked yet, asked (the answer on its way), a meeting at `at` (game minutes) in front of their station, or done. */
 export interface NamikoPlan {state:'none'|'asked'|'meet'|'done';at?:number}
+export type Plan=NamikoPlan;
 export const askNamiko=phoneLines.ask;
+/** An invitation's terms: the station whose west exit they wait at, the time of day they suggest (`first`, minutes), until when a time the same day is still offered (`latest`: an hour from now on the half hour),
+ * and until when they wait (`until`). Namiko: lunch at noon, waiting until 21:00; Jennifer (dinner.ts): dinner at 18:30, waiting until 22:30. */
+export interface Invite {meetAt:string;first:number;latest:number;until:number}
+export const lunch:Invite={meetAt:'tachikawa',first:12*60,latest:15*60,until:21*60};
 /** The station she meets the traveller at, outside its west exit. */
-export const meetAt='tachikawa';
-/** The time she suggests: noon today while the morning lasts, else an hour from now on the half hour, else (asked from 15:00 on) noon the next day. */
-export function meetingFrom(now=minutes()){const day=now-minuteOfDay(now),d=minuteOfDay(now);if(d<11*60)return day+720;return d<15*60?day+Math.ceil((d+60)/30)*30:day+1440+720}
-/** Until when they wait that day: 21:00. */
-export const waitsUntil=(at:number)=>at-minuteOfDay(at)+21*60;
-/** Whether they are waiting in front of the station: from half an hour before the time until the evening. */
-export const waiting=(at:number,now=minutes())=>now>=at-30&&now<waitsUntil(at);
-export const missed=(at:number,now=minutes())=>now>=waitsUntil(at);
+export const meetAt=lunch.meetAt;
+/** The time suggested: `first` today while there is an hour to go before it, else an hour from now on the half hour until `latest`, else `first` the next day. */
+export function meetingFrom(now=minutes(),invite=lunch){const day=now-minuteOfDay(now),d=minuteOfDay(now);if(d<invite.first-60)return day+invite.first;return d<invite.latest?day+Math.ceil((d+60)/30)*30:day+1440+invite.first}
+/** Until when they wait that day. */
+export const waitsUntil=(at:number,invite=lunch)=>at-minuteOfDay(at)+invite.until;
+/** Whether they are waiting in front of the station: from half an hour before the time until `until`. */
+export const waiting=(at:number,now=minutes(),invite=lunch)=>now>=at-30&&now<waitsUntil(at,invite);
+export const missed=(at:number,now=minutes(),invite=lunch)=>now>=waitsUntil(at,invite);
 
 type Face='up'|'down'|'left'|'right';
 /** Someone of the outing walking where they are told (`go`, along points in scene px, ignoring the solids: they know the way), standing, sitting behind a table (only what shows above it),

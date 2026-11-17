@@ -7,7 +7,7 @@ import { roadTo, sights } from './sights';
 export type Hub=string;
 /** Beyond the stations: an exit's own map, the street outside (`town`), the corridor behind a station's gates with the stairs up to its platforms
  * (which station and gates: `Journey.gateway`), a platform, and the traveller's home: the lane from the street outside its station (`home-street`) and the apartment at its end. */
-export type Place=Hub|'kamakura-trail'|'arashiyama'|'town'|'corridor'|'platform'|'home-street'|'kyoto-lane'|'kyoto-house'|'kyoto-upstairs'|'apartment'|'shabu'|'vineyard';
+export type Place=Hub|'kamakura-trail'|'arashiyama'|'town'|'corridor'|'platform'|'home-street'|'kyoto-lane'|'kyoto-house'|'kyoto-upstairs'|'apartment'|'shabu'|'vineyard'|'yakiniku';
 export type Side='west'|'east';
 /** The konbini chains: the shop by a station's street is the same for all, only its sign differs (see makeTown). */
 export type Konbini='seven'|'family'|'lawson';
@@ -19,7 +19,7 @@ export type Service='shinkansen'|'local';
  * leaving from `platform`, the track at the station whose trains run its way (see runOf in platform.ts). Local trips are fare tickets (fares.ts). */
 export interface Route {id:string;from:Hub;to:Hub;service:Service;name:string;lineId:string;line:string;ja:string;color:string;fare:number;platform:string}
 /** The places that are not stations, by name. */
-export const places:Record<string,string>={...Object.fromEntries(sights.filter(sight=>!sight.street).map(sight=>[sight.id,sight.en])),...Object.fromEntries(sights.filter(sight=>sight.pieces).map(sight=>[roadTo(sight.id),`Outside ${sight.en}`])),...Object.fromEntries(sights.filter(sight=>sight.garden).map(sight=>[sight.garden!,sight.ropeway?sight.parts![0].en:`${sight.en} · The garden`])),'kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path',town:'Outside the station',corridor:'To the platforms',platform:'On the platform','home-street':'Higashi-Nakano · The way home','kyoto-lane':'Jujo · The way home','kyoto-house':'Jujo · The house','kyoto-upstairs':'Jujo · The house, upstairs',apartment:'Higashi-Nakano · Home',shabu:'Tachikawa · Shabu-shabu',vineyard:'Tachikawa · The vineyard'};
+export const places:Record<string,string>={...Object.fromEntries(sights.filter(sight=>!sight.street).map(sight=>[sight.id,sight.en])),...Object.fromEntries(sights.filter(sight=>sight.pieces).map(sight=>[roadTo(sight.id),`Outside ${sight.en}`])),...Object.fromEntries(sights.filter(sight=>sight.garden).map(sight=>[sight.garden!,sight.ropeway?sight.parts![0].en:`${sight.en} · The garden`])),'kamakura-trail':'Kamakura · The temple trail',arashiyama:'Arashiyama · The bamboo path',town:'Outside the station',corridor:'To the platforms',platform:'On the platform','home-street':'Higashi-Nakano · The way home','kyoto-lane':'Jujo · The way home','kyoto-house':'Jujo · The house','kyoto-upstairs':'Jujo · The house, upstairs',apartment:'Higashi-Nakano · Home',shabu:'Tachikawa · Shabu-shabu',vineyard:'Tachikawa · The vineyard',yakiniku:'Miyamaedaira · Yakiniku'};
 /** Where the traveller lives: the street outside this station's exit has a lane at its left end (the 東中野一丁目 sign) to the home street, the apartment at its end. */
 export const home:{hub:Hub;side:Side}={hub:'higashi-nakano',side:'west'};
 /** The rental in Kyoto: the same sign in the street outside Jujo on the Karasuma Line, leading to the lane of its little house (`kyoto-lane`). */
@@ -46,6 +46,7 @@ const known:Record<string,Partial<Station>>={
   渋谷:{east:['Hachiko / Scramble','Hachiko and the scramble crossing'],exits:{west:['西口','West Exit'],east:['ハチ公口','Hachiko Exit']},maps:{east:'shibuya-crossing'}},
   東中野:{west:['1-chome / Home','Higashi-Nakano 1-chome and the way home']},
   嵯峨嵐山:{east:['Bamboo path','the bamboo path and the river'],maps:{east:'arashiyama'}},
+  宮前平:{west:['Yakiniku / Bus','the shops and the buses'],east:['Miyamae','the houses on the hill'],exits:{west:['北口','North Exit'],east:['南口','South Exit']}},
   稲荷:{accent:'#c8452e'},
   日光:{accent:'#8a3a2a'},
 };

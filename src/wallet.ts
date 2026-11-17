@@ -11,10 +11,12 @@ export function loadWallet():Wallet{
   return {...starting};
 }
 export const saveWallet=(wallet:Wallet)=>{try{localStorage.setItem(key,JSON.stringify(wallet))}catch{}};
+/** Debug (M, in dev or with `?debug`): ten of every coin and a ¥10,000 note more in the purse, saved. */
+export const debugMoney=(wallet:Wallet)=>{for(const v of coins)wallet[v]=(wallet[v]??0)+10;wallet[10000]=(wallet[10000]??0)+1;saveWallet(wallet)};
 export const coinCount=(wallet:Wallet)=>coins.reduce((sum,v)=>sum+(wallet[v]??0),0);
 export const walletTotal=(wallet:Wallet)=>[...coins,...notes].reduce((sum,v)=>sum+v*(wallet[v]??0),0);
-// Eight coins are free; each one more slows the walk by 2.5%, down to 55%.
-export const walkFactor=(wallet:Wallet,extra=0)=>Math.max(.55,1-Math.max(0,coinCount(wallet)+notes.reduce((sum,v)=>sum+(wallet[v]??0),0)*.1+extra-8)*.025);
+// Eight coins are free; each one more makes hunger and thirst fall 2.5% faster, up to twice as fast.
+export const drainFactor=(wallet:Wallet,extra=0)=>Math.min(2,1+Math.max(0,coinCount(wallet)+notes.reduce((sum,v)=>sum+(wallet[v]??0),0)*.1+extra-8)*.025);
 /** Change as a machine gives it: as few pieces as possible. */
 export function makeChange(amount:number){
   const pieces:number[]=[];
@@ -54,8 +56,8 @@ export function pieceArt(value:number){
 }
 
 let audio:AudioContext|null=null;
-/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message, a till's scanner, a can landing in a machine's hatch, a rubber stamp pressed on paper. */
-export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'|'scan'|'can'|'stamp'){
+/** Tiny synthesized machine sounds: a coin clink, a note being pulled in, a refusal buzz, the gates' beep beep, the phone's chime for a message, a till's scanner, a can landing in a machine's hatch, a rubber stamp pressed on paper (or a coin on gravel), a bronze offering bowl ringing, a coin into a pond. */
+export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'|'scan'|'can'|'stamp'|'ring'|'splash'){
   try{
     audio??=new AudioContext();const now=audio.currentTime,gain=audio.createGain();gain.connect(audio.destination);
     const tone=(freq:number,start:number,length:number,type:OscillatorType='sine',volume=.08)=>{
@@ -69,6 +71,9 @@ export function machineSound(kind:'coin'|'note'|'reject'|'drop'|'beep'|'message'
     else if(kind==='can'){tone(150,0,.16,'square',.09);tone(90,.05,.22,'sine',.14);tone(620,.03,.08,'triangle',.05);}
     // A rubber stamp pressed on paper: a soft thud.
     else if(kind==='stamp'){tone(170,0,.07,'triangle',.12);tone(85,.01,.12,'sine',.16);}
+    // The bowl's bronze, ringing on; a coin into water, a plop.
+    else if(kind==='ring'){tone(784,0,1.6,'sine',.05);tone(1568*1.006,0,1.1,'sine',.025);tone(2350,0,.5,'sine',.015);}
+    else if(kind==='splash'){tone(520,0,.06,'sine',.08);tone(260,.03,.18,'sine',.07);tone(1400,.02,.06,'triangle',.02);}
     else if(kind==='scan')tone(2900,0,.1,'square',.03);
     else if(kind==='message'){tone(1320,0,.12,'sine',.06);tone(1760,.11,.2,'sine',.06);}
     else if(kind==='note'){for(let i=0;i<6;i++)tone(140+i*12,i*.05,.06,'square',.025);}

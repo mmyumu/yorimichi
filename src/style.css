@@ -223,6 +223,8 @@ input,textarea{-webkit-user-select:text;user-select:text;-webkit-touch-callout:d
 .phone-chip:hover{background:#e3f0ea!important}.phone-field{padding:9px 12px;border-radius:16px;background:#e7e4d8;color:#9aa29a;font-size:12px}
 .phone-from{flex:none;display:flex;align-items:baseline;gap:8px;padding:8px 12px;border-bottom:1px solid #dcd8cb;font-size:12px;color:#6b7772}.phone-from b{font-weight:400;font-size:16px;color:#253634}
 .phone-search{flex:none;margin:8px 10px;padding:9px 12px;border:2px solid #3b8a6e;border-radius:16px;background:#fffef7;color:#253634;font:inherit;font-size:14px;outline:none}.phone-search:focus{border-color:#e2a12f}
+.phone-tabs{flex:none;display:flex;gap:4px;padding:0 10px 6px}.phone-tab{flex:1;padding:5px 0!important;border:2px solid #dcd8cb!important;border-radius:12px;font-size:12px!important;color:#2f6f62!important}.phone-tab.on{border-color:#3b8a6e!important;background:#3b8a6e!important;color:#fffef2!important}
+.phone-head{position:sticky;top:0;z-index:1;margin:0;padding:4px 12px;background:#e7e4d8;color:#2f6f62;font-weight:400;font-size:12px;letter-spacing:1px}.phone-line-row.here{background:#f3efe0}.phone-line-open .phone-line{flex:1}
 .phone-entries{flex:1;min-height:0}.phone-none{margin:16px}.phone-dots{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:3px;max-width:70px}.phone-dots i{width:8px;height:8px;border-radius:2px}
 .phone-trip{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:8px 12px 12px}
 .phone-dest{display:flex;align-items:center;gap:6px}.phone-dest-name{display:flex;flex-direction:column}.phone-dest-name b{font-weight:400;font-size:28px;letter-spacing:2px}.phone-dest-name span{font-size:12px;color:#6b7772}

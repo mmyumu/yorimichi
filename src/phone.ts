@@ -1,28 +1,30 @@
 import { labelled, mapHeight, mapWidth, onMap, paintArea, place, spotOf, stationLabel, type Area, type LonLat } from './city-maps';
 import { dayLabel, hhmm, minutes } from './clock';
-import { askNamiko, type NamikoPlan } from './outing';
+import { askJennifer } from './dinner';
+import { askNamiko, type NamikoPlan, type Plan } from './outing';
 import { portraitUrl } from './portraits';
-import { entries, enOf, lookUp, plain, tripBetween, waysFrom, type Entry, type Trip } from './transit';
+import { byName, entries, enOf, lineGroups, lookUp, nearFrom, plain, stationEntry, tripBetween, waysFrom, type Entry, type Trip } from './transit';
+import { railLine } from './rail';
 
 export type Contact='jennifer'|'namiko'|'lorenzo';
 /** A message, the traveller's own (`me`) or the contact's, sent at `at` on the journey's clock (none: before the journey began). */
 export interface Message {me?:boolean;text:string;at?:number}
 /** The phone kept in the save: the conversations, what is still unread, and Lorenzo's trip: in Hong Kong (`home`), asked to come (his OK on its way), flying,
  * then waiting with his Uber at the station nearest the traveller when he landed, or the street outside the sight they were at (`at`); called again from there (`called`, his answer on its way), then on his way (`driving`). */
-export interface PhoneState {chats:Record<Contact,Message[]>;unread:Record<Contact,number>;lorenzo:{state:'home'|'asked'|'flying'|'here'|'called'|'driving';at?:string};namiko:NamikoPlan}
+export interface PhoneState {chats:Record<Contact,Message[]>;unread:Record<Contact,number>;lorenzo:{state:'home'|'asked'|'flying'|'here'|'called'|'driving';at?:string};namiko:NamikoPlan;jennifer:Plan}
 export const contacts:Record<Contact,{name:string;color:string}>={jennifer:{name:'Jennifer',color:'#c45a82'},namiko:{name:'Namiko',color:'#3f8f7a'},lorenzo:{name:'Lorenzo',color:'#c97b2e'}};
 /** What the traveller can send Lorenzo while he is still in Hong Kong. */
 export const askLorenzo='Hey Lorenzo! I’m in Japan. Can you come and join me?';
 /** And once he is in Japan, to have him come over by Uber to the station nearest the traveller. */
 export const callLorenzo='Can you come and pick me up?';
 export const newPhone=():PhoneState=>({chats:{jennifer:[{text:'Have a wonderful trip! Don’t forget to send me photos.'}],namiko:[{text:'Welcome to Japan! If the trains get confusing, just ask me.'}],
-  lorenzo:[{text:'Ciao! How is Japan? I’m stuck in Hong Kong for work this week.'}]},unread:{jennifer:1,namiko:1,lorenzo:1},lorenzo:{state:'home'},namiko:{state:'none'}});
+  lorenzo:[{text:'Ciao! How is Japan? I’m stuck in Hong Kong for work this week.'}]},unread:{jennifer:1,namiko:1,lorenzo:1},lorenzo:{state:'home'},namiko:{state:'none'},jennifer:{state:'none'}});
 const ids=Object.keys(contacts) as Contact[];
 /** A saved phone if it still reads (Lorenzo's station still `known`), else a new one. */
 export function readPhone(raw:unknown,known:(hub:string)=>boolean):PhoneState{
   const p=raw as PhoneState|undefined;
-  // Namiko's outing, kept since a later version: none in an older save.
-  if(p&&!(['none','asked','meet','done'].includes(p.namiko?.state)&&(p.namiko.state!=='meet'||Number.isFinite(p.namiko.at))))p.namiko={state:'none'};
+  // Namiko's outing and Jennifer's dinner, kept since later versions: none in an older save.
+  for(const who of ['namiko','jennifer'] as const)if(p&&!(['none','asked','meet','done'].includes(p[who]?.state)&&(p[who].state!=='meet'||Number.isFinite(p[who].at))))p[who]={state:'none'};
   return p&&ids.every(id=>Array.isArray(p.chats?.[id])&&Number.isFinite(p.unread?.[id]))&&['home','asked','flying','here','called','driving'].includes(p.lorenzo?.state)&&(!['here','called'].includes(p.lorenzo.state)||known(p.lorenzo.at??''))?p:newPhone();
 }
 /** A pixel glyph from rows of '#', as an image URL. */
@@ -38,6 +40,9 @@ const apps:[string,string,string[]][]=[
 let last:'home'|'list'|'maps'|'trains'|Contact='home';
 // What the Trains app was looking up, the place picked and which of its ways in, for as long as the game runs.
 let query='',sought:string|null=null,wayIn=0;
+// Without a keyboard, the lookup is browsed instead: the nearest first, A to Z, line by line (`line`, the one opened) or the places by region; `row`, the entry or line last opened, keeps the focus when coming back.
+type Browse='near'|'az'|'lines'|'places';
+let browse:Browse='near',line:string|null=null,row:string|null=null;
 // The place picked on the map and what the map shows: its zoom and the picture's point at its centre, for as long as the phone is out.
 let picked:string|null=null,view={z:1,x:mapWidth/2,y:mapHeight/2};
 const zooms=[1,1.5,2,3];
@@ -52,7 +57,7 @@ export const walkTime=(m:number)=>m<60?`${m} min`:`${Math.floor(m/60)} h ${Strin
 /** The traveller's phone, taken out over the paused scene: an Android-like home screen, the messaging app (conversations, then one of them) and Maps.
  * `send` is the traveller sending a contact the suggested reply; `changed` follows any change to the state (a conversation read); `walks` lists what can be walked to from here, null without a signal, and `walk` sets off, the phone put away. */
 export class Phone {
-  private layout:(()=>void)|null=null;private stage:HTMLElement|null=null;private overlay:HTMLElement;private screen:HTMLElement;private clock:HTMLElement;private timer:number;private previous=document.activeElement as HTMLElement|null;
+  private layout:(()=>void)|null=null;private stage:HTMLElement|null=null;private focus:HTMLElement|null=null;private overlay:HTMLElement;private screen:HTMLElement;private clock:HTMLElement;private timer:number;private previous=document.activeElement as HTMLElement|null;
   constructor(private state:PhoneState,private on:{send:(contact:Contact)=>void;changed:()=>void;close:()=>void;walks:()=>Walks|null;walk:(id:string)=>void;here:()=>string}){
     const el=this.el;this.overlay=el(document.body,'div','phone-overlay');this.overlay.setAttribute('role','dialog');this.overlay.setAttribute('aria-modal','true');this.overlay.setAttribute('aria-label','Phone');this.overlay.tabIndex=-1;
     const phone=el(this.overlay,'div','phone'),status=el(phone,'div','phone-status');this.clock=el(status,'span');el(status,'span','phone-signal','▂▄▆ 4G ').append(el(status,'i','phone-battery'));
@@ -61,6 +66,9 @@ export class Phone {
     this.overlay.addEventListener('pointerdown',event=>{if(event.target===this.overlay)this.close()});
     this.overlay.addEventListener('keydown',event=>{
       event.stopPropagation();
+      const search=last==='trains'&&!sought&&!(event.target instanceof HTMLInputElement)&&event.key.length===1&&/[\p{L}\p{N}]/u.test(event.key)&&!event.ctrlKey&&!event.metaKey&&!event.altKey?this.screen.querySelector<HTMLInputElement>('.phone-search'):null;
+      if(search){search.focus();return}
+      if(event.key==='PageUp'||event.key==='PageDown'){event.preventDefault();this.leap(event.key==='PageUp'?-1:1);return}
       if(event.target instanceof HTMLInputElement&&!['Escape','Tab','ArrowUp','ArrowDown','Enter'].includes(event.key))return;
       if(event.target instanceof HTMLInputElement&&event.key==='Enter'){event.preventDefault();this.screen.querySelector<HTMLButtonElement>('.phone-entry')?.click();return}
       if(event.key==='Escape'||event.code==='KeyP'){event.preventDefault();this.close()}else if(event.key==='+'||event.key==='='||event.key==='-'){event.preventDefault();this.zoom(event.key==='-'?-1:1)}else if(event.key==='Backspace'){event.preventDefault();this.back()}
@@ -79,7 +87,7 @@ export class Phone {
   /** Redrawn whole on every change; a conversation shown is read. */
   refresh(){this.render()}
   private render(){
-    const s=last,el=this.el,box=this.screen;box.replaceChildren();this.layout=this.stage=null;box.className='phone-screen phone-'+(s==='home'||s==='list'||s==='maps'||s==='trains'?s:'chat');
+    const s=last,el=this.el,box=this.screen;box.replaceChildren();this.layout=this.stage=this.focus=null;box.className='phone-screen phone-'+(s==='home'||s==='list'||s==='maps'||s==='trains'?s:'chat');
     if(s==='home'){
       el(box,'div','phone-clock');el(box,'div','phone-date',dayLabel());const grid=el(box,'div','phone-apps'),unread=ids.reduce((n,id)=>n+this.state.unread[id],0);
       for(const [name,color,rows] of apps){
@@ -104,13 +112,13 @@ export class Phone {
       const log=el(box,'div','phone-log');
       const said=()=>{const row=el(log,'div','phone-said');this.avatar(row,s);return row};
       for(const message of this.state.chats[s]){const b=el(message.me?log:said(),'div','phone-bubble'+(message.me?' me':''),message.text);el(b,'small','',this.when(message))}
-      if(s==='lorenzo'&&(this.state.lorenzo.state==='asked'||this.state.lorenzo.state==='called')||s==='namiko'&&this.state.namiko.state==='asked')el(said(),'div','phone-bubble typing','•••');
+      if(s==='lorenzo'&&(this.state.lorenzo.state==='asked'||this.state.lorenzo.state==='called')||(s==='namiko'||s==='jennifer')&&this.state[s].state==='asked')el(said(),'div','phone-bubble typing','•••');
       const compose=el(box,'div','phone-compose');
-      const suggested=s==='lorenzo'?{home:askLorenzo,here:callLorenzo}[this.state.lorenzo.state as string]:s==='namiko'&&this.state.namiko.state==='none'?askNamiko:undefined;
+      const suggested=s==='lorenzo'?{home:askLorenzo,here:callLorenzo}[this.state.lorenzo.state as string]:s==='namiko'&&this.state.namiko.state==='none'?askNamiko:s==='jennifer'&&this.state.jennifer.state==='none'?askJennifer:undefined;
       if(suggested)this.button(compose,'phone-chip',()=>this.on.send(s),suggested);else el(compose,'div','phone-field','Text message');
       log.scrollTop=log.scrollHeight;
     }
-    this.tick();(box.querySelector<HTMLElement>(s==='trains'?'.phone-search,.phone-way.on,.phone-entry':s==='maps'?'.phone-go,.phone-pin,.phone-zoom button':s==='home'||s==='list'?'button:not(:disabled)':'.phone-chip')??box.querySelector('button')??this.overlay.querySelector('button'))?.focus();
+    this.tick();(this.focus??box.querySelector<HTMLElement>(s==='trains'?'.phone-way.on,.phone-entry':s==='maps'?'.phone-go,.phone-pin,.phone-zoom button':s==='home'||s==='list'?'button:not(:disabled)':'.phone-chip')??box.querySelector('button')??this.overlay.querySelector('button'))?.focus();
   }
   /** Maps: the map of the area the traveller is in; a place picked on it shows the walk there in the card below. */
   private maps(box:HTMLElement){
@@ -134,9 +142,18 @@ export class Phone {
     const top=el(box,'div','phone-from');el(top,'small','','From');el(top,'b','',plain(from)+'駅');el(top,'span','',enOf(from));
     if(!entry){
       const input=el(box,'input','phone-search') as HTMLInputElement;input.type='search';input.placeholder='Station or place, in English or 日本語';input.value=query;input.setAttribute('aria-label','Look up a station or place');
-      const list=el(box,'div','phone-list phone-entries');
-      const fill=()=>{list.replaceChildren();const hits=lookUp(query);if(!hits.length)el(list,'p','phone-hint phone-none','Nothing by that name.');for(const hit of hits.slice(0,80))this.entryRow(list,hit)};
-      input.oninput=()=>{query=input.value;fill()};fill();return;
+      const tabs=el(box,'div','phone-tabs'),list=el(box,'div','phone-list phone-entries');
+      const tab=(b:HTMLElement,on:boolean)=>b.classList.toggle('on',on);
+      const buttons=([['near','Nearby'],['az','A–Z'],['lines','Lines'],['places','Places']] as [Browse,string][]).map(([k,text])=>{const b=this.button(tabs,'phone-tab',()=>{browse=k;line=null;row=null;query='';this.render()},text);b.dataset.browse=k;return b});
+      const fill=()=>{
+        list.replaceChildren();for(const b of buttons)tab(b,!query&&b.dataset.browse===browse);
+        if(query){const hits=lookUp(query);if(!hits.length)el(list,'p','phone-hint phone-none','Nothing by that name.');for(const hit of hits.slice(0,80))this.entryRow(list,hit);return}
+        this.browse(list,from);
+      };
+      input.oninput=()=>{query=input.value;fill()};fill();
+      this.focus=query?input:list.querySelector<HTMLElement>(`[data-row="${row}"]`)??list.querySelector('.phone-row')??buttons.find(b=>b.classList.contains('on'))!;
+      if(!query&&row)requestAnimationFrame(()=>this.focus?.scrollIntoView({block:'center'}));
+      return;
     }
     const card=el(box,'div','phone-trip');
     const head=el(card,'div','phone-dest');this.button(head,'phone-back',()=>this.back(),'←').setAttribute('aria-label','Back');
@@ -167,10 +184,45 @@ export class Phone {
   /** A line's colour and names. */
   private lineTag(parent:HTMLElement,line:Entry['lines'][number]){const tag=this.el(parent,'span','phone-line');this.el(tag,'i').style.background=line.color;this.el(tag,'b','',line.ja);this.el(tag,'small','',line.en)}
   /** A result of the lookup: its Japanese name, its English one and, for a station, its lines' colours. */
-  private entryRow(list:HTMLElement,entry:Entry){
-    const row=this.button(list,'phone-row phone-entry',()=>{sought=entry.id;wayIn=0;this.render()});
-    const text=this.el(row,'span','phone-row-text');this.el(text,'strong','',entry.kind==='station'?plain(entry.ja)+'駅':entry.ja);this.el(text,'span','',entry.kind==='station'?`${entry.en} · ${entry.region}`:`${entry.en} · place · ${entry.region}`);
-    const dots=this.el(row,'span','phone-dots');for(const line of entry.lines)this.el(dots,'i').style.background=line.color;
+  private entryRow(list:HTMLElement,entry:Entry,note=''){
+    const button=this.button(list,'phone-row phone-entry',()=>{sought=entry.id;wayIn=0;row=entry.id;this.render()});button.dataset.row=entry.id;
+    const text=this.el(button,'span','phone-row-text');this.el(text,'strong','',entry.kind==='station'?plain(entry.ja)+'駅':entry.ja);this.el(text,'span','',entry.kind==='station'?`${entry.en} · ${entry.region}`:`${entry.en} · place · ${entry.region}`);
+    const side=this.el(button,'span','phone-row-side');if(note)this.el(side,'small','',note);
+    const dots=this.el(side,'span','phone-dots');for(const line of entry.lines)this.el(dots,'i').style.background=line.color;
+  }
+  /** A heading in a browsed list, where LT / RT (PageUp / PageDown) leap to. */
+  private head(list:HTMLElement,text:string){this.el(list,'h3','phone-head',text)}
+  /** The lookup browsed without typing: the nearest first in bands of distance, A to Z under each letter, the lines then one line's stops in order, or the places by region. */
+  private browse(list:HTMLElement,from:string){
+    if(browse==='near'){
+      const bands:[number,string][]=[[0,'Here'],[5,'Within 5 km'],[20,'5 to 20 km'],[60,'20 to 60 km'],[Infinity,'Farther']];let band=-1;
+      for(const {entry,km} of nearFrom(from)){
+        const b=km===null?bands.length:bands.findIndex(([max])=>km<=max);
+        if(b!==band){band=b;this.head(list,b<bands.length?bands[b][1]:'Other side of Japan · by Shinkansen')}
+        this.entryRow(list,entry,km===null?'':km?`${km} km`:entry.kind==='station'?'現在地':'');
+      }
+    }else if(browse==='az'){
+      let letter='';for(const entry of byName()){const first=entry.en[0].toUpperCase();if(first!==letter){letter=first;this.head(list,letter)}this.entryRow(list,entry)}
+    }else if(browse==='places'){
+      for(const region of ['Kanto','Kansai']){this.head(list,region);for(const entry of entries)if(entry.kind==='place'&&entry.region===region)this.entryRow(list,entry)}
+    }else if(line){
+      const open=railLine(line),top=this.button(list,'phone-row phone-line-open',()=>this.back());top.dataset.row='up';this.el(top,'span','phone-back','←');this.lineTag(top,open);
+      this.head(list,open.loop?'Stops · round the loop':`Stops · ${enOf(open.stops[0])} → ${enOf(open.stops[open.stops.length-1])}`);
+      for(const ja of open.stops){const entry=stationEntry(ja);if(entry)this.entryRow(list,entry,ja===from?'現在地':'')}
+    }else for(const [group,lines] of lineGroups){
+      this.head(list,group);
+      for(const each of lines){
+        const b=this.button(list,'phone-row phone-line-row'+(each.stops.includes(from)?' here':''),()=>{line=each.id;row=null;this.render()});b.dataset.row='line-'+each.id;
+        this.lineTag(b,each);this.el(b,'span','phone-row-side',`${each.stops.length} stops${each.stops.includes(from)?' · 現在地':''}`);
+      }
+    }
+  }
+  /** LT / RT in a browsed list: on to the first row under the next heading, or back to the previous one's. */
+  private leap(by:number){
+    const heads=Array.from(this.screen.querySelectorAll<HTMLElement>('.phone-head'));if(!heads.length)return;
+    const at=document.activeElement as HTMLElement|null,i=heads.filter(h=>at&&at.closest('.phone-list')&&h.compareDocumentPosition(at)&Node.DOCUMENT_POSITION_FOLLOWING).length-1;
+    const to=heads[Math.min(Math.max(i+by,0),heads.length-1)];let next=to.nextElementSibling as HTMLElement|null;while(next&&next.tagName!=='BUTTON')next=next.nextElementSibling as HTMLElement|null;
+    if(next){next.focus();to.scrollIntoView({block:'start'})}
   }
   /** The places over the picture, each a button that keeps its size as the map zooms, labelled where there is room (more of them closer in), the stations after them (all of them closer in); the red dot is where the traveller is. */
   private pins(stage:HTMLElement,canvas:HTMLCanvasElement,area:Area,walks:Walks){
@@ -213,7 +265,7 @@ export class Phone {
   }
   /** A step in or out on the map, the point under the mouse staying where it is, or the place in focus or picked, or the middle. */
   zoom(by:number,x?:number,y?:number){
-    if(!this.layout||!this.stage)return;
+    if(!this.layout||!this.stage){if(last==='trains'&&!sought)this.leap(by);return}
     const next=zooms[Math.min(Math.max(zooms.indexOf(view.z)+by,0),zooms.length-1)],focus=document.activeElement as HTMLElement|null;
     if(next===view.z)return;
     if(x===undefined||y===undefined){const inner=focus?.classList.contains('phone-pin')?focus:this.stage.querySelector<HTMLElement>('.phone-pin.on');x=inner?parseFloat(inner.style.left)/100*mapWidth:mapWidth/2;y=inner?parseFloat(inner.style.top)/100*mapHeight:mapHeight/2}
@@ -223,7 +275,7 @@ export class Phone {
   private avatar(parent:HTMLElement,id:Contact){const a=this.el(parent,'span','phone-avatar');a.style.background=`${contacts[id].color} url(${portraitUrl(id)}) center/100% no-repeat`}
   private when(message?:Message){return message?.at===undefined?'Yesterday':hhmm(message.at/60000)}
   /** Up a level: the conversation to the list, a place picked in Trains back to the lookup, the list, Maps or Trains to the home screen, the home screen puts the phone away. */
-  back(){if(last==='home')this.close();else if(last==='trains'&&sought){sought=null;this.render()}else this.go(last==='list'||last==='maps'||last==='trains'?'home':'list')}
+  back(){if(last==='home')this.close();else if(last==='trains'&&sought){sought=null;this.render()}else if(last==='trains'&&line){row='line-'+line;line=null;this.render()}else this.go(last==='list'||last==='maps'||last==='trains'?'home':'list')}
   private step(by:number){const buttons=Array.from(this.overlay.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')),i=buttons.indexOf(document.activeElement as HTMLButtonElement);buttons[(i+by+buttons.length)%buttons.length]?.focus()}
   /** The gamepad, read by the scene: d-pad / stick to move between buttons, A to press, B to go back. */
   pad(step:number,press:boolean,back:boolean){if(step)this.step(step);if(press)(document.activeElement as HTMLElement|null)?.click();else if(back)this.back()}

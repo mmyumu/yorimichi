@@ -42,3 +42,13 @@ export function playConcert(){
 export function robotChime(){
   try{const a=context(),now=a.currentTime;[784,988,1175,1568].forEach((f,i)=>{const osc=a.createOscillator(),env=a.createGain();osc.type='sine';osc.frequency.value=f;osc.connect(env);env.connect(a.destination);env.gain.setValueAtTime(.07,now+i*.13);env.gain.exponentialRampToValueAtTime(.0001,now+i*.13+.3);osc.start(now+i*.13);osc.stop(now+i*.13+.32)})}catch{}
 }
+/** The grill's sizzle while the first cuts cook (Jennifer's dinner): a loop of hiss with the fat's crackle in it, faded in; `stop` fades it out. */
+export function sizzle(){
+  try{
+    const a=context(),length=a.sampleRate*2,buffer=a.createBuffer(1,length,a.sampleRate),data=buffer.getChannelData(0);
+    for(let i=0;i<length;i++)data[i]=(Math.random()*2-1)*(Math.random()<.003?1:.22);
+    const source=a.createBufferSource(),filter=a.createBiquadFilter(),env=a.createGain();source.buffer=buffer;source.loop=true;filter.type='highpass';filter.frequency.value=2600;
+    env.gain.setValueAtTime(0,a.currentTime);env.gain.linearRampToValueAtTime(.09,a.currentTime+.5);source.connect(filter);filter.connect(env);env.connect(a.destination);source.start();
+    return {stop:()=>{env.gain.cancelScheduledValues(a.currentTime);env.gain.setValueAtTime(env.gain.value,a.currentTime);env.gain.linearRampToValueAtTime(0,a.currentTime+.4);try{source.stop(a.currentTime+.45)}catch{}}};
+  }catch{return {stop:()=>{}}}
+}

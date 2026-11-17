@@ -5,11 +5,19 @@ import { paintCommuter } from './art';
 import type { Look } from './people';
 import { gradient, greens, paintScene, type Box, type Kit } from './sight-scenes';
 
-/** Namiko and her daughter, dressed as the commuters are (people.ts), in their portraits' colours. */
-export const friendLooks:Record<'namiko'|'lilly',Look>={
+/** The friends met face to face, dressed as the commuters are (people.ts), in their portraits' colours: Namiko and her daughter, Jennifer and Mike (dinner.ts), and the yakiniku's waiter.
+ * Their size on screen is the commuters': 1.9 × `height` scene px a frame pixel. */
+export const friendLooks:Record<'namiko'|'lilly'|'jennifer'|'mike'|'waiter',Look>={
   namiko:{coat:'#2f3f6e',legs:'#2a2a33',hair:'#1e1b26',style:'long',skirt:'#e8e2cf',bag:'#c9873e',height:.95},
   lilly:{coat:'#e88aa8',legs:'#f4f1ea',hair:'#1e1b26',style:'ponytail',skirt:'#f0c040',height:.6,pace:1.1},
+  jennifer:{coat:'#f2e6c8',legs:'#3a4a6a',hair:'#9a4a26',style:'long',skin:'#f4cfae',bag:'#7a5a3a',height:.97},
+  mike:{coat:'#2f6f5a',legs:'#2a2a30',hair:'#141414',style:'short',skin:'#c08a5e',bag:'#3a3a40',backpack:true,height:1},
+  waiter:{coat:'#1e1e22',legs:'#1e1e22',hair:'#141414',style:'short',tie:true,height:.98},
 };
+/** A drawing of a friend's frames dropped in src/sprites/<who>.png replaces the painted ones: a sheet of 60 × 112 px, the 20 × 28 frames of commuters, three across
+ * (standing, left foot, right foot) and four down (facing down, up, left, right), feet on the frame's row 25, head near its top. Transparent where nothing is. */
+const sheets=import.meta.glob<string>('./sprites/*.png',{eager:true,query:'?url',import:'default'});
+const faces=['down','up','left','right'];
 /** The musicians under the vines: a guitarist, a violinist and a singer at her microphone. */
 const players:Look[]=[
   {coat:'#3a5a7a',legs:'#2a2a30',hair:'#2a2420',style:'short'},
@@ -41,7 +49,11 @@ export const vineBulbs:[number,number][]=Array.from({length:22},(_,i):[number,nu
 export function makeOutingSprites(scene:Phaser.Scene){
   if(scene.textures.exists('robot-0'))return;
   const canvas=(key:string,w:number,h:number)=>{const t=scene.textures.createCanvas(key,w,h)!;const g=t.context;return {g,t,r:(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)}}};
-  for(const [who,look] of Object.entries(friendLooks))for(const face of ['down','up','left','right'])for(let frame=0;frame<3;frame++){const {g,t}=canvas(`${who}-${face}-${frame}`,20,28);paintCommuter(g,look,face,frame);t.refresh()}
+  for(const [who,look] of Object.entries(friendLooks)){
+    for(const face of faces)for(let frame=0;frame<3;frame++){const {g,t}=canvas(`${who}-${face}-${frame}`,20,28);paintCommuter(g,look,face,frame);t.refresh()}
+    const url=sheets[`./sprites/${who}.png`];if(!url)continue;
+    const sheet=new Image();sheet.onload=()=>faces.forEach((face,row)=>{for(let frame=0;frame<3;frame++){const t=scene.textures.get(`${who}-${face}-${frame}`) as Phaser.Textures.CanvasTexture;t.context.clearRect(0,0,20,28);t.context.drawImage(sheet,frame*20,row*28,20,28,0,0,20,28);t.refresh()}});sheet.src=url;
+  }
   // The robot, after the cat-faced ones that bring the plates in Japan's chain restaurants: three trays, a round head with ears, its face a screen.
   for(let frame=0;frame<2;frame++){
     const {r,t}=canvas(`robot-${frame}`,24,36);
@@ -67,7 +79,7 @@ export function makeOutingSprites(scene:Phaser.Scene){
 }
 
 /** A diner at another table, painted: facing us from the far side (their head and shoulders over the table), or their back to us on the near stools. */
-const diner=(k:Kit,x:number,y:number,far:boolean,coat:string,hair:string,skin='#e9c4a0')=>{
+export const diner=(k:Kit,x:number,y:number,far:boolean,coat:string,hair:string,skin='#e9c4a0')=>{
   if(far){k.r(x-5,y-10,11,10,coat);k.r(x-6,y-8,1,6,coat);k.r(x+5,y-8,1,6,coat);k.r(x-3,y-18,8,8,skin);k.r(x-4,y-20,10,4,hair);k.r(x-4,y-17,1,3,hair);k.r(x+5,y-17,1,3,hair);k.r(x-1,y-14,1,1,'#283e40');k.r(x+2,y-14,1,1,'#283e40')}
   else{k.r(x-6,y-12,12,12,coat);k.r(x-6,y-12,1,12,'#ffffff20');k.r(x-4,y-21,9,9,hair);k.r(x-4,y-13,9,1,skin)}
 };

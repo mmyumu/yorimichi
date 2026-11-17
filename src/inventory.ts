@@ -2,11 +2,14 @@ import { dims, goodNamed, isDrink, paintItem } from './goods';
 import { stations } from './network';
 import { paintTicket } from './ticket-gate';
 import type { TravelTicket } from './ticket-machine';
+import { charmH, charmW, charms, ownedCharms, paintCharm } from './omamori';
+import { blessedPace } from './needs';
+import { sights } from './sights';
 import { coinCount, coins, isCoin, notes, pieceArt, walletTotal, type Wallet } from './wallet';
 
-/** What the bag can do with what is in it: a click on a product eats or drinks it (`consume`, its Japanese name), and at a bin (`bin`) a click on a product or a ticket throws it away instead (`toss`). Money stays. `pace` is the walk's speed with all of it carried, 1 at full speed. */
-export interface BagActions {bin:boolean;pace:()=>number;consume:(ja:string)=>void;toss:(thing:TravelTicket|string)=>void}
-/** The traveller's bag, opened from the top band or at a bin: the tickets carried, drawn as at the gates (punched ones with their hole), what was bought at the konbini, and the wallet. */
+/** What the bag can do with what is in it: a click on a product eats or drinks it (`consume`, its Japanese name), and at a bin (`bin`) a click on a product or a ticket throws it away instead (`toss`). Money stays. `pace` is how much faster hunger and thirst fall with all of it carried, 1 for nothing to speak of. */
+export interface BagActions {bin:boolean;pace:()=>number;blessed:()=>number;consume:(ja:string)=>void;toss:(thing:TravelTicket|string)=>void}
+/** The traveller's bag, opened from the top band or at a bin: the tickets carried, drawn as at the gates (punched ones with their hole), what was bought at the konbini, the temples' charms, and the wallet. */
 export function openInventory(tickets:TravelTicket[],groceries:[string,string][],wallet:Wallet,actions:BagActions,close:()=>void){
   const el=(parent:HTMLElement,tag:string,text='',cls='')=>{const e=document.createElement(tag);e.className=cls;e.textContent=text;parent.append(e);return e};
   const previous=document.activeElement as HTMLElement|null;
@@ -41,8 +44,13 @@ export function openInventory(tickets:TravelTicket[],groceries:[string,string][]
         act(cell,()=>actions.bin?actions.toss(ja):actions.consume(ja));
       }
     }
+    // The charms earned at the temples' bowls (coin-toss.ts), each in its place among those still to find, drawn twice over; the lettering once the font is in.
+    {const owned=ownedCharms(),all=Object.entries(charms),found=el(panel,'section','','gate-pocket');const left=actions.blessed();el(found,'span',`お守り / CHARMS  ${owned.length}/${all.length}${left>0?` · blessed ${Math.floor(left/60)}h${String(Math.floor(left%60)).padStart(2,'0')}: hunger and thirst ×${blessedPace}`:''}`,'gate-label');const shelf=el(found,'div','','bag-goods');
+      for(const [id,charm] of all){const have=owned.includes(id),sight=sights.find(s=>s.id===id)!,cell=el(shelf,'div','','bag-good');cell.title=have?`${charm.ja} · ${charm.en} · ${sight.en}`:`${sight.en} · not found yet`;
+        const canvas=el(cell,'canvas') as HTMLCanvasElement;canvas.width=charmW;canvas.height=charmH;canvas.style.width=`${charmW*2}px`;canvas.style.height=`${charmH*2}px`;const draw=()=>{const g=canvas.getContext('2d')!;g.clearRect(0,0,charmW,charmH);paintCharm(g,0,0,charm,!have)};draw();if(have)document.fonts?.load('10px "Yorimichi Bitmap"').then(draw).catch(()=>{});
+        el(cell,'span',have?charm.en:'?','bag-name')}}
     const purse=el(panel,'section','','gate-purse'),pace=actions.pace();
-    el(purse,'span',`財布 / WALLET  ¥${walletTotal(wallet).toLocaleString('en-US')} · ${coinCount(wallet)} coins${pace<1?` · walking at ${Math.round(pace*100)}%`:''}`,'gate-label');
+    el(purse,'span',`財布 / WALLET  ¥${walletTotal(wallet).toLocaleString('en-US')} · ${coinCount(wallet)} coins${pace>1?` · hunger and thirst ×${pace.toFixed(2)}`:''}`,'gate-label');
     const pieces=el(purse,'div','','gate-pieces');
     for(const value of [...notes,...coins])if(wallet[value]){const piece=el(pieces,'span','','gate-piece'+(isCoin(value)?' coin':''));piece.title='¥'+value.toLocaleString('en-US');const image=el(piece,'img') as HTMLImageElement;image.src=pieceArt(value);image.alt='¥'+value;el(piece,'span','×'+wallet[value])}
   };
