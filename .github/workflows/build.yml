@@ -1,0 +1,21 @@
+name: Build
+# Normandy reruns it every night on main (workflow_dispatch): keep that trigger.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      # The type check and the production bundle: the project has no tests yet.
+      - run: npm run build

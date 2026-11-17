@@ -1,0 +1,5 @@
+{"tests": ["build.yml"],
+ "components": [
+  {"name": "Docs and tooling", "deploy": "none", "paths": ["README.md", "READMEmd", "REFERENCES.md", "AGENTS.md", "CLAUDE.md", "normandy.json", ".gitignore", ".github/**", "docs/**", "scripts/export-mobile.mjs", "scripts/import-photos.mjs", "scripts/set-access-code.mjs", "scripts/subset-pixel-font.mjs", "scripts/make-icons.mjs"]},
+  {"name": "Site", "deploy": "auto", "paths": ["Dockerfile", ".dockerignore", "deploy/**", "index.html", "package.json", "package-lock.json", "tsconfig.json", "vite.config.mjs", "src/**", "public/**", "scripts/**"], "containers": ["yorimichi"]}
+ ]}

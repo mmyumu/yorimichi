@@ -63,3 +63,11 @@ Verification is manual in the browser: movement (tap-to-walk and arrow keys), in
 - The code is deliberately compact: dense one-line methods and inline styles. Match the surrounding density instead of reformatting.
 - Fares follow the real operating km and JR's bands (`fares.ts`; the Kyoto km are rounded, the Shinkansen express charge simplified); timetables are decorative. A new local stop needs its km in `fromTokyo` or `fromKyoto` (a missing one throws at load). Platform numbers are fictional but must stay consistent everywhere: each station's `tracks` in `network.ts` must hold its routes' `platform` (checked at load; Tokyo's Tokaido Shinkansen 18/19, Kyoto's 11/12).
 - Lines live only in `rail.ts`. The Tokyo fare map (`tokyo-fares.ts`) adds nothing but layout: where stations and bends go (`tokyoStations` x/y, the loop, `pins`), the `runs` of drawn track between them with the stations spread along, label sides, line plates (`lineLabels`) and `drawnVia` where a line does not take the shortest drawn way; `board()` routes every local line whose stops are all placed along that track and offsets lines sharing it side by side (same colour, same stroke). Everything drawn claims its box (`claim`, `taken`), and the 現在地 tag takes the free spot nearest its station, so a new label only has to claim its own. A new line or stop goes in `rail.ts` first, then gets a place on the board. `docs/tokyo-stations.md` lists the board's stations by line from `rail.ts`. The Kyoto side's board is the same drawing with its own `Layout` (`kyoto-fares.ts`: lake and rivers in `water`, `sights` for places without a stop of their own); `makeFareMap` picks the layout from the station.
+
+## Normandy
+
+Normandy deploys and watches this project from `normandy.json`.
+
+- The workflows listed under `tests` in `normandy.json` keep `workflow_dispatch`: Normandy reruns them every night on the default branch. A new test workflow goes into that list. Why: tests that run only when their files change let the default branch break unnoticed.
+- Every image keeps a Docker `HEALTHCHECK` that asks the app itself. Why: Normandy and its releases tell an app that answers from a process that merely runs.
+- A new file or folder belongs to a component of `normandy.json`. Why: Normandy flags the files no component claims.
