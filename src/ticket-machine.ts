@@ -45,8 +45,9 @@ interface MachineOptions {fixedService?:boolean;lookAtWall?:()=>void;wallet?:Wal
 // What lies in the tray under the slots: a piece of money (yen) or the ticket.
 type TrayItem={value:number|'ticket';ticket?:TravelTicket;fresh?:boolean};
 // Each machine keeps what was left in its outlets (by hub and machine id), so walking away forgets nothing.
-const trays:Record<string,TrayItem[]>=(()=>{try{return JSON.parse(localStorage.getItem('yorimichi-trays')||'{}')}catch{return {}}})();
-onErase(()=>{for(const id in trays)delete trays[id]});
+const readTrays=():Record<string,TrayItem[]>=>{try{return JSON.parse(localStorage.getItem('yorimichi-trays')||'{}')}catch{return {}}};
+const trays=readTrays();
+onErase(()=>{for(const id in trays)delete trays[id];Object.assign(trays,readTrays())});
 const saveTrays=()=>localStorage.setItem('yorimichi-trays',JSON.stringify(trays,(key,value)=>key==='fresh'?undefined:value));
 export const trayKey=(hub:Hub|string,id:string)=>hub+'-'+id;
 export const leftInTray=(key:string)=>!!trays[key]?.length;

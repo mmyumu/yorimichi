@@ -3,6 +3,7 @@ import { places, platformsAt, routes, stations, type Hub, type Place, type Servi
 import type { TravelTicket } from './ticket-machine';
 import { freshNeeds, type Needs } from './needs';
 import { newPhone, readPhone, type PhoneState } from './phone';
+import type { Mode } from './story';
 
 /** Where the traveller stands: the place and position in scene px, the station walked out of on the street (`town`) or an exit's map,
  * and in a corridor, the station and gates it lies behind. */
@@ -11,7 +12,6 @@ export interface Spot {place:Place;x:number;y:number;outside:{from:Hub;side:Side
  * more progress joins it as new fields. */
 export interface Save {tickets:TravelTicket[];at?:Spot;clock?:number;alarm?:number;phone:PhoneState;groceries:[string,string][];needs:Needs;story?:number}
 const key='yorimichi-save',version=1;
-export const hasSave=()=>{try{return localStorage.getItem(key)!==null}catch{return false}};
 // Only tickets for routes and stations that still exist, and a spot whose place (and the station it needs) still exists; a save from another version starts afresh.
 const valid=(at:Spot|undefined)=>!!at&&(at.place in places||at.place in stations)&&Number.isFinite(at.x)&&Number.isFinite(at.y)&&(!at.outside||at.outside.from in stations)
   &&(!['town','home-street','kyoto-lane','kyoto-house','kyoto-upstairs','apartment'].includes(at.place)&&!scenic(at.place)&&!sightOfRoad(at.place)||!!at.outside)&&(at.place!=='corridor'||!!at.gate&&at.gate.hub in stations&&platformsAt(at.gate.hub,at.gate.service).length>0)&&at.place!=='platform';
@@ -23,9 +23,28 @@ export function loadSave():Save{
   }}catch{}
   return {tickets:[],phone:newPhone(),groceries:[],needs:freshNeeds()};
 }
-const erasers:(()=>void)[]=[];
-/** What a module read from `localStorage` once at load and keeps in memory, forgotten by `eraseAll` (which runs after every module has loaded, without a reload). */
-export const onErase=(forget:()=>void)=>{erasers.push(forget)};
-/** Everything the game keeps in this browser, gone: the journey, wallet, bank, memories, scratch cards and machines' trays. */
-export const eraseAll=()=>{for(const name of Object.keys(localStorage))if(name.startsWith('yorimichi-'))localStorage.removeItem(name);for(const forget of erasers)forget()};
+const readers:(()=>void)[]=[];
+/** What a module read from `localStorage` once at load and keeps in memory, read again (`reread`) whenever the journey under it changes: `eraseSlot` and `useSlot` run after every module has loaded, without a reload. */
+export const onErase=(reread:()=>void)=>{readers.push(reread)};
+/** The journeys kept side by side, one for each way to play (story.ts `Mode`): the one in play lives under the game's own keys, the other packed under `yorimichi-slot-<mode>`.
+ * `yorimichi-mode` names the one in play; it and `yorimichi-story-pace` are the browser's, not a journey's. Every other `yorimichi-` key belongs to the journey. */
+const shared=(name:string)=>name==='yorimichi-mode'||name==='yorimichi-story-pace'||name.startsWith('yorimichi-slot-');
+const own=()=>Object.keys(localStorage).filter(name=>name.startsWith('yorimichi-')&&!shared(name));
+const live=():Mode=>{try{return localStorage.getItem('yorimichi-mode')==='story'?'story':'explore'}catch{return 'explore'}};
+const packed=(mode:Mode):Record<string,string>=>{try{return JSON.parse(localStorage.getItem('yorimichi-slot-'+mode)||'{}')??{}}catch{return {}}};
+/** Whether a journey is kept for that way to play. */
+export const hasSave=(mode:Mode)=>{try{return mode===live()?localStorage.getItem(key)!==null:key in packed(mode)}catch{return false}};
+/** Puts that way to play's journey in play, packing the other away. */
+export function useSlot(mode:Mode){
+  const from=live();if(mode===from)return;
+  try{
+    localStorage.setItem('yorimichi-slot-'+from,JSON.stringify(Object.fromEntries(own().map(name=>[name,localStorage.getItem(name)!]))));
+    for(const name of own())localStorage.removeItem(name);
+    for(const [name,value] of Object.entries(packed(mode)))localStorage.setItem(name,value);
+    localStorage.removeItem('yorimichi-slot-'+mode);localStorage.setItem('yorimichi-mode',mode);
+  }catch{}
+  for(const reread of readers)reread();
+}
+/** The journey in play, gone: where the traveller is, wallet, bank, memories, scratch cards and machines' trays. The other way to play's journey is kept. */
+export const eraseSlot=()=>{for(const name of own())localStorage.removeItem(name);for(const reread of readers)reread()};
 export const writeSave=(save:Save)=>{try{localStorage.setItem(key,JSON.stringify({version,...save}))}catch{}};

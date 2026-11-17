@@ -3,12 +3,13 @@ import { box } from './hall-scene';
 import { wrap, write } from './konbini-till';
 import { loadLook, paintTraveller, parts, saveLook, unused, type Look } from './look';
 import { connectedPad } from './pad';
-import { eraseAll, hasSave } from './save';
+import { eraseSlot, hasSave, useSlot } from './save';
 import { saveMode, type Mode } from './story';
 import { crispText, fitPicture } from './ticket-gate';
 
 // The title screen, one 320 × 200 picture scaled up whole: Fuji at dusk over a town, a train crossing the viaduct. Over it, in turn, the journal check (a code from the printed travel journal, as old games asked for a word from their manual),
-// the main menu (continue, new journey) and, for a new journey, the traveller's looks (look.ts), painted as they will walk, then the way to play (`Mode`, story.ts): exploring freely, or the story playing itself.
+// the main menu (continue either kept journey, new journey) and, for a new journey, the traveller's looks (look.ts), painted as they will walk, then the way to play (`Mode`, story.ts): exploring freely, or the story playing itself,
+// each with its own journey kept (save.ts, `useSlot`): starting one anew asks before erasing that one, never the other.
 const W=320,H=200,ink='#3a2a20',paper='#efe3c2',edge='#5a3f2c',red='#c0463a';
 const bayer=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5];
 const journalReferences=[
@@ -73,7 +74,7 @@ export function showTitle(start:()=>void){
   const scene=backdrop(),cars=train(),sprite=document.createElement('canvas');sprite.width=20;sprite.height=28;
   const reference=journalReferences[Math.floor(Math.random()*journalReferences.length)];
   const codeBox:Rect=[58,130,140,15],okBox:Rect=[204,130,58,15];
-  let phase:Phase='code',focus=0,hover=-1,status='',error=false,checking=false,shake=0,items:Item[]=[],frame=0,over=false,ready=false,turned=0,spin=true;
+  let pending:Mode='explore',phase:Phase='code',focus=0,hover=-1,status='',error=false,checking=false,shake=0,items:Item[]=[],frame=0,over=false,ready=false,turned=0,spin=true;
   const look:Look=loadLook();
   const fit=()=>{fitPicture(canvas,overlay,W,H);const scale=canvas.clientWidth/W,[x,y,w,h]=codeBox;Object.assign(field.style,{left:canvas.offsetLeft+x*scale+'px',top:canvas.offsetTop+y*scale+'px',width:w*scale+'px',height:h*scale+'px'})};
   const watcher=new ResizeObserver(fit);watcher.observe(overlay);fit();
@@ -104,17 +105,18 @@ export function showTitle(start:()=>void){
   };
   const drawMenu=()=>{
     titles(30);
-    const save=hasSave(),list:[string,()=>void][]=[...save?[['つづきから · CONTINUE',finish] as [string,()=>void]]:[],['はじめから · NEW JOURNEY',()=>save?go('confirm',0):go('look',parts.length+3)]];
-    panel([84,96,152,list.length*22+14]);
-    items=list.map(([label,act],i)=>({rect:[96,104+i*22,128,16] as Rect,row:i,act}));
+    const kept:[Mode,string][]=[['explore','つづき · EXPLORATION'],['story','つづき · STORY']],list:[string,()=>void][]=[...kept.filter(([mode])=>hasSave(mode)).map(([mode,label]):[string,()=>void]=>[label,()=>{useSlot(mode);finish()}]),['はじめから · NEW JOURNEY',()=>go('look',parts.length+3)]];
+    panel([74,96,172,list.length*22+14]);
+    items=list.map(([label,act],i)=>({rect:[86,104+i*22,148,16] as Rect,row:i,act}));
     items.forEach((item,i)=>{const [x,y,w]=item.rect;if(chosen(i))triangle(x-8,y+5,1,red);write(g,list[i][0],x+w/2,y+3,chosen(i)?red:ink,'center');if(chosen(i))box(g,x+10,y+14,w-20,1,red)});
     box(g,0,H-17,W,17,'#0b0a16c0');write(g,'↑↓ choose · Enter or A',W/2,H-14,'#f0d0a8','center');
   };
   const drawConfirm=()=>{
     titles(14);panel([40,82,240,96]);
-    write(g,'Start a new journey?',W/2,90,red,'center');
-    wrap(g,'Your saved journey will be erased: where you are, tickets, money, groceries, memories and messages.',212).forEach((line,i)=>write(g,line,W/2,106+i*12,ink,'center'));
-    items=[{rect:[58,154,96,16],row:0,act:()=>go('menu',0)},{rect:[166,154,96,16],row:0,act:()=>go('look',parts.length+3)}];
+    const which=pending==='story'?'story':'exploration';
+    write(g,`Start a new ${which}?`,W/2,90,red,'center');
+    wrap(g,`Your saved ${which} will be erased: where you are, tickets, money, groceries, memories and messages. The ${pending==='story'?'exploration':'story'} is kept.`,212).forEach((line,i)=>write(g,line,W/2,106+i*12,ink,'center'));
+    items=[{rect:[58,154,96,16],row:0,act:()=>go('mode',pending==='story'?1:0)},{rect:[166,154,96,16],row:0,act:()=>begin(pending)}];
     button(items[0].rect,'Keep it',chosen(0));button(items[1].rect,'Erase & start',chosen(1));
   };
   const facing=(t:number)=>spin?(Math.floor(t/1600)+turned)%4:turned%4;
@@ -147,7 +149,7 @@ export function showTitle(start:()=>void){
     panel([10,8,300,184]);
     write(g,'旅のしかた · HOW TO TRAVEL',W/2,14,red,'center');box(g,20,26,280,1,'#d6c49a');
     const modes:[Mode,string,string][]=[['explore','自由に · EXPLORE','Walk about Japan as you like: buy tickets, ride the trains, find the places and keep their memories yourself.'],['story','物語 · STORY','Sit back and watch: the traveller goes from memory to memory in the order of the trip, and the album opens on each one.']];
-    items=modes.map(([mode],i)=>({rect:[22+i*142,34,134,118] as Rect,row:0,act:()=>begin(mode)}));
+    items=modes.map(([mode],i)=>({rect:[22+i*142,34,134,118] as Rect,row:0,act:()=>{pending=mode;if(hasSave(mode))go('confirm',0);else begin(mode)}}));
     modes.forEach(([,name,text],i)=>{const [x,y,w,h]=items[i].rect,on=chosen(i);box(g,x,y+1,w,h,'#7a5a40');box(g,x,y,w,h,on?'#f8e6c8':'#f8f0da',on?red:edge);write(g,name,x+w/2,y+8,on?red:ink,'center');box(g,x+10,y+22,w-20,1,'#d6c49a');wrap(g,text,w-16).forEach((line,k)=>write(g,line,x+w/2,y+30+k*12,ink,'center'))});
     const rect:Rect=[131,166,58,16];items.push({rect,row:1,act:()=>go('look',parts.length+3)});button(rect,'Back',chosen(2));
   };
@@ -170,7 +172,7 @@ export function showTitle(start:()=>void){
     catch(e){status=e instanceof Error?e.message:'Could not check the code.';error=true;checking=false;return}
     field.value='';checking=false;status='';go('menu',0);
   }
-  function begin(mode:Mode){eraseAll();saveLook(look);saveMode(mode);finish()}
+  function begin(mode:Mode){useSlot(mode);eraseSlot();saveLook(look);saveMode(mode);finish()}
   function finish(){if(over)return;over=true;cancelAnimationFrame(frame);watcher.disconnect();document.removeEventListener('keydown',key,true);overlay.remove();start()}
 
   // Moving the choice: ↑ ↓ between rows (to the item of that row nearest the one chosen), ← → turn a value or move along a row.
@@ -180,7 +182,7 @@ export function showTitle(start:()=>void){
     const rows=[...new Set(items.map(item=>item.row))].sort((a,b)=>a-b),next=rows[rows.indexOf(now.row)+dy];if(next===undefined)return;
     const cx=now.rect[0]+now.rect[2]/2;focus=items.map((item,i)=>[item,i] as const).filter(([item])=>item.row===next).sort(([a],[b])=>Math.abs(a.rect[0]+a.rect[2]/2-cx)-Math.abs(b.rect[0]+b.rect[2]/2-cx))[0][1];
   };
-  const back=()=>{if(phase==='mode')go('look',parts.length+3);else if(phase==='look'||phase==='confirm')go('menu',0)};
+  const back=()=>{if(phase==='mode')go('look',parts.length+3);else if(phase==='confirm')go('mode',pending==='story'?1:0);else if(phase==='look')go('menu',0)};
   const choose=()=>{items[focus]?.act?.()};
   function key(event:KeyboardEvent){
     if(phase==='code'){if(event.key==='Enter'&&document.activeElement===field){event.preventDefault();submit()}return}

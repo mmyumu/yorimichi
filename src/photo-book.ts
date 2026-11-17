@@ -79,9 +79,10 @@ function whereabouts(page:Page):string[]{
 /** The scratch card on each place's left page: a silver coat over where it is, scratched off by the pointer (mouse or finger), the right stick's sweeps or, at a press of X, by itself; only what is scratched shows, nothing is uncovered at once.
  * Each coat is kept as scratched in `localStorage['yorimichi-scratch']` (its mask, a bit a pixel, base64; `1` once none of it is left). */
 const card:Rect=[left[0]+12,left[1]+204,140,60],scratchKey='yorimichi-scratch';
-const saved:Record<string,string>=(()=>{try{const data=JSON.parse(localStorage.getItem(scratchKey)||'{}');return Array.isArray(data)?Object.fromEntries(data.map((id:string)=>[id,'1'])):data}catch{return {}}})();
+const readCoats=():Record<string,string>=>{try{const data=JSON.parse(localStorage.getItem(scratchKey)||'{}');return Array.isArray(data)?Object.fromEntries(data.map((id:string)=>[id,'1'])):data}catch{return {}}};
+const saved=readCoats();
 const coats=new Map<string,{canvas:HTMLCanvasElement;mask:Uint8Array;left:number}>();
-onErase(()=>{for(const id in saved)delete saved[id];coats.clear()});
+onErase(()=>{for(const id in saved)delete saved[id];Object.assign(saved,readCoats());coats.clear()});
 /** Writes the coats scratched since the last time. */
 function keepCoats(){
   for(const [id,{mask,left}] of coats){if(!left){saved[id]='1';continue}const bytes=new Uint8Array(Math.ceil(mask.length/8));mask.forEach((on,i)=>{if(on)bytes[i>>3]|=1<<(i&7)});saved[id]=btoa(String.fromCharCode(...bytes))}
