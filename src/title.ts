@@ -34,9 +34,9 @@ function backdrop(){
   for(let k=0;k<60;k++){const y=Math.floor(rand()*rand()*70);r(Math.floor(rand()*W),y,1,1,k%6?'#9aa0d0':'#fffef2')}
   // The moon, a thin crescent.
   for(let y=-6;y<=6;y++)for(let x=-6;x<=6;x++)if(x*x+y*y<38&&(x+3)**2+(y-1)**2>=30)r(44+x,22+y,1,1,'#f4efd2');
-  // Fuji, its west face lit by the sunset, the snow down its gullies.
-  const peak=236,top=(x:number)=>58+Math.abs(x-peak)*.5+((x-peak)/38)**2*5;
-  for(let x=120;x<W;x++){const t=Math.round(top(x));for(let y=t;y<140;y++){const lit=x-peak<(y-58)*-.12+bayer[(y&3)*4+(x&3)]/8,snow=y<58+15+Math.sin(x*.9)*2+Math.sin(x*.31)*3&&y-t<18;r(x,y,1,1,snow?lit?'#f0dfe6':'#b4abd2':lit?'#6c5684':'#4a4272')}}
+  // Fuji, its west face lit by the sunset, the snow down its gullies: a flat crater, the slopes steep under it and easing out into long feet (concave, never domed).
+  const peak=236,top=(x:number)=>58+95*(1-Math.exp(-Math.max(0,Math.abs(x-peak)-4)/112));
+  for(let x=0;x<W;x++){const t=Math.round(top(x));for(let y=t;y<140;y++){const lit=x-peak<(y-58)*-.12+bayer[(y&3)*4+(x&3)]/8,snow=y<58+15+Math.sin(x*.9)*2+Math.sin(x*.31)*3&&y-t<18;r(x,y,1,1,snow?lit?'#f0dfe6':'#b4abd2':lit?'#6c5684':'#4a4272')}}
   // Far hills, then the town's blocks with their windows lit.
   for(let x=0;x<W;x++){const t=Math.round(118+Math.sin(x*.03)*5+Math.sin(x*.11+1)*2);r(x,t,1,140-t,'#3a3462')}
   for(let x=0;x<W;){const w=6+Math.floor(rand()*10),h=6+Math.floor(rand()*rand()*22);r(x,138-h,w,h,'#262548');for(let y=140-h;y<136;y+=3)for(let k=x+1;k<x+w-1;k+=2)if(rand()<.3)r(k,y,1,1,rand()<.8?'#ffd98a':'#fff6d0');x+=w+Math.floor(rand()*2)}
@@ -156,10 +156,10 @@ export function showTitle(start:()=>void){
   const draw=()=>{
     const t=performance.now();
     g.drawImage(scene,0,0);
+    // The town's lights flicker now and then, behind the train.
+    for(let k=0;k<5;k++){const x=(k*67+Math.floor(t/900)*31)%W;g.fillStyle='#fff6d0';g.fillRect(x,130+(k*7)%6,1,1)}
     // A train every twelve seconds, along the viaduct.
     const run=(t%12000)/12000*(W+cars.width+400)-cars.width;g.drawImage(cars,Math.round(W-run),128);
-    // The town's lights flicker now and then.
-    for(let k=0;k<5;k++){const x=(k*67+Math.floor(t/900)*31)%W;g.fillStyle='#fff6d0';g.fillRect(x,130+(k*7)%6,1,1)}
     if(phase==='look'||phase==='mode')box(g,0,0,W,H,'#0b0a1655');
     if(ready){if(phase==='code')drawCode();else if(phase==='menu')drawMenu();else if(phase==='confirm')drawConfirm();else if(phase==='mode')drawMode();else drawLook(t)}
     if(shake>0)shake=Math.max(0,shake-16);

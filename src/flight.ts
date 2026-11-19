@@ -104,7 +104,7 @@ function airfield(place:Place,night:boolean){
   const hills=(height:(x:number)=>number,lit:string,shade:string)=>{for(let x=0;x<W;x++){const top=Math.round(horizon-height(x)),rim=4+Math.sin(x*.31)*2+Math.sin(x*.83);for(let y=top;y<horizon;y++){g.fillStyle=y-top<rim+bayer[(y&3)*4+(x&3)]/5?lit:shade;g.fillRect(x,y,1,1)}}};
   const far=night?['#27335f','#212c54']:['#a4c1d8','#92b3cd'],near=night?['#1a2547','#141d3a']:['#6f9a8a','#5a8678'];
   if(place==='haneda'){
-    const fuji=(x:number)=>Math.max(0,82-Math.abs(x-206)*.62-((x-206)/28)**2*1.6);const slope=night?'#2c3866':'#7f9fc6',shaded=night?'#232e58':'#6c8db8';for(let x=0;x<W;x++){const top=Math.round(horizon-Math.max(fuji(x),9+Math.sin(x*.05)*4));for(let y=top;y<horizon;y++){g.fillStyle=x-206>(y-(horizon-82))*.16-3+bayer[(y&3)*4+(x&3)]/3?shaded:slope;g.fillRect(x,y,1,1)}}
+    const fuji=(x:number)=>82*Math.max(0,1-Math.max(0,Math.abs(x-206)-3)/150)**1.55;const slope=night?'#2c3866':'#7f9fc6',shaded=night?'#232e58':'#6c8db8';for(let x=0;x<W;x++){const top=Math.round(horizon-Math.max(fuji(x),9+Math.sin(x*.05)*4));for(let y=top;y<horizon;y++){g.fillStyle=x-206>(y-(horizon-82))*.16-3+bayer[(y&3)*4+(x&3)]/3?shaded:slope;g.fillRect(x,y,1,1)}}
     for(let x=150;x<262;x++){const top=horizon-fuji(x),end=top+11+Math.sin(x*.9)*3+Math.sin(x*.37)*3;for(let y=Math.round(top);y<end&&top<horizon-44;y++){g.fillStyle=night?x-206>(y-(horizon-82))*.16-3?'#8590b8':'#a9b3d6':x-206>(y-(horizon-82))*.16-3?'#d3e2f0':'#fffef2';g.fillRect(x,y,1,1)}}
   }else hills(x=>(place==='hongkong'?44:30)+Math.sin(x*.021+1)*14+Math.sin(x*.057)*8+Math.sin(x*.13+2)*3,far[0],far[1]);
   hills(x=>(place==='hongkong'?22:12)+Math.sin(x*.033+3)*(place==='hongkong'?11:5)+Math.sin(x*.09)*4+Math.sin(x*.21+1)*2,near[0],near[1]);

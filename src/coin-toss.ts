@@ -15,8 +15,10 @@ import { coins, debugMoney, machineSound, pieceArt, saveWallet, type Wallet } fr
 const W=480,H=320,ink='#3a2a20',paper='#f4ead0',edge='#5a3f2c',red='#c0463a';
 type Rect=[number,number,number,number];
 const inside=([x,y,w,h]:Rect,px:number,py:number)=>px>=x&&px<x+w&&py>=y&&py<y+h;
-/** Where the ground starts, the bowl's mouth (centre, inner and outer radii across and down), the foot of what it stands on. */
-const horizon=96,bx=240,by=150,mouth:[number,number]=[17,5],rim:[number,number]=[22,7],foot=204;
+/** Where the ground starts, the bowl's mouth (centre, inner and outer radii across and down), the foot of what it stands on, as far as it usually is. */
+const horizon=96,bx=240,by0=150,mouth:[number,number]=[17,5],rim:[number,number]=[22,7],foot0=204;
+/** How much nearer (or, below zero, farther) each place's bowl stands than usual, in px down the picture: a step or two either way, so that each wants its own strength on the gauge (about .3 of it for the nearest, .6 for the farthest). */
+const nearer:Record<string,number>={asakusa:4,meiji:-8,kinkaku:-12,ginkaku:10,daitoku:-4,kenkun:14,yasaka:0,heian:-10,lanterns:7,toshogu:-6};
 /** Where the pointer aims, and the coins' tray along the foot; the gauge beside the field. */
 const field:Rect=[0,56,W,212],tray:Rect=[96,270,288,32],gauge:Rect=[448,150,12,110];
 /** The hand, on the ground at the foot of the picture; how far round it may turn either way; where a toss of strength `f` (0 to 1) along `angle` comes down, the farther the more foreshortened. */
@@ -31,9 +33,10 @@ export function tossCoins(place:string,name:[string,string],setting:Setting,hall
   const overlay=document.createElement('div');overlay.className='pause-screen';overlay.tabIndex=-1;overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Offering bowl');
   const stage=document.createElement('div'),canvas=document.createElement('canvas'),shade=veil();canvas.width=W;canvas.height=H;stage.append(shade,canvas);overlay.append(stage);document.body.append(overlay);overlay.focus();
   const g=canvas.getContext('2d')!;g.imageSmoothingEnabled=false;
+  const by=by0+(nearer[place]??0),foot=foot0+(nearer[place]??0);
   const fit=()=>{const game=document.querySelector<HTMLCanvasElement>('#game canvas')?.getBoundingClientRect();Object.assign(stage.style,game?{left:game.left+'px',top:game.top+'px',width:game.width+'px',height:game.height+'px'}:{left:'0',top:'0',width:'100%',height:'100%'});fitPicture(canvas,stage,W,H)},watcher=new ResizeObserver(fit);watcher.observe(overlay);fit();
   const art=Object.fromEntries(coins.map(v=>{const image=new Image();image.src=pieceArt(v);return [v,image]}));
-  const backdrop=paintBackdrop(setting,hall),charm=charms[place],sheet=document.createElement('canvas');sheet.width=charmW;sheet.height=charmH;
+  const backdrop=paintBackdrop(setting,hall,foot),charm=charms[place],sheet=document.createElement('canvas');sheet.width=charmW;sheet.height=charmH;
   const drawSheet=()=>{const s=sheet.getContext('2d')!;s.clearRect(0,0,charmW,charmH);paintCharm(s,0,0,charm)};drawSheet();void document.fonts.load('10px "Yorimichi Bitmap"').then(drawSheet);
 
   /** The coin in the air (from, to, when it left, how long), those lying about, those in the bowl, the rings on the water and the bowl's shimmer. */
@@ -72,12 +75,12 @@ export function tossCoins(place:string,name:[string,string],setting:Setting,hall
   const pedestal=(t:number)=>{
     if(setting==='pond'){
       // A rock rising from the water, the bowl held up on it.
-      box(g,bx-34,foot-6,68,8,'#2c4a52');for(const [x,w,y,c] of [[-30,60,182,'#6c6a60'],[-26,52,174,'#7c786c'],[-20,40,166,'#8a8678'],[-14,28,160,'#9a9686']] as const)box(g,bx+x,y,w,foot-2-y,c);
-      box(g,bx-30,foot-4,60,2,'#ffffff40');box(g,bx-12,160,6,2,'#b4b0a2');box(g,bx+10,170,4,20,'#5c5a52');
+      box(g,bx-34,foot-6,68,8,'#2c4a52');for(const [x,w,y,c] of [[-30,60,22,'#6c6a60'],[-26,52,30,'#7c786c'],[-20,40,38,'#8a8678'],[-14,28,44,'#9a9686']] as const)box(g,bx+x,foot-y,w,y-2,c);
+      box(g,bx-30,foot-4,60,2,'#ffffff40');box(g,bx-12,foot-44,6,2,'#b4b0a2');box(g,bx+10,foot-34,4,20,'#5c5a52');
     }else{
       // A stone pillar on its plinth, its cap under the bowl.
-      box(g,bx-26,foot-10,52,10,'#8f8a7c');box(g,bx-26,foot-10,52,2,'#b4ae9e');box(g,bx-16,162,32,foot-172,'#a29c8c');box(g,bx-16,162,4,foot-172,'#b8b2a2');box(g,bx+12,162,4,foot-172,'#837e70');
-      box(g,bx-20,158,40,6,'#b4ae9e');box(g,bx-20,163,40,1,'#837e70');box(g,bx-30,foot,60,3,'#00000030');
+      box(g,bx-26,foot-10,52,10,'#8f8a7c');box(g,bx-26,foot-10,52,2,'#b4ae9e');box(g,bx-16,foot-42,32,32,'#a29c8c');box(g,bx-16,foot-42,4,32,'#b8b2a2');box(g,bx+12,foot-42,4,32,'#837e70');
+      box(g,bx-20,foot-46,40,6,'#b4ae9e');box(g,bx-20,foot-41,40,1,'#837e70');box(g,bx-30,foot,60,3,'#00000030');
     }
     // The bronze bowl: its body below the rim, the dark mouth with the coins in it, the shimmer once it rings.
     for(let i=0;i<10;i++){const w=Math.round(rim[0]-i*i*.16);box(g,bx-w,by+2+i,w*2,1,i<3?'#8a6436':i<7?'#74522a':'#5e4222')}
@@ -165,7 +168,7 @@ export function tossCoins(place:string,name:[string,string],setting:Setting,hall
 }
 
 /** What lies behind the bowl, painted once: the precinct's trees, the hall's front (its posts and walls, under its eaves) and its low stone fence, then the ground (raked gravel, moss), or the pond with its far shore and the golden pavilion across it. */
-function paintBackdrop(setting:Setting,[wall,roof]:[string,string]){
+function paintBackdrop(setting:Setting,[wall,roof]:[string,string],foot:number){
   const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d')!,r=(x:number,y:number,w:number,h:number,col:string)=>{g.fillStyle=col;g.fillRect(x,y,w,h)};
   let seed=7;const rand=(n:number)=>{seed=(seed*1103515245+12345)>>>0;return (seed>>>8)%n};
   r(0,0,W,horizon,'#2e5a3a');
