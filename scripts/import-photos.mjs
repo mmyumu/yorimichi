@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { decode, encrypt, keyFor } from './photo-crypto.mjs';
 const pages={'01 Tokyo - Asakusa':'asakusa','02 Tokyo - Shibuya et Harajuku':'shibuya-crossing','03 Tokyo - Meiji-jingu':'meiji','04 Kyoto - Kinkaku-ji':'kinkaku','05 Kyoto - Kenkun-jinja':'kenkun','06 Kyoto - Daitoku-ji':'daitoku','07 Kyoto - Jardin de bonsais':'daitoku',
-  '08 Kyoto - Kamo et Yasaka':'yasaka','09 Kyoto - Higashiyama et Chion-in':'higashiyama','10 Kyoto - Heian-jingu':'heian','11 Kyoto - Ginkaku-ji':'ginkaku','12 Kyoto - Sanctuaire aux lanternes':'lanterns','13 Kyoto - Ville':'kyoto-tower','14 Rakusai - Bambouseraie':'rakusai',
+  '08 Kyoto - Kamo et Yasaka':'yasaka','09 Kyoto - Higashiyama et Chion-in':'higashiyama','10 Kyoto - Heian-jingu':'heian','11 Kyoto - Ginkaku-ji':'ginkaku','12 Kyoto - Sanctuaire aux lanternes':'lanterns','12 Kyoto - Daimonji':'daimonji','12 Kyoto - Daimonji coucher de soleil':'daimonji-sunset','13 Kyoto - Ville':'kyoto-tower','14 Rakusai - Bambouseraie':'rakusai',
   '15 Osaka - Dotonbori':'dotonbori','15 Osaka - Shinsekai':'shinsekai','16 Lac Biwa':'biwako','16 Otsu':'otsu-shore','17 Nikko - Temples et sanctuaires':'toshogu','18 Nikko - Jardin':'toshogu','19 Nikko - Kanmangafuchi':'kanmangafuchi','20 Nikko - Pont Shinkyo':'shinkyo','21 Nikko - Nature':'kanmangafuchi',
   '22 Kamakura':'kamakura-trail','23 Tokyo - Odaiba':'odaiba','23 Tokyo - Ginza':'ginza','24 Souvenirs':'road'};
 // The photos of a folder that belong on another page of the same place: Heian-jingu's memories are the precincts, the garden and the street with the great torii.

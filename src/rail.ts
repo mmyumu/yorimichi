@@ -53,7 +53,7 @@ for(const line of railLines)if(!marks[line.id])throw Error(`No symbol for ${line
 /** The buses to the places with no station of their own (sights.ts): caught at the stop in the street outside the stations in `stops`, and shown on the maps' connection icons. `sights` are where they go, not their own stops: no stations, no tickets, a flat fare (`busFare`). */
 export interface BusLine {no:string;stops:string[];sights:[string,string][]}
 export const busFare=230;
-const kinkaku:[string,string]=['金閣寺','Kinkaku-ji'],ginkaku:[string,string]=['銀閣寺','Ginkaku-ji'],daitoku:[string,string]=['大徳寺','Daitoku-ji'],kenkun:[string,string]=['建勲神社','Kenkun-jinja'],heian:[string,string]=['平安神宮','Heian-jingu'],lanterns:[string,string]=['提灯の社','The lantern shrine'],higashiyama:[string,string]=['東山','Higashiyama'];
+const kinkaku:[string,string]=['金閣寺','Kinkaku-ji'],ginkaku:[string,string]=['銀閣寺','Ginkaku-ji'],daitoku:[string,string]=['大徳寺','Daitoku-ji'],kenkun:[string,string]=['建勲神社','Kenkun-jinja'],heian:[string,string]=['平安神宮','Heian-jingu'],lanterns:[string,string]=['八神社','Hachi-jinja'],higashiyama:[string,string]=['東山','Higashiyama'];
 export const busLines:BusLine[]=[
   {no:'205',stops:['京都','円町','北大路'],sights:[kinkaku,daitoku,kenkun]},
   {no:'12',stops:['三条','祇園四条'],sights:[kinkaku,daitoku]},

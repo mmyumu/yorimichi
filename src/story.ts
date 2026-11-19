@@ -42,6 +42,8 @@ export const chapters:Chapter[]=[
   {page:'heian-garden'},
   {page:'ginkaku'},
   {page:'lanterns'},
+  {page:'daimonji',time:'16:30'},
+  {page:'daimonji-sunset',time:'17:20'},
   {page:'kyoto-tower'},
   {page:'rakusai'},
   {page:'dotonbori'},

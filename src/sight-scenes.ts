@@ -7,8 +7,10 @@ import { letter, mapCanvas, softCrown } from './art';
 
 export type Box=[number,number,number,number];
 export type Glow=[number,number,number,number?,number?,number?];
-export interface Layout {start:[number,number];exit:[number,number];camera:[number,number];solids:Box[];lamps?:Glow[];lit?:Box[];over?:Box[];stands?:Box[];puffs?:[number,number,number][];width?:number;height?:number;way?:{at:[number,number];to:string;ja:string;sign:string;en:string};second?:{camera:[number,number];page:string};people?:[number,number,number,'up'|'down'|'left'|'right'][];roam?:number|Box;busy?:true;crossing?:{sides:[Box,Box];exits:[[number,number][],[number,number][]];poles:[number,number,'L'|'R'][];crowd:number;cars:{lanes:[number,number][];stop:[number,number]}};out?:{to:string;at:[number,number];en:string};bowl?:[number,number]}
-export interface Avenue {height:number;camera:[number,number];solids:Box[];lamps?:Glow[];lit?:Box[];over?:Box[]}
+export interface Layout {start:[number,number];exit:[number,number];camera?:[number,number];solids:Box[];lamps?:Glow[];lit?:Box[];over?:Box[];stands?:Box[];puffs?:[number,number,number][];width?:number;height?:number;way?:Way;second?:{camera:[number,number];page:string};people?:[number,number,number,'up'|'down'|'left'|'right'][];roam?:number|Box;busy?:true;crossing?:{sides:[Box,Box];exits:[[number,number][],[number,number][]];poles:[number,number,'L'|'R'][];crowd:number;cars:{lanes:[number,number][];stop:[number,number]}};out?:{to:string;at:[number,number];en:string;walk?:number};bowl?:[number,number]}
+export interface Avenue {height:number;camera?:[number,number];solids:Box[];lamps?:Glow[];lit?:Box[];over?:Box[];way?:Way}
+/** A second signpost (`way`): into a sight's garden or another screen of it, or, with `walk` (minutes), on foot to another place nearby, arriving at `arrive` (art px) or that place's way in. */
+export interface Way {at:[number,number];to:string;ja:string;sign:string;en:string;walk?:number;arrive?:[number,number]}
 
 type Paint=(x:number,y:number,w:number,h:number,c:string)=>void;
 const warm=0xfff1cc,paper=0xffd99a,cool=0xe4f4ff;
@@ -152,6 +154,16 @@ const azaleas:[number,number][]=[[424,352],[448,368],[620,372],[664,370],[700,35
 const gardenTrees=(()=>{let seed=11;const pick=(n:number)=>{seed=(seed*1664525+1013904223)>>>0;return seed%n},out:[number,number,number][]=[];
   for(let i=0;i<340;i++){const x=12+pick(736),y=84+pick(340),near=gardenPath.some(([px,py])=>Math.abs(px-x)<26&&y-py>-22&&y-py<42),block=x>160&&x<432&&y>170,tram=x<110&&y>372,pavilion=x>430&&x<712&&y<160,bush=azaleas.some(([ax,ay])=>Math.abs(ax-x)<32&&ay-y>-14&&ay-y<44);if(near||block||tram||pavilion||bush||onWater(x,y)||x>584&&x<716&&y>220&&y<320||out.some(([ox,oy])=>Math.hypot(ox-x,oy-y)<26))continue;out.push([x,y,x<170&&y>230?2+pick(2)*(pick(2)+1):1+pick(3)*2])}
   return out.sort((a,b)=>a[1]-b[1])})();
+
+/** The path up Mt Daimonji (art px, its own map 480×960): the bends from Hachi-jinja at its foot to the ridge at its head, and all it clears with its two landings; Chappy leads along the bends (main.ts).
+ * The ruins' clearing and its ways in and out; the fire bed's hearths, down the 大's stroke (Mt Daimonji's screen), and the flat stone before the view where the sun is watched going down (`viewStone`). */
+export const climbWay:[number,number][]=[[248,946],[240,862],[330,808],[150,730],[326,652],[146,574],[320,496],[166,418],[318,340],[180,262],[300,188],[240,120],[262,76]];
+const climbPath=[...trail(climbWay,26),...trail([[178,932],[300,932]],44),...trail([[180,72],[324,72]],52)];
+const ruinsPath=[...trail([[168,204],[204,188],[264,186],[312,198]],64),...trail([[200,220],[284,222]],44),...trail([[306,190],[350,150]],30),...trail([[240,250],[240,318]],60),...trail([[350,160],[412,104]],34)];
+export const hearths:[number,number][]=[[231,196],[231,224],[231,252],[231,280]];
+export const ridgeWay:[number,number][]=[[30,262],[140,250],[260,236],[380,242],[500,218],[620,208],[740,192],[860,180],[920,176]];
+const ridgePath=[...trail(ridgeWay,26),...trail([[0,258],[90,258]],44),...trail([[870,174],[952,174]],44)];
+export const viewStone:Box=[228,170,24,8];
 
 const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
   // Senso-ji: up Nakamise's red-roofed stalls and under the Hozomon with its great lantern to the incense burner, the main hall ahead under its towering roof, the slender pagoda to its left, the paved court all round, Skytree far off over the trees.
@@ -534,8 +546,8 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const [x,y,n] of gardenTrees)if(n===2)k.tree(x,y,blossom);else if(n===1)k.pine(x,y,x%2?1:-1);else k.tree(x,y,greens[n-3]);
     for(const [x,y] of [[168,74],[120,296],[396,146],[738,152],[750,330]])k.stoneLantern(x,y);
   }},
-  // The lantern shrine, from the photos: the open pavilion in its plain slatted fence, two tiers of round white lanterns all round under its steep dark roof, the sake casks stacked inside; the plastered hall behind with its own row, the stone torii and its guardian lions, the paving through the dark trees.
-  lanterns:{layout:{bowl:[330,160],start:[370,306],exit:[406,204],camera:[238,204],solids:[[0,0,222,320],[0,0,480,108],[300,0,180,128],[402,214,78,106],[222,226,120,94],[326,246,14,16]],over:[[336,210,74,20],[342,226,8,16],[394,226,8,16]],lit:[[40,108,170,58],[306,88,108,16],[226,98,180,40]],lamps:[[126,136,150,0xfff0c0,1],[126,190,110,paper,.6,.5],[360,98,64,0xfff0c0,.9],[360,126,50,paper,.6],[370,270,30,warm,.3]]},draw:k=>{
+  // Hachi-jinja (八神社), beside Ginkaku-ji where the path up Mt Daimonji starts, from the photos: the open pavilion in its plain slatted fence, two tiers of round white lanterns all round under its steep dark roof, the sake casks stacked inside; the plastered hall behind with its own row, the stone torii and its guardian lions, the paving through the dark trees.
+  lanterns:{layout:{bowl:[330,160],start:[370,306],exit:[406,204],camera:[238,204],out:{to:'ginkaku-road',at:[392,172],en:'To Ginkaku-ji\'s street'},solids:[[0,0,222,320],[0,0,480,108],[300,0,180,128],[402,214,78,106],[222,226,120,94],[326,246,14,16]],over:[[336,210,74,20],[342,226,8,16],[394,226,8,16]],lit:[[40,108,170,58],[306,88,108,16],[226,98,180,40]],lamps:[[126,136,150,0xfff0c0,1],[126,190,110,paper,.6,.5],[360,98,64,0xfff0c0,.9],[360,126,50,paper,.6],[370,270,30,warm,.3]]},draw:k=>{
     const {r}=k;k.forest(0,0,480,320,greens[0]);for(const [x,y] of [[250,76],[440,70],[20,220],[60,280],[150,290],[440,250],[250,270],[460,170]])k.cedar(x,y,60);
     k.ground(222,108,180,118,'#c8bfa6','#b0a890');for(let i=0;i<1500;i++)r(222+k.int(180),108+k.int(118),1,1,['#b4ac94','#d8d0b8','#a8a088'][k.int(3)]);k.ground(402,128,78,86,'#c8bfa6','#b0a890');k.ground(300,128,102,10,'#c8bfa6','#b0a890');
     r(342,214,60,106,'#6e6a5e');for(let y=214;y<320;y+=8)for(let x=342+(y%16?0:6);x<402;x+=12)r(x,y,11,7,['#8e8a7c','#86827a','#96927e'][k.int(3)]);
@@ -550,8 +562,81 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     // The hall behind, its lanterns along the front.
     r(306,84,108,44,'#ece4cf');r(306,84,108,4,'#4a3a2c');r(342,102,36,26,'#7a5a40');for(let x=344;x<376;x+=5)r(x,104,1,24,'#5a4230');r(312,106,24,16,'#6a5a48');r(384,106,24,16,'#6a5a48');k.eaves(360,60,136,24,'#46484a');k.shine(()=>{for(let i=0;i<11;i++){r(316+i*8,92,6,9,'#f6efdc');r(318+i*8,94,2,5,'#2a2320')}});r(306,128,108,3,'#8e8a7c');
     k.stoneLantern(420,150);
+    // On the right, the path up Mt Daimonji into the woods, its stone marker; above it, a narrow track straight up the slope, a scrap of a sign nailed to a tree.
+    k.ground(440,168,40,34,'#a08e70','#8a7a5e');for(let x=444;x<480;x+=9)r(x,170+k.int(28),5,2,'#6e5c44');r(452,146,8,22,'#9a968a');r(452,146,2,22,'#b4b0a2');k.text(453,149,'大','#3a3430',false);k.text(453,155,'文','#3a3430',false);k.text(453,161,'字','#3a3430',false);k.shade(450,168,12,2);
+    for(let i=0;i<9;i++)r(462+i*2-k.int(2),128-i*3,4,3,'#6e5c44');r(470,104,3,20,'#4c3528');r(466,106,10,6,'#d8ccaa');r(467,108,8,1,'#5a4a3a');
     // The stone torii and its two lions on their pedestals.
     k.above(()=>k.torii(372,264,62,50,'#a7a596','#8e8c80'));for(const x of [326,410]){k.shade(x-1,262,16,2);r(x,248,14,14,'#8e8a7c');r(x,248,14,2,'#aeaa9c');r(x+2,238,10,10,'#7a786e');r(x+3,234,6,6,'#8a887e');r(x+3,236,2,2,'#3a3a34')}
+  }},
+  // The way up Mt Daimonji from behind Hachi-jinja, three screens tall, after the photos: the forest's map board and its 発砲禁止 notice at the foot, the stone channel's little falls beside the first stretch,
+  // then the path of worn earth and gravel zigzagging up under the cedars, log steps across its steep stretches, to the ridge and the sign for the ruins (中尾城跡).
+  'daimonji-trail':{layout:{width:480,height:960,start:[262,944],exit:[200,906],out:{to:'lanterns',at:[468,186],en:'Down to Hachi-jinja'},way:{at:[300,46],to:'nakao',ja:'城跡',sign:'RUINS',en:'Nakao castle ruins'},solids:fenced(480,960,climbPath)},draw:k=>{
+    const {r}=k;k.forest(0,0,480,960,cedars);
+    // Undergrowth along the path, then the path itself: a dark edge, worn earth, gravel and the odd stone or root; log steps across the stretches.
+    for(const [x,y,w] of climbPath)r(x-w/2-3,y-w/2+2,w+6,w,'#2a3a26');for(const [x,y,w] of climbPath)r(x-w/2-1,y-w/2,w+2,w,'#5e4a36');for(const [x,y,w] of climbPath)r(x-w/2+1,y-w/2+1,w-2,w-2,'#a08e70');
+    for(const [x,y,w] of climbPath)for(let i=0;i<3;i++)r(x-w/2+1+k.int(w-2),y-w/2+1+k.int(w-2),k.int(3)?1:2,1,['#8a7a5e','#b8a888','#c4b494','#6e5c44','#988666'][k.int(5)]);
+    climbWay.slice(1).forEach(([x,y],i)=>{const [px,py]=climbWay[i],n=Math.floor(Math.hypot(x-px,y-py)/13);for(let t=1;t<n;t++){const sx=px+(x-px)*t/n,sy=py+(y-py)*t/n;r(sx-12,sy,24,3,'#4e3a28');r(sx-12,sy,24,1,'#8a6a48');r(sx-10,sy+3,20,1,'#00000030')}});
+    for(let i=0;i<70;i++){const [x,y]=climbWay[1+k.int(climbWay.length-2)];k.rock(x-16+k.int(32),y-30+k.int(60),3+k.int(4),2+k.int(2),'#8e8a7c')}
+    // The cedars, straight and tall, where their crowns leave the path clear; ferns at their feet.
+    for(let y=40;y<960;y+=16)for(let x=8+k.int(20);x<480;x+=26+k.int(30)){const h=34+k.int(30);if(climbPath.some(([px,py,w])=>Math.abs(px-x)<w/2+18&&py>y-h-4&&py<y+10))continue;k.cedar(x,y,h)}
+    for(let i=0;i<260;i++){const [x,y,w]=climbPath[k.int(climbPath.length)],s=k.int(2)?1:-1,fx=x+s*(w/2+3+k.int(6)),fy=y-4+k.int(8);r(fx,fy,3,1,'#4e7a46');r(fx+1,fy-1,1,1,'#6a9a5a');r(fx-1,fy+1,2,1,'#3a6038')}
+    // At the foot: the forest's map board, the notice against shooting, and the stone channel with its little falls, the stones in it rusty red.
+    r(272,848,16,60,'#8e8e84');r(272,848,1,60,'#b0b0a6');r(287,848,1,60,'#6a6a62');r(274,848,12,60,'#3a5050');
+    for(let y=850;y<904;y+=9){r(274,y,12,2,'#e2f0f0');r(274,y+2,12,1,'#8ab8c0');if(k.int(2))r(275+k.int(8),y+4,3,2,'#8a4a3a')}
+    k.shade(118,904,48,3);for(const x of [122,158])r(x,892,3,14,'#5a4232');r(116,874,50,22,'#7a5a3e');r(118,876,46,18,'#d8c8a0');r(119,877,22,16,'#6a9a5a');for(let i=0;i<14;i++)r(120+k.int(20),878+k.int(14),2,1,k.int(2)?'#4a7a3e':'#8ab06a');r(122,888,14,1,'#c8452e');r(130,880,1,9,'#c8452e');for(let i=0;i<5;i++)r(144,878+i*3,18-(i*3)%5,1,'#5a4a3a');
+    r(170,896,2,10,'#6a6a62');r(166,886,12,10,'#f4f2ea');r(166,886,12,1,'#c8452e');r(166,895,12,1,'#c8452e');r(168,888,8,1,'#c8452e');r(168,891,6,1,'#3a2c20');
+    // Up on the ridge: a stone marker by the path to the ruins.
+    k.shade(214,58,10,2);r(214,40,8,18,'#9a968a');r(214,40,2,18,'#b4b0a2');r(216,44,4,10,'#6a665c');
+  }},
+  // Nakao castle's ruins (中尾城跡, 1549, burnt the next year), as the traveller found them: a clearing on the ridge, earth and fallen leaves, a few stones in it, trees all round. Nothing else, and nothing to see beyond the trees.
+  nakao:{layout:{start:[256,312],exit:[204,262],out:{to:'daimonji-trail',at:[262,80],en:'Down the path'},way:{at:[400,78],to:'daimonji-ridge',ja:'火床',sign:'VIEW',en:'Mt Daimonji'},solids:fenced(480,320,ruinsPath)},draw:k=>{
+    const {r}=k;k.forest(0,0,480,320,greens[1]);
+    for(const [x,y,w] of ruinsPath)r(x-w/2-1,y-w/2,w+2,w,'#6a5a40');for(const [x,y,w] of ruinsPath)r(x-w/2+1,y-w/2+1,w-2,w-2,'#8a7454');
+    for(let i=0;i<2600;i++){const [x,y,w]=ruinsPath[k.int(ruinsPath.length)];r(x-w/2+1+k.int(w-2),y-w/2+1+k.int(w-2),k.int(3)?1:2,1,['#a08460','#6e5c40','#b0703a','#c8a040','#7a8a48','#5a7040'][k.int(6)])}
+    // A few stones half sunk in the leaves, moss on some.
+    for(const [x,y,w] of [[188,190,9],[222,212,7],[276,176,10],[300,210,6],[250,228,5],[160,206,6]] as const){k.shade(x,y+4,w+2,2);k.rock(x,y,w,5,'#8e8a7e');if(w>7)r(x+2,y+1,3,1,'#6a8a4a')}
+    for(const [x,y] of [[30,170],[454,160],[24,260],[460,250],[110,120],[372,124],[130,300],[350,304],[460,310],[20,316],[230,112],[300,104],[60,130],[420,280],[120,200],[140,250],[360,240],[380,200],[170,160],[320,262]] as const)k.cedar(x,y,58);
+  }},
+  // The ridge from the ruins to Mt Daimonji, two screens wide: the path of roots and stones winding left to right under pines and oaks, climbing a little, a signpost on the way; the trees thinning at its end, where the sky opens.
+  'daimonji-ridge':{layout:{width:960,height:320,start:[40,262],exit:[6,226],out:{to:'nakao',at:[410,110],en:'Back to the ruins'},way:{at:[896,138],to:'daimonji',ja:'火床',sign:'VIEW',en:'Mt Daimonji'},solids:fenced(960,320,ridgePath)},draw:k=>{
+    const {r}=k;k.forest(0,0,960,320,greens[0]);
+    // Towards the end, the trees part on the sky and the haze of the plain.
+    gradient(r,840,0,120,80,'#8ab6dc','#e4dcc4',5);k.forest(840,60,120,40,greens[2]);
+    for(const [x,y,w] of ridgePath)r(x-w/2-2,y-w/2+2,w+4,w,'#2a3a26');for(const [x,y,w] of ridgePath)r(x-w/2-1,y-w/2,w+2,w,'#5e4a36');for(const [x,y,w] of ridgePath)r(x-w/2+1,y-w/2+1,w-2,w-2,'#9a8a6a');
+    for(const [x,y,w] of ridgePath)for(let i=0;i<2;i++)r(x-w/2+1+k.int(w-2),y-w/2+1+k.int(w-2),k.int(3)?1:2,1,['#8a7a5e','#b8a888','#6e5c44','#b0703a'][k.int(4)]);
+    // Roots across the path, stones in it, a few steps where it climbs.
+    ridgeWay.slice(1).forEach(([x,y],i)=>{const [px,py]=ridgeWay[i];for(let t=.25;t<1;t+=.25){const sx=px+(x-px)*t,sy=py+(y-py)*t;if(k.int(2))k.line(sx-8,sy-4,sx+6,sy+6,'#5a4030',2);else k.rock(sx-3,sy-2,5,3,'#8e8a7c')}if(y<py-8)for(let j=0;j<3;j++)r(x-10-j*10,y+2+j*3,16,2,'#4e3a28')});
+    for(let x=10;x<960;x+=22+k.int(24)){for(const side of [-1,1]){const at=ridgePath.filter(([px])=>Math.abs(px-x)<6),y=at.length?(side<0?Math.min(...at.map(p=>p[1]))-40-k.int(20):Math.max(...at.map(p=>p[1]))+44+k.int(24)):160;if(y>20&&y<316)(k.int(3)?k.cedar(x+k.int(10),y,40+k.int(24)):k.tree(x+k.int(10),y-10))}}
+    // The signpost halfway, in front of the trees: 大文字山 →.
+    k.shade(470,208,10,2);r(474,186,3,22,'#5a4232');r(455,182,42,10,'#5a4232');r(456,183,40,8,'#e8dcc0');k.text(458,184,'大文字山','#3a2c20',false);r(482,187,8,1,'#3a2c20');r(488,185,1,1,'#3a2c20');r(489,186,1,3,'#3a2c20');r(488,189,1,1,'#3a2c20');r(490,187,1,1,'#3a2c20');
+  }},
+  // The fire bed of the 大, lit each 16 August for Obon (五山送り火): its stone hearths in a row down the slope, the steps between them, the little hall of Kobo Daishi;
+  // and before them, over the treetops, all Kyoto and the western hills, Arashiyama and Atago on the skyline, where the sun goes down.
+  daimonji:{layout:{start:[446,262],exit:[404,214],camera:[58,186],out:{to:'daimonji-trail',at:[262,80],en:'Down to Ginkaku-ji',walk:10},people:[[150,226,5,'up'],[340,244,9,'up']],roam:[100,200,300,60],solids:[[0,0,480,170],viewStone,[0,312,480,8],...hearths.map(([x,y]):Box=>[x,y+2,18,7]),[400,166,80,30]],lit:[[0,94,480,60]]},draw:k=>{
+    const {r}=k;gradient(r,0,0,480,100,'#7aaad8','#f4dcb0',9);
+    for(const [x,y,w] of [[40,40,60],[190,30,44],[330,52,80]] as const){r(x,y,w,2,'#fbf2e2');r(x+6,y-1,w-16,1,'#ffffff')}
+    k.ridge(104,[[40,10,40],[120,22,50],[230,14,60],[330,26,40],[440,16,50]],'#7a8aa8','#6e7e9c',1);k.ridge(108,[[90,8,60],[300,10,80],[420,6,40]],'#8a98b0','#7e8ca4',3);
+    // The city: block after block, grey and white, the parks green (the Gosho, Shimogamo's forest, Yoshida-yama near), the Kamo river shining; its lights at night.
+    r(0,104,480,50,'#9e9a90');for(let y=104;y<154;y++){const depth=(y-104)/50;for(let x=-k.int(4);x<480;){const w=1+k.int(2+Math.round(depth*4)),c=['#c8c4b8','#8a8880','#b0aca0','#dcd8cc','#6e6e6a','#a8988a','#bab6aa'][k.int(7)];r(x,y,w,1,c);x+=w+(k.int(5)?0:1)}}
+    for(const [x,y,w,h] of [[132,110,46,8],[226,105,16,7],[296,128,64,18],[54,117,16,5],[402,109,22,6]] as const)for(let i=0;i<w*h/5;i++){const t=k.rand()*Math.PI*2,d=Math.sqrt(k.rand());r(x+w/2+Math.cos(t)*d*w/2,y+h/2+Math.sin(t)*d*h/2,2,1,['#3e5a3a','#4e6e46','#5e7e50'][k.int(3)])}
+    k.line(262,104,250,124,'#8eaab4',1);k.line(250,124,246,154,'#8eaab4',2);for(let i=0;i<14;i++)r(0,104+i,480,1,`#e8dcc8${(46-i*3).toString(16).padStart(2,'0')}`);
+    k.night(()=>{for(let i=0;i<1400;i++){const y=106+k.int(48);r(k.int(480),y,1,1,['#ffe8a0','#fff4d0','#f8c870','#e8f0ff'][k.int(4)])}k.line(0,140,480,118,'#f8d888',1)});
+    // The treetops below the fire bed, then the fire bed itself, after the photos: the stroke of the 大 paved in grey concrete, cracked, stepped, stone kerbs of rough blocks down its sides,
+    // a hearth framed in concrete on each step; the low wall of stacked stones along its head where people sit looking out; grass, pampas and bushes on the slope either side; the little hall of Kobo Daishi on the right.
+    k.forest(0,146,480,30,greens[2]);r(0,170,480,150,'#8a8a50');for(let i=0;i<2600;i++)r(k.int(480),170+k.int(150),2,1,['#7a7a44','#9a9a5c','#a08a62','#6e7a40','#8e9a54'][k.int(5)]);
+    for(let i=0;i<30;i++){const x=k.int(480),y=190+k.int(120);if(x>130&&x<350)continue;softCrown(r,k.rand,x,y,6+k.int(6),4+k.int(3),greens[k.int(3)])}
+    const band=(y:number):[number,number]=>{const t=(y-176)/144;return [Math.round(176-t*40),Math.round(304+t*40)]};
+    for(let y=176;y<320;y++){const [l,rr]=band(y);r(l,y,rr-l,1,'#a29e94');if(y%2)for(let x=l+k.int(6);x<rr;x+=7+k.int(9))r(x,y,2,1,k.int(2)?'#b0aca2':'#8e8a80')}
+    for(let i=0;i<14;i++){let x=150+k.int(180),y=180+k.int(130);for(let j=0;j<8;j++){r(x,y,1,1,'#6e6a62');x+=k.int(3)-1;y+=1}}
+    for(const y of hearths.map(([,hy])=>hy-6)){const [l,rr]=band(y);r(l,y,rr-l,2,'#bab6ac');r(l,y+2,rr-l,1,'#76726a')}
+    for(let y=176;y<320;y+=5){const [l,rr]=band(y);for(const x of [l-7,rr]){r(x,y,8,5,['#8e8678','#9a9284','#827a6e'][k.int(3)]);r(x,y,8,1,'#b4ac9c');r(x+7,y,1,5,'#6a645a')}}
+    for(const [x,y] of hearths){k.shade(x-1,y+9,20,3);r(x,y,18,10,'#b8b4a8');r(x,y,18,1,'#d0ccc0');r(x+2,y+2,14,6,'#3a3430');r(x+3,y+3,12,4,'#4e4640');r(x+4,y+4,3,2,'#6a5a4a');r(x+10,y+5,4,1,'#2a2420')}
+    for(let i=0;i<16;i++){const x=6+k.int(468),cy=180+k.int(126);if(x>124&&x<356)continue;for(let j=0;j<7;j++){const bx=x+j*2-6+k.int(3),y=cy+k.int(4);k.line(bx,y,bx+k.int(5)-2,y-8-k.int(8),'#c8bc90');r(bx-1+k.int(3),y-12-k.int(5),2,3,'#ece2c4')}}
+    // The low wall at the head of the stroke, its stones stacked unevenly.
+    for(let x=150;x<330;x+=9){const h=6+k.int(3);r(x,176-h,9,h,['#8e8678','#9a9284','#a8a092'][k.int(3)]);r(x,176-h,9,1,'#c4bcac');r(x+8,176-h,1,h,'#6a645a')}r(150,175,180,2,'#00000030');
+    // The hall of Kobo Daishi on its terrace.
+    k.shade(404,192,72,4);r(404,178,72,16,'#8e8a7c');r(404,178,72,2,'#b0ac9e');r(414,160,52,22,'#e8e0cc');r(436,166,8,16,'#5a4232');for(const x of [414,462])r(x,160,4,22,'#6a4e38');k.eaves(440,146,68,16,'#4a4f52');
+    {const [x,y,w,h]=viewStone;k.shade(x-1,y+h,w+2,3);r(x,y,w,h,'#a8a498');r(x,y,w,2,'#c4c0b4');r(x+2,y+h-2,w-4,2,'#7e7a70')}
   }},
   // The Rakusai bamboo park: a winding path through stands of different bamboos behind woven fences, the leaves fallen brown on it, to the gathering of old stone Buddhas in their grassy clearing, weathered round and grown with lichen, a heavy stone lantern among them.
   rakusai:{layout:{start:[22,276],exit:[8,230],camera:[336,60],solids:[[0,0,120,250],[0,300,480,20],[300,100,180,220],[165,100,85,50],[120,195,130,55],[400,0,80,100],[0,0,480,50],[262,52,16,12]],over:[[0,298,480,20],[124,184,128,14],[300,90,102,16]],people:[[190,170,4,'up'],[212,80,13,'down']],lamps:[[220,76,44,warm,.5],[276,240,44,warm,.5],[140,130,40,warm,.4],[60,274,44,warm,.5]]},draw:k=>{
@@ -910,6 +995,30 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
 const avenues:Record<string,{layout:Avenue;draw:(k:Kit)=>void}>={
   // Kyoto Tower is seen from its street: nothing more than the camera's post on the pavement before its building.
   'kyoto-tower-road':{layout:{height:320,camera:[292,148],solids:[[0,262,480,58]]},draw:()=>{}},
+  // Ginkaku-ji's street: across it, the souvenir shops (fans, pottery, yatsuhashi, matcha soft-serve) either side of the approach, which climbs between more of them to the temple's gate under the wooded hills,
+  // the 大 of Mt Daimonji cleared on the slope above; on the right, at the stone pillar of Hachi-jinja, the lane to the shrine under its row of lanterns, its signpost on the pavement.
+  'ginkaku-road':{layout:{height:320,solids:[[0,262,480,58]],way:{at:[380,140],to:'lanterns',ja:'神社',sign:'HACHI',en:'Hachi-jinja'},lit:[[0,40,480,96]],lamps:[[220,100,40,paper,.6],[260,100,40,paper,.6],[404,90,50,paper,.8],[100,124,60,warm,.5],[330,124,60,warm,.5]]},draw:k=>{
+    const {r}=k;gradient(r,0,0,480,70,'#6ea6d8','#d0e4ee',6);
+    // The hills behind: Higashiyama's woods and, cleared on Mt Daimonji's slope, its 大.
+    k.ridge(96,[[60,30,60],[150,50,70],[300,36,60],[440,26,50]],'#4a7a50','#3e6a46',2);k.ridge(98,[[100,16,60],[380,14,60]],'#3a6440','#2e5636',4);
+    for(const [x0,y0,x1,y1] of [[138,60,164,60],[151,53,144,78],[150,62,164,76]] as const)k.line(x0,y0,x1,y1,'#c8b88a',2);
+    // The approach, flagstones climbing to the gate between the shops' sides; the gate under its roof, the hedge beyond.
+    r(196,70,88,66,'#3c4648');for(let y=76;y<136;y+=5){const t=(y-46)/90,w=Math.round(30+t*58),x=240-w/2;r(x,y,w,5,['#c0b8a2','#b4ac96','#c8c0aa'][k.int(3)]);r(x,y,w,1,'#d4ccb6');for(let xx=x+4+k.int(6);xx<x+w-2;xx+=8+k.int(6))r(xx,y+1,1,4,'#9a9282')}
+    for(const side of [-1,1])for(let y=78;y<132;y+=10){const t=(y-46)/90,edge=240+side*(15+t*29),w=4+Math.round(t*8),x=side<0?edge-w:edge;r(x,y-6,w,12,'#5a4232');r(x,y-6,w,2,'#454e52');if(k.int(2))r(x+(side<0?0:w-3),y-2,3,6,['#3d5e7a','#a8402f','#e8dccc','#3a6a4c'][k.int(4)]);k.night(()=>r(x+1,y-2,w-2,5,'#f0c070'))}
+    k.gate(240,90,52,'#6e5138','#3a3a38',18);
+    // The shops along the street, each its own width and noren, their goods out front; the lane's mouth left open on the right.
+    const colors=['#3d5e7a','#a8402f','#d4a93a','#3a6a4c','#6a4a7a','#ece4cf'],row=(x0:number,x1:number)=>{let x=x0;while(x<x1-14){const w=Math.min(x1-x,34+k.int(26));machiya(k,x,92,w,colors[k.int(6)],1+k.int(3));x+=w}};row(-6,196);row(284,378);row(430,486);
+    // What they sell, on stands before them: round fans, cups and bowls, boxes of yatsuhashi, a soft-serve cone on its stand.
+    for(const x of [20,96,300,450]){r(x,128,16,7,'#6a5240');r(x,128,16,1,'#8a7258');for(let i=0;i<3;i++){const c=['#e8a0b0','#a8c8e0','#f0e0a0','#a0c890'][k.int(4)];k.ell(x+3+i*5,125,2,2,c);r(x+3+i*5,127,1,2,'#8a6a48')}}
+    for(const x of [56,330]){r(x,128,18,7,'#6a5240');for(let i=0;i<4;i++){r(x+1+i*4,125,3,3,['#e8e0cc','#4a7aa8','#c8a070'][k.int(3)]);r(x+1+i*4,125,3,1,'#ffffff60')}}
+    for(const x of [140,356]){r(x,127,14,8,'#6a5240');for(let i=0;i<2;i++){r(x+1+i*7,122,6,5,i?'#e8a0b0':'#7aa860');r(x+1+i*7,122,6,1,'#ffffff50')}}
+    r(176,118,2,17,'#6a6a62');k.ell(177,114,4,3,'#f4f0e0');r(175,116,5,3,'#7aa860');r(176,118,3,3,'#d8a258');
+    // The lane to Hachi-jinja: its flagstones up between the houses, a row of lanterns on their red frame along it, the stone pillar at the corner.
+    // Between dark trees, flagstones narrowing up to the shrine's stone torii.
+    k.forest(378,60,52,76,greens[0]);for(let y=72;y<136;y+=5){const t=(y-72)/64,w=Math.round(12+t*26),x=404-w/2;r(x,y,w,5,['#a8a290','#b4ac96','#9c968a'][k.int(3)]);r(x,y,w,1,'#c4beac')}
+    k.torii(404,82,22,18,'#a7a596','#8e8c80');r(386,84,2,48,'#a8402f');r(386,84,6,2,'#a8402f');k.shine(()=>{for(let y=88;y<128;y+=8){r(388,y,5,6,'#f6efdc');r(389,y+2,3,1,'#2a2320');r(389,y+4,3,1,'#c8452e')}});
+    k.shade(420,134,10,2);r(420,88,9,46,'#b0ac9e');r(420,88,2,46,'#c8c4b8');r(427,88,2,46,'#8e8a7e');k.text(422,94,'八','#3a3430',false);k.text(422,101,'神','#3a3430',false);k.text(422,108,'社','#3a3430',false);
+  }},
   'heian-road':{layout:{height:560,camera:[308,442],solids:[[0,262,150,212],[330,262,150,212],[166,430,24,10],[290,430,24,10],[0,474,194,46],[286,474,194,46],[142,452,36,18]],over:[[136,300,208,20],[150,328,180,10],[170,320,18,98],[294,320,18,98]],lamps:[[178,444,70,warm,.8,.5],[302,444,70,warm,.8,.5],[240,372,110,0xffb070,.55],[158,458,44,0xfff6d0,.8],[322,424,44,0xfff6d0,.8],[240,496,70,warm,.5],[60,546,50,warm,.5],[420,546,50,warm,.5]]},draw:k=>{
     // Across Nijo-dori: the shrine's front, the gate in the middle of its corridor.
     gradient(k.r,0,0,480,104,'#6ea6d8','#d4e6f0',8);
@@ -958,7 +1067,7 @@ export const exitBox=([x,y]:[number,number]):Box[]=>[[x,y,42,14],[x+8,y+14,3,10]
 export const cameraBox=([x,y]:[number,number]):Box[]=>[[x,y,20,14],[x+3,y-3,7,3],[x+7,y+14,3,8]];
 /** The signs and the cameras' posts stand on textures of their own (`map-<place>-post-<i>`, in `postsOf`'s order), sorted with the traveller at their foot, who passes behind them as well as before; the picture only holds their shadows. */
 const signPost=([x,y]:[number,number]):Box=>[x,y,42,24],cameraPost=([x,y]:[number,number]):Box=>[x,y-3,20,25];
-export const postsOf=(place:string):Box[]=>{const l=scenes[place]?.layout,a=avenues[place]?.layout;return l?[signPost(l.exit),...(l.way?[signPost(l.way.at)]:[]),cameraPost(l.camera),...(l.second?[cameraPost(l.second.camera)]:[]),...(l.bowl?[bowlPost(l.bowl)]:[])]:a?[cameraPost(a.camera)]:[]};
+export const postsOf=(place:string):Box[]=>{const l=scenes[place]?.layout,a=avenues[place]?.layout;return l?[signPost(l.exit),...(l.way?[signPost(l.way.at)]:[]),...(l.camera?[cameraPost(l.camera)]:[]),...(l.second?[cameraPost(l.second.camera)]:[]),...(l.bowl?[bowlPost(l.bowl)]:[])]:a?[...(a.way?[signPost(a.way.at)]:[]),...(a.camera?[cameraPost(a.camera)]:[])]:[]};
 /** A temple's offering bowl (`bowl`, coin-toss.ts) on its stone, 22×22 art px from its top left: the box to outline, and the stone's foot, solid. */
 export const bowlBox=([x,y]:[number,number]):Box[]=>[[x,y+2,22,8],[x+5,y+10,12,10],[x+2,y+19,18,3]];
 export const bowlFoot=([x,y]:[number,number]):Box=>[x+2,y+14,18,8];
@@ -970,7 +1079,7 @@ const paintBowl=(g:CanvasRenderingContext2D)=>{const r=(x:number,y:number,w:numb
 const paintSign=(g:CanvasRenderingContext2D,ja:string,en:string)=>{const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y,w,h)};r(8,14,3,10,'#5b4a38');r(0,0,42,14,'#3d2e24');r(1,1,40,12,'#efe2c0');letter(g,3,2,ja,'#3d2e24',true);letter(g,24,5,en,'#3d2e24')};
 const paintCamera=(g:CanvasRenderingContext2D)=>{const r=(x:number,y:number,w:number,h:number,c:string)=>{g.fillStyle=c;g.fillRect(x,y+3,w,h)};r(7,14,3,8,'#665c49');r(0,0,20,14,'#f1dfb6');r(3,-3,7,3,'#e5c997');r(9,3,8,8,'#3e6871');r(11,5,4,4,'#9ec8c0');r(2,3,3,2,'#b66a51');r(0,13,20,2,'#a7916a')};
 /** A place's posts, once: their shadows on its picture (`k`), themselves on their textures. */
-const standPosts=(scene:Phaser.Scene,place:string,k:Kit)=>{const l=scenes[place]?.layout,signs:[string,string][]=l?[['出口','EXIT'],...(l.way?[[l.way.ja,l.way.sign] as [string,string]]:[])]:[],posts=postsOf(place);
+const standPosts=(scene:Phaser.Scene,place:string,k:Kit)=>{const l=scenes[place]?.layout,a=avenues[place]?.layout,signs:[string,string][]=l?[['出口','EXIT'],...(l.way?[[l.way.ja,l.way.sign] as [string,string]]:[])]:a?.way?[[a.way.ja,a.way.sign]]:[],posts=postsOf(place);
   posts.forEach(([x,y,w,h],i)=>{const sign=signs[i],bowl=!!l?.bowl&&i===posts.length-1;if(sign)k.shade(x+6,y+23,10,2);else if(bowl)k.shade(x,y+21,22,2);else k.shade(x+4,y+24,12,2);const key=`map-${place}-post-${i}`;if(scene.textures.exists(key))return;const post=mapCanvas(scene,key,w,h);if(sign)paintSign(post.context,...sign);else if(bowl)paintBowl(post.context);else paintCamera(post.context);post.refresh()})};
 const seedOf=(place:string)=>[...place].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,7);
 /** Whether anything was painted on a layer. */

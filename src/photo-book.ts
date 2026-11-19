@@ -67,10 +67,11 @@ function backdrop(){
 /** The close-up's veil over the book, a checker of shadow. */
 let veil:HTMLCanvasElement|null=null;
 const veiled=()=>{if(veil)return veil;veil=document.createElement('canvas');veil.width=464;veil.height=288;const g=veil.getContext('2d')!;g.fillStyle='#120b07';for(let y=0;y<288;y++)for(let x=y&1;x<464;x+=2)g.fillRect(x,y,1,1);g.fillStyle='#120b07a0';g.fillRect(0,0,464,288);return veil};
-/** Where a page's place is, for its scratch card: the area, the way there (on foot or its km from the nearest station, a bus), the place it is part of, or the station exit leading to it. Nothing for the page from along the way. */
+/** Where a page's place is, for its scratch card: the area, the way there (on foot or its km from the nearest station, a bus), the place it is part of, or the station exit leading to it; a sight's own `clues` in place of all that. Nothing for the page from along the way. */
 function whereabouts(page:Page):string[]{
   const sight=sights.find(s=>s.id===page.id||s.parts?.some(part=>part.id===page.id));if(!sight)return [];
-  const within=sight.id===page.id?[]:[`Part of ${sight.en}`];
+  const within=sight.id===page.id?[]:[`Part of ${sight.en}`,...(page.hint?[page.hint]:[])];
+  if(sight.clues)return sight.id===page.id?sight.clues:[sight.clues[1],...within];
   if(!sight.at){const station=Object.values(stations).find(st=>Object.values(st.maps??{}).includes(page.id as never));if(!station)return within;const side=Object.entries(station.maps!).find(([,place])=>place===page.id)![0];return [`${station.en} Station`,`Out of its ${side} exit`,...within]}
   const area=areas.find(a=>onMap(a,sight.at!))?.en,foot=Object.entries(sight.foot??{}).sort((a,b)=>a[1]-b[1])[0],bus=busLines.find(b=>b.sights.some(([,en])=>en===sight.en));
   const way=sight.walk?`A short walk from ${sight.walk.slice(0,2).map(ja=>stopNames[ja]).join(' or ')}`:foot?`${foot[1]} km from ${stopNames[foot[0]]}`:'';

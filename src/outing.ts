@@ -35,6 +35,8 @@ export class Walker {
   get x(){return this.image.x}
   get y(){return this.image.y}
   get moving(){return this.path.length>0}
+  /** Where its walk ends, if it is walking. */
+  get goal():[number,number]|undefined{const end=this.path[this.path.length-1];return end&&[end.x,end.y]}
   go(points:[number,number][],then?:()=>void){this.stand();this.path=points.map(([x,y])=>({x,y}));this.then=then}
   turn(face:Face){this.face=face;this.image.setTexture(`${this.key}-${face}-0`)}
   /** Seated, facing `face`, the frame cut below its `rows` top rows, which end at `edge` (scene px): the table's edge or the stool. */

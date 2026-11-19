@@ -2,6 +2,8 @@
  * by an exit of its own (network.ts `known`). One screen each, its layout and drawing in sight-scenes.ts after the real place (`pieces` and `ground` are only what its street, makeSightRoad, shows of it), with a camera that keeps the memory; its photos are those in
  * public/photos/<id>/, listed in public/photos/index.json by scripts/import-photos.mjs. `open`: a place with no gate (a district, a shore, a path): the bus and the walk arrive straight in it, its street only on the way out.
  * `street`: a place seen from its street only (Kyoto Tower): no screen of its own, its camera stands on the pavement there (an avenue of its road in sight-scenes.ts).
+ * `road`: another sight's street it shares (Hachi-jinja, up the lane from Ginkaku-ji's): its bus and walks arrive there, its exit leads back there.
+ * `via`: a place reached only on foot from another sight's screen (Mt Daimonji, up from Hachi-jinja), through the screens of its `trail`; `clues` its scratch card's lines in place of the way there.
  * Adding a place: a line here, its entry in sight-scenes.ts, a bus or a `walk`, and its folder in that script. */
 import { areas, kmApart, onMap, spotOf, type LonLat } from './city-maps';
 import { kmBetween } from './fares';
@@ -9,9 +11,9 @@ import { busLines } from './rail';
 
 export type Ground='lawn'|'gravel'|'moss'|'street';
 export type Piece=['temple',string,string]|['gate',string,string]|['pagoda',number,string,string]|['torii',string]|['pavilion',string,string]|['kyotoTower']|['tsutenkaku']|['bridge',string]|['rainbow']|['lake']|['neon',string]|['jizo']|['bamboo']|['ropeway']|['machiya'];
-export interface Sight {id:string;ja:string;en:string;at?:LonLat;walk?:string[];foot?:Record<string,number>;ground?:Ground;pieces?:Piece[];garden?:string;parts?:Page[];ropeway?:boolean;open?:boolean;street?:boolean}
-/** An album page and memory of its own: every sight has one, and `parts` adds those of a place too large for one (each with its camera, its id the place it stands in). */
-export interface Page {id:string;ja:string;en:string}
+export interface Sight {id:string;ja:string;en:string;at?:LonLat;walk?:string[];foot?:Record<string,number>;ground?:Ground;pieces?:Piece[];garden?:string;parts?:Page[];ropeway?:boolean;open?:boolean;street?:boolean;via?:string;trail?:string[];clues?:string[];road?:string}
+/** An album page and memory of its own: every sight has one, and `parts` adds those of a place too large for one (each with its camera, its id the place it stands in). `hint`: a line for its scratch card. */
+export interface Page {id:string;ja:string;en:string;hint?:string}
 export const sights:Sight[]=[
   {id:'asakusa',ja:'浅草寺',en:'Senso-ji',at:[139.7967,35.7148],ground:'gravel',foot:{上野:2.2,秋葉原:2.7},pieces:[['pagoda',5,'#a83a2c','#4d5a5c'],['temple','#b5402f','#4d5a5c']]},
   {id:'shibuya-crossing',open:true,ja:'渋谷',en:'Shibuya',at:[139.7005,35.6595],walk:['渋谷','原宿'],ground:'street',pieces:[['neon','#34b6e0']]},
@@ -25,7 +27,7 @@ export const sights:Sight[]=[
   {id:'yasaka',ja:'八坂神社',en:'Yasaka-jinja',at:[135.7785,35.0037],walk:['祇園四条'],ground:'gravel',pieces:[['temple','#d9d2bd','#4d5a5c']]},
   {id:'higashiyama',open:true,ja:'東山',en:'Higashiyama',at:[135.7789,34.9985],walk:['祇園四条','清水五条'],ground:'gravel',foot:{京都:3,北大路:7.5},pieces:[['pagoda',5,'#4a3a2e','#3c4648'],['machiya']]},
   {id:'heian',ja:'平安神宮',en:'Heian-jingu',at:[135.7824,35.0160],walk:['神宮丸太町'],ground:'gravel',foot:{京都:5,三条:1.8},pieces:[['temple','#d4502e','#3d7a5e']],garden:'heian-garden',parts:[{id:'heian-garden',ja:'神苑',en:'Heian-jingu · The garden'},{id:'heian-road',ja:'大鳥居',en:'Heian-jingu · The great torii'}]},
-  {id:'lanterns',ja:'提灯の社',en:'The lantern shrine',at:[135.7850,35.0300],ground:'moss',foot:{京都:5.5,三条:3.2,円町:6,北大路:4},pieces:[['temple','#6e5138','#4a4238'],['torii','#a7a596']]},
+  {id:'lanterns',road:'ginkaku-road',ja:'八神社',en:'Hachi-jinja',at:[135.7972,35.0281],ground:'moss',foot:{京都:8,三条:3.9,円町:7,北大路:4},pieces:[['temple','#6e5138','#4a4238'],['torii','#a7a596']]},
   {id:'kyoto-tower',street:true,ja:'京都タワー',en:'Kyoto Tower',at:[135.7595,34.9875],walk:['京都','四条'],ground:'street',pieces:[['kyotoTower']]},
   {id:'rakusai',ja:'洛西竹林公園',en:'Rakusai bamboo park',at:[135.6746,34.9709],ground:'moss',foot:{桂川:3.5,向日町:3.2},pieces:[['bamboo'],['jizo']]},
   {id:'dotonbori',open:true,ja:'道頓堀',en:'Dotonbori',at:[135.5013,34.6687],ground:'street',foot:{大阪:3.8},pieces:[['neon','#f0c030']]},
@@ -35,13 +37,15 @@ export const sights:Sight[]=[
   {id:'toshogu',ja:'日光東照宮',en:'Nikko Toshogu',at:[139.5991,36.7580],ground:'gravel',foot:{日光:2.2},pieces:[['pagoda',5,'#a83a2c','#3f4a46'],['gate','#e0c070','#2f3a38']]},
   {id:'kanmangafuchi',open:true,ja:'憾満ヶ淵',en:'Kanmangafuchi',at:[139.5861,36.7459],ground:'moss',foot:{日光:3.6},pieces:[['bridge',''],['jizo']]},
   {id:'shinkyo',open:true,ja:'神橋',en:'Shinkyo Bridge',at:[139.6037,36.7534],walk:['日光'],ground:'moss',foot:{日光:1.5},pieces:[['bridge','#c8452e']]},
+  // Up the woods behind Hachi-jinja (`via`), with Chappy and Louis met there or on one's own: the path (`trail`, its first screens), the ruins of Nakao castle, then the fire bed of the 大 and its view over Kyoto, the sunset its own page.
+  {id:'daimonji',ja:'大文字山',en:'Mt Daimonji',via:'lanterns',trail:['daimonji-trail','nakao','daimonji-ridge'],clues:['Kyoto · Higashiyama','Up the woods behind Hachi-jinja','Someone there knows the way'],parts:[{id:'daimonji-sunset',ja:'大文字の夕日',en:'Mt Daimonji · Sunset',hint:'Wait up there for the sun to set'}]},
   {id:'kamakura-trail',ja:'鎌倉',en:'Kamakura'},
   {id:'arashiyama',ja:'嵐山',en:'Arashiyama'},
 ];
-/** The sight a place is, or the garden of (`garden`, a second screen of it reached from the first). */
-export const sightOf=(place:string)=>sights.find(sight=>sight.id===place&&!sight.street||sight.garden===place);
+/** The sight a place is, or the garden of (`garden`, a second screen of it reached from the first), or a screen of the way up to (`trail`). */
+export const sightOf=(place:string)=>sights.find(sight=>sight.id===place&&!sight.street||sight.garden===place||!!sight.trail?.includes(place));
 /** The street outside a sight (`<id>-road`, makeSightRoad in art.ts): where its bus stops, a walk arrives and the Uber pulls up, the sight through its entrance. */
-export const roadTo=(id:string)=>`${id}-road`;
+export const roadTo=(id:string)=>sights.find(sight=>sight.id===id)?.road??`${id}-road`;
 export const sightOfRoad=(place:string)=>sights.find(sight=>sight.pieces&&roadTo(sight.id)===place);
 /** A place with a screen of its own (sight-scenes.ts): a sight or an exit's map. */
 export const scenic=(place:string)=>!!sightOf(place);
