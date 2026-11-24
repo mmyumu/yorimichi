@@ -29,7 +29,8 @@ export const sights:Sight[]=[
   {id:'heian',ja:'平安神宮',en:'Heian-jingu',at:[135.7824,35.0160],walk:['神宮丸太町'],ground:'gravel',foot:{京都:5,三条:1.8},pieces:[['temple','#d4502e','#3d7a5e']],garden:'heian-garden',parts:[{id:'heian-garden',ja:'神苑',en:'Heian-jingu · The garden'},{id:'heian-road',ja:'大鳥居',en:'Heian-jingu · The great torii'}]},
   {id:'lanterns',road:'ginkaku-road',ja:'八神社',en:'Hachi-jinja',at:[135.7972,35.0281],ground:'moss',foot:{京都:8,三条:3.9,円町:7,北大路:4},pieces:[['temple','#6e5138','#4a4238'],['torii','#a7a596']]},
   {id:'kyoto-tower',street:true,ja:'京都タワー',en:'Kyoto Tower',at:[135.7595,34.9875],walk:['京都','四条'],ground:'street',pieces:[['kyotoTower']]},
-  {id:'rakusai',ja:'洛西竹林公園',en:'Rakusai bamboo park',at:[135.6746,34.9709],ground:'moss',foot:{桂川:3.5,向日町:3.2},pieces:[['bamboo'],['jizo']]},
+  // Its `garden` is the village below it, the long way back down to Katsuragawa, where a man who once lived in Paris stops the traveller (main.ts `monsieur`).
+  {id:'rakusai',ja:'洛西竹林公園',en:'Rakusai bamboo park',at:[135.6870,34.9595],ground:'moss',foot:{桂川:2,向日町:2.5},pieces:[['bamboo'],['jizo']],garden:'rakusai-village'},
   {id:'dotonbori',open:true,ja:'道頓堀',en:'Dotonbori',at:[135.5013,34.6687],ground:'street',foot:{大阪:3.8},pieces:[['neon','#f0c030']]},
   {id:'shinsekai',open:true,ja:'新世界',en:'Shinsekai',at:[135.5063,34.6525],ground:'street',foot:{大阪:5.5},pieces:[['tsutenkaku']]},
   {id:'biwako',ja:'びわ湖テラス',en:'Biwako Terrace',at:[135.9030,35.2050],foot:{志賀:3.8},pieces:[['lake'],['ropeway']],ropeway:true,garden:'biwako-horai',parts:[{id:'biwako-horai',ja:'蓬莱山',en:'Biwako Terrace · Mt Horai'},{id:'biwako-bridge',ja:'吊橋',en:'Biwako Terrace · The Sky Bridge'}]},

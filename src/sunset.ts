@@ -25,9 +25,7 @@ function city(){
   for(const [x,y,w,hh] of [[96,8,34,7],[170,3,12,5],[224,24,50,14],[40,14,10,4],[290,6,18,4]] as const)for(let i=0;i<w*hh/3;i++){const t=rand()*Math.PI*2,d=Math.sqrt(rand());r(x+w/2+Math.cos(t)*d*w/2,y+hh/2+Math.sin(t)*d*hh/2,2,1,['#4e6c46','#3e5a3a','#5e7a50'][Math.floor(rand()*3)])}
   for(let y=0;y<h;y++)r(200-y*.3+Math.sin(y/7)*2,y,1+Math.floor(y/18),1,'#8eaab4');
   for(let y=0;y<10;y++)r(0,y,W,1,`rgba(246,216,176,${(.5-y*.05).toFixed(2)})`);
-  const lights=Array.from({length:900},()=>{const y=rand()*h;return {x:Math.floor(rand()*W),y:Math.floor(y),on:.55+rand()*.4,c:['#ffe8a0','#fff4d0','#f8c870','#e8f0ff','#ffd890'][Math.floor(rand()*5)]}});
-  // The main streets, lit in lines.
-  for(const [x0,y0,x1,y1] of [[0,30,W,22],[60,0,40,h],[150,0,140,h],[0,44,W,40]] as const)for(let i=0;i<60;i++){const t=i/60;lights.push({x:Math.round(x0+(x1-x0)*t),y:Math.round(y0+(y1-y0)*t),on:.5+rand()*.15,c:'#ffd888'})}
+  const lights=Array.from({length:900},()=>{const y=rand()*h;return {x:Math.floor(rand()*W),y:Math.floor(y),on:.55+rand()*.4,c:['#ffe8a0','#fff4d0','#f8c870','#e8f0ff','#ffd890'][Math.floor(rand()*5)],pace:120+rand()*380,phase:rand()*7}});
   return {image:c,lights};
 }
 
@@ -55,7 +53,7 @@ export function playSunset(late:boolean,from:number,minutes:number,people:HTMLCa
     for(const far of [true,false]){const c=mix(far?'#8a8ab0':'#6a6a90',far?'#2a2a48':'#1c1c34',n);for(let x=0;x<W;x+=2){const y=ridge(x,far);r(x,y,2,horizon+4-y,c)}}
     // The city, dimming, its lights coming on.
     g.drawImage(town.image,0,horizon);r(0,horizon,W,cityFoot-horizon,`rgba(26,30,64,${(n*.78).toFixed(2)})`);r(0,horizon,W,4,`rgba(240,150,90,${(.4*(1-dark)*n).toFixed(2)})`);
-    for(const light of town.lights)if(n>=light.on&&(Math.sin(t/260+light.x*13)>-.95))r(light.x,horizon+light.y,1,1,light.c);
+    for(const light of town.lights)if(n>=light.on&&Math.sin(t/light.pace+light.phase)>-.9)r(light.x,horizon+light.y,1,1,light.c);
     // In front: the treetops below the fire bed, the pampas swaying, the hearth's stones.
     const leaf=mix('#3a5a3a','#141a24',n),pampas=mix('#e8dcb0','#3a3448',n);for(let x=0;x<W;x+=3){const y=cityFoot-4+Math.sin(x/9)*3+Math.sin(x/4)*1.5;r(x,y,3,H-y,leaf)}
     for(const [x,h,p] of grass){const sway=Math.round(Math.sin(t/700+p)*2);for(let i=0;i<h;i++)r(x+Math.round(sway*i/h),176-i,1,1,pampas);r(x+sway,176-h-4,1,4,pampas);r(x+sway+1,176-h-2,1,3,pampas)}

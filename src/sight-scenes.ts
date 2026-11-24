@@ -9,8 +9,8 @@ export type Box=[number,number,number,number];
 export type Glow=[number,number,number,number?,number?,number?];
 export interface Layout {start:[number,number];exit:[number,number];camera?:[number,number];solids:Box[];lamps?:Glow[];lit?:Box[];over?:Box[];stands?:Box[];puffs?:[number,number,number][];width?:number;height?:number;way?:Way;second?:{camera:[number,number];page:string};people?:[number,number,number,'up'|'down'|'left'|'right'][];roam?:number|Box;busy?:true;crossing?:{sides:[Box,Box];exits:[[number,number][],[number,number][]];poles:[number,number,'L'|'R'][];crowd:number;cars:{lanes:[number,number][];stop:[number,number]}};out?:{to:string;at:[number,number];en:string;walk?:number};bowl?:[number,number]}
 export interface Avenue {height:number;camera?:[number,number];solids:Box[];lamps?:Glow[];lit?:Box[];over?:Box[];way?:Way}
-/** A second signpost (`way`): into a sight's garden or another screen of it, or, with `walk` (minutes), on foot to another place nearby, arriving at `arrive` (art px) or that place's way in. */
-export interface Way {at:[number,number];to:string;ja:string;sign:string;en:string;walk?:number;arrive?:[number,number]}
+/** A second signpost (`way`): into a sight's garden or another screen of it, or, with `walk` (minutes), on foot to another place nearby, arriving at `arrive` (art px) or that place's way in; with `station` (Japanese name), on foot to that station's street instead. */
+export interface Way {at:[number,number];to:string;ja:string;sign:string;en:string;walk?:number;arrive?:[number,number];station?:string}
 
 type Paint=(x:number,y:number,w:number,h:number,c:string)=>void;
 const warm=0xfff1cc,paper=0xffd99a,cool=0xe4f4ff;
@@ -419,6 +419,11 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     const {r}=k;k.forest(0,0,480,320,greens[1]);for(const [x,y] of [[34,120],[450,116],[30,190],[452,196],[40,262],[444,268],[110,300],[370,304]])k.cedar(x,y,64);
     // The precinct's gravel, the flagstones from the head of the stairs to the hall.
     k.ground(64,108,352,112,'#c9c2ab','#b5ae97');for(let i=0;i<1400;i++)r(64+k.int(352),108+k.int(112),1,1,['#b0a994','#dcd6c2','#a8a18c'][k.int(3)]);k.stones(222,112,36,110,'#b2ae9c','#9a9482');
+    // The vermilion fence round the precinct, after the shrine's own: square posts capped in black, three rails, a black sill along the foot; along the back either side of the hall and down both sides.
+    const red='#d4502e',lit='#e8735a',dim='#a83a22',ink='#2a2622',post=(x:number,y:number)=>{r(x,y,4,13,red);r(x,y,1,13,lit);r(x+3,y,1,13,dim);r(x,y-2,4,2,ink);r(x+1,y-2,2,1,'#4a4440')},
+      fence=(x0:number,x1:number,y:number)=>{r(x0,y+13,x1-x0,3,ink);r(x0,y+16,x1-x0,2,'#00000030');for(const dy of [1,6,10]){r(x0,y+dy,x1-x0,2,red);r(x0,y+dy,x1-x0,1,lit)}for(let x=x0;x<x1-6;x+=21)post(x,y);post(x1-4,y)},
+      side=(x:number,y0:number,y1:number)=>{r(x+1,y0-2,2,y1-y0+2,ink);r(x+1,y0-14,2,y1-y0,red);r(x+1,y0-14,1,y1-y0,lit);for(let y=y0;y<=y1;y+=18)post(x,y-13)};
+    fence(64,140,96);fence(340,416,96);side(64,110,200);side(412,110,200);
     // The worship hall: cypress left plain, the curtain of the Oda crest under its eaves, the sacred rope and its paper streamers, the bell rope, the offering box on the steps; a lantern either side.
     k.hall(240,40,180,24,44,'#8a6c50','#4a4038','#4a3626','#241c16');r(162,66,156,8,'#f4f2ea');r(162,73,156,1,'#c8c4b8');for(let x=176;x<312;x+=26){k.ell(x+2,70,3,3,'#2a2622');r(x+1,69,2,2,'#e0c060')}
     r(216,78,48,2,'#d8c890');r(216,80,48,1,'#a89860');for(const x of [220,232,246,258])r(x,80,3,5,'#f8f8f0');r(239,72,2,30,'#c8452e');r(239,72,1,30,'#e8735a');
@@ -433,8 +438,8 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const x of [359,393]){k.shade(x-4,188,16,2);r(x-4,182,14,6,'#e4e0d6');r(x-4,182,14,1,'#f4f2ea')}k.above(()=>k.torii(376,186,44,38,'#d4502e','#2a2622'));for(const x of [356,390])r(x,180,6,4,'#2a2622');
     // The stairs down the hill and the landing at their foot: worn stone, kerbs either side.
     k.ground(150,286,180,34,'#c9c2ab','#b5ae97');r(198,220,84,66,'#8e8a7a');for(let y=222;y<286;y+=7){r(198,y,84,6,'#b2ae9c');r(198,y,84,1,'#ccc8b6');r(198,y+5,84,1,'#8e8a7a');for(let n=0;n<3;n++)r(200+k.int(78),y+2+k.int(3),3,1,'#a6a290')}r(194,220,4,66,'#6e7264');r(194,220,2,66,'#8a8e80');r(282,220,4,66,'#6e7264');r(198,250,84,8,'#a8a494');r(198,250,84,1,'#c4c0b0');
-    // The stone fence along the precinct's edge, and the great bare torii at the foot of the stairs.
-    k.above(()=>{for(const from of [66,284]){for(let x=from;x<from+130;x+=11){r(x,200,6,16,'#b4b0a2');r(x,200,2,16,'#d4d0c2');r(x+5,200,1,16,'#8a8678');r(x,199,6,2,'#c8c4b6')}r(from,206,130,2,'#9a968a');r(from,216,132,2,'#00000030')}
+    // The fence's front, either side of the head of the stairs, and the great bare torii at their foot.
+    k.above(()=>{fence(64,194,200);fence(286,416,200);
       k.torii(240,288,100,64,'#c8b896','#a8987a')});
   }},
   // Yasaka-jinja: in through the vermilion Nishi-romon, the dance stage in the middle of the gravel, its eaves hung all round with lanterns, the great hall behind; Maruyama park's weeping cherry to the right.
@@ -612,7 +617,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
   }},
   // The fire bed of the 大, lit each 16 August for Obon (五山送り火): its stone hearths in a row down the slope, the steps between them, the little hall of Kobo Daishi;
   // and before them, over the treetops, all Kyoto and the western hills, Arashiyama and Atago on the skyline, where the sun goes down.
-  daimonji:{layout:{start:[446,262],exit:[404,214],camera:[58,186],out:{to:'daimonji-trail',at:[262,80],en:'Down to Ginkaku-ji',walk:10},people:[[150,226,5,'up'],[340,244,9,'up']],roam:[100,200,300,60],solids:[[0,0,480,170],viewStone,[0,312,480,8],...hearths.map(([x,y]):Box=>[x,y+2,18,7]),[400,166,80,30]],lit:[[0,94,480,60]]},draw:k=>{
+  daimonji:{layout:{start:[446,262],exit:[404,214],camera:[58,186],out:{to:'daimonji-trail',at:[262,80],en:'Down to Ginkaku-ji'},people:[[150,226,5,'up'],[340,244,9,'up']],roam:[100,200,300,60],solids:[[0,0,480,170],viewStone,[0,312,480,8],...hearths.map(([x,y]):Box=>[x,y+2,18,7]),[400,166,80,30]],lit:[[0,94,480,60]]},draw:k=>{
     const {r}=k;gradient(r,0,0,480,100,'#7aaad8','#f4dcb0',9);
     for(const [x,y,w] of [[40,40,60],[190,30,44],[330,52,80]] as const){r(x,y,w,2,'#fbf2e2');r(x+6,y-1,w-16,1,'#ffffff')}
     k.ridge(104,[[40,10,40],[120,22,50],[230,14,60],[330,26,40],[440,16,50]],'#7a8aa8','#6e7e9c',1);k.ridge(108,[[90,8,60],[300,10,80],[420,6,40]],'#8a98b0','#7e8ca4',3);
@@ -620,7 +625,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     r(0,104,480,50,'#9e9a90');for(let y=104;y<154;y++){const depth=(y-104)/50;for(let x=-k.int(4);x<480;){const w=1+k.int(2+Math.round(depth*4)),c=['#c8c4b8','#8a8880','#b0aca0','#dcd8cc','#6e6e6a','#a8988a','#bab6aa'][k.int(7)];r(x,y,w,1,c);x+=w+(k.int(5)?0:1)}}
     for(const [x,y,w,h] of [[132,110,46,8],[226,105,16,7],[296,128,64,18],[54,117,16,5],[402,109,22,6]] as const)for(let i=0;i<w*h/5;i++){const t=k.rand()*Math.PI*2,d=Math.sqrt(k.rand());r(x+w/2+Math.cos(t)*d*w/2,y+h/2+Math.sin(t)*d*h/2,2,1,['#3e5a3a','#4e6e46','#5e7e50'][k.int(3)])}
     k.line(262,104,250,124,'#8eaab4',1);k.line(250,124,246,154,'#8eaab4',2);for(let i=0;i<14;i++)r(0,104+i,480,1,`#e8dcc8${(46-i*3).toString(16).padStart(2,'0')}`);
-    k.night(()=>{for(let i=0;i<1400;i++){const y=106+k.int(48);r(k.int(480),y,1,1,['#ffe8a0','#fff4d0','#f8c870','#e8f0ff'][k.int(4)])}k.line(0,140,480,118,'#f8d888',1)});
+    k.night(()=>{for(let i=0;i<1400;i++){const y=106+k.int(48);r(k.int(480),y,1,1,['#ffe8a0','#fff4d0','#f8c870','#e8f0ff'][k.int(4)])}});
     // The treetops below the fire bed, then the fire bed itself, after the photos: the stroke of the 大 paved in grey concrete, cracked, stepped, stone kerbs of rough blocks down its sides,
     // a hearth framed in concrete on each step; the low wall of stacked stones along its head where people sit looking out; grass, pampas and bushes on the slope either side; the little hall of Kobo Daishi on the right.
     k.forest(0,146,480,30,greens[2]);r(0,170,480,150,'#8a8a50');for(let i=0;i<2600;i++)r(k.int(480),170+k.int(150),2,1,['#7a7a44','#9a9a5c','#a08a62','#6e7a40','#8e9a54'][k.int(5)]);
@@ -639,7 +644,7 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     {const [x,y,w,h]=viewStone;k.shade(x-1,y+h,w+2,3);r(x,y,w,h,'#a8a498');r(x,y,w,2,'#c4c0b4');r(x+2,y+h-2,w-4,2,'#7e7a70')}
   }},
   // The Rakusai bamboo park: a winding path through stands of different bamboos behind woven fences, the leaves fallen brown on it, to the gathering of old stone Buddhas in their grassy clearing, weathered round and grown with lichen, a heavy stone lantern among them.
-  rakusai:{layout:{start:[22,276],exit:[8,230],camera:[336,60],solids:[[0,0,120,250],[0,300,480,20],[300,100,180,220],[165,100,85,50],[120,195,130,55],[400,0,80,100],[0,0,480,50],[262,52,16,12]],over:[[0,298,480,20],[124,184,128,14],[300,90,102,16]],people:[[190,170,4,'up'],[212,80,13,'down']],lamps:[[220,76,44,warm,.5],[276,240,44,warm,.5],[140,130,40,warm,.4],[60,274,44,warm,.5]]},draw:k=>{
+  rakusai:{layout:{start:[22,276],exit:[8,230],camera:[336,60],way:{at:[200,226],to:'rakusai-village',ja:'桂川',sign:'JR',en:'Take-no-michi, the long way down',walk:10},solids:[[0,0,120,250],[0,300,480,20],[300,100,180,220],[165,100,85,50],[120,195,130,55],[400,0,80,100],[0,0,480,50],[262,52,16,12]],over:[[0,298,480,20],[124,184,128,14],[300,90,102,16]],people:[[190,170,4,'up'],[212,80,13,'down']],lamps:[[220,76,44,warm,.5],[276,240,44,warm,.5],[140,130,40,warm,.4],[60,274,44,warm,.5]]},draw:k=>{
     const {r}=k;k.lawn(0,0,480,320,'#5f8a4e','#4d7640',false);
     // The paths: earth, littered with leaves gone brown, a few still green.
     for(const [x,y,w,h] of [[0,250,300,50],[250,150,50,150],[120,150,180,45],[120,60,45,135],[120,50,280,50]] as const){r(x,y,w,h,'#b49a6c');for(let i=0;i<w*h/6;i++)r(x+k.int(w),y+k.int(h),2,1,['#9a7a4a','#c8ac78','#8a6a3c','#d4bc8a','#7a8a48'][k.int(5)])}
@@ -651,6 +656,51 @@ const scenes:Record<string,{layout:Layout;draw:(k:Kit)=>void}>={
     for(const [row,y] of [[0,116],[1,131],[2,147]] as const)for(let x=167+row*3+k.int(3);x<244;x+=9+k.int(4)){const w=7+k.int(4),h=10+k.int(5)+row,c=['#8a8578','#7c7668','#968f80','#6e695e'][k.int(4)],gy=y+k.int(2);k.ell(x+w/2+1,gy,w/2+1,2,'#00000040');r(x,gy-h+3,w,h-3,c);k.ell(x+w/2,gy-h+4,w/2,4,c);r(x,gy-h+3,1,h-3,'#ffffff20');r(x+w-1,gy-h+3,1,h-3,'#00000030');k.ell(x+w/2,gy-h+5,1.5,1.5,blend(c,'#000000',.25));r(x+w/2-2,gy-h+8,4,4,blend(c,'#000000',.2));r(x+w/2-3,gy-h+11,6,2,blend(c,'#000000',.15));for(let n=0;n<3;n++)r(x+k.int(w),gy-h+3+k.int(h-3),2,1,['#b8b888','#8a9a5a','#c8c098'][k.int(3)]);r(x-1,gy-1,w+2,2,'#6a9a54')}
     // The stone lantern at the clearing's head, by the camera.
     {const x=270,y=62;k.shade(x-6,y+2,16,3);r(x-5,y-2,12,4,'#8a8274');r(x-3,y-14,8,12,'#9a9284');r(x-3,y-14,2,12,'#b0a898');r(x-6,y-18,14,4,'#8a8274');r(x-4,y-24,10,6,'#a09888');r(x-2,y-22,6,3,'#4a4438');r(x-9,y-30,20,6,'#7a7466');r(x-9,y-30,20,1,'#a09888');r(x-11,y-26,3,3,'#6a6458');r(x+10,y-26,3,3,'#6a6458');k.ell(x+1,y-33,3,3,'#8a8274')}
+  }},
+  // The village below the park, the long way back to Katsuragawa (Rakusai's `garden`), down the Take-no-michi (竹の径, the bamboo path south from the park, past the Terado-Otsuka kofun): the lane down from the bamboo, then the street along the slope; up on its terrace behind a retaining wall of diamond-patterned concrete, the cemetery's rows of grey granite, bamboo over them;
+  // further down, the primary school behind its green mesh fence, its gate on the street; the poles and their wires along the far kerb, the school route's green band along the near one; below the guardrail the houses lower down the slope, seen over their roofs, a little car park; the lane on down towards the station.
+  'rakusai-village':{layout:{start:[64,62],exit:[96,40],out:{to:'rakusai',at:[222,264],en:'Back up the Take-no-michi',walk:10},way:{at:[382,270],to:'town',station:'桂川',ja:'桂川',sign:'JR',en:'Katsuragawa Station',walk:20},
+    solids:[[0,0,36,320],[92,0,388,158],[0,208,330,112],[380,208,100,112],[330,312,50,8]],lamps:[[160,176,56,warm,.6],[462,176,56,warm,.6],[346,146,26,warm,.5],[354,262,40,warm,.4]]},draw:k=>{
+    const {r}=k,asphalt=(x:number,y:number,w:number,h:number)=>{r(x,y,w,h,'#696b6e');for(let i=0;i<w*h/7;i++)r(x+k.int(w),y+k.int(h),1,1,['#7a7c7f','#5b5d60','#828486'][k.int(3)])};
+    k.lawn(0,0,480,320,'#5f8a4e','#4d7640',false);
+    // Behind everything: the bamboo the lane comes down from, over the cemetery too, and the wooded hill behind the school.
+    grove(k,0,36,0,214);grove(k,92,176,0,40);k.forest(268,0,212,18,greens[1]);
+    // The cemetery on its terrace, row after row of granite, grey and black, each on its plinth; flowers and incense holders before some, wooden 卒塔婆 behind others.
+    k.ground(92,30,176,96,'#a09e96','#8a8880');
+    for(let row=0;row<4;row++){const foot=52+row*20,s=.78+row*.08;for(let x=96+k.int(8);x<260;x+=Math.round((17+k.int(6))*s)+(k.int(5)?0:10)){
+      const w=Math.round(6*s),h=Math.round((11+k.int(5))*s),c=['#6e7076','#8a8c92','#3e4046','#9a9ca0','#5a5c62'][k.int(5)],lit=blend(c,'#ffffff',.25),dark=blend(c,'#000000',.3);
+      if(k.int(3)===0)for(let i=0;i<3;i++)r(x+w+i*2,foot-h-6,1,h+2,'#c8b48a');
+      r(x-2,foot-3,w+4,4,'#7a7c80');r(x-2,foot-3,w+4,1,'#9a9ca0');r(x,foot-3-h,w,h,c);r(x,foot-3-h,1,h,lit);r(x+w-1,foot-3-h,1,h,dark);r(x,foot-4-h,w,1,lit);
+      if(k.int(2))r(x+1,foot-1,1,2,['#d84a3a','#f0d040','#f4f4f0','#c86aa8'][k.int(4)])}}
+    // The retaining wall, its concrete cast in diamonds, stepping down with the street; its coping, and the drain grates and rusty chain along its foot.
+    for(const [x,w,top] of [[92,82,118],[174,94,126]] as const){r(x,top,w,150-top,'#aaa89e');for(let y=top+2;y<150;y++)for(let xx=x;xx<x+w;xx++)if((xx+y)%10===0||(xx-y+500)%10===0)r(xx,y,1,1,'#8e8c82');r(x,top,w,2,'#c6c4ba');r(x,top+2,w,1,'#7e7c74');k.shade(x,150-3,w,3)}
+    r(174,118,1,8,'#7e7c74');
+    // The primary school: three storeys of white concrete, rows of windows, the stairwell's tower with its clock; the sandy yard, a cherry tree in leaf, a row of half-buried tyres; the green mesh fence, the gate between its pillars, the name plate on the wall beside it.
+    k.ground(268,96,212,44,'#c9b48c','#b49e74');
+    r(272,14,208,82,'#ebeae3');r(272,14,208,3,'#d6d4cc');for(const fy of [18,44,70]){r(272,fy+22,208,4,'#d6d4cc');for(let x=278;x<474;x+=18){if(x>356&&x<390)continue;r(x,fy+4,14,16,'#5e6e7a');r(x+1,fy+5,12,14,'#9cc0d4');r(x+1,fy+5,12,2,'#c8dcea');r(x+7,fy+5,1,14,'#5e6e7a');r(x+2,fy+12,4,1,'#ffffff60')}}
+    r(362,4,28,92,'#e2e1da');r(362,4,28,2,'#cecdc4');k.ell(376,15,6,6,'#3a3a3a');k.ell(376,15,5,5,'#f6f6f2');r(376,11,1,4,'#2a2a2a');r(376,15,3,1,'#2a2a2a');for(let fy=26;fy<70;fy+=8)r(370,fy,12,5,'#8aaabc');
+    r(366,76,20,20,'#5e6e7a');r(367,77,18,19,'#9cc0d4');r(376,77,1,19,'#5e6e7a');k.shade(272,96,208,3);
+    k.tree(296,118,greens[1]);k.tree(462,116,greens[0]);for(let i=0;i<7;i++){const x=398+i*7;r(x,124,6,4,['#d8483a','#3a7ac8','#f0c030','#4aa860'][i%4]);r(x+1,125,4,2,'#2a2a2a')}
+    for(let x=370;x<480;x++){for(let y=134;y<150;y++)if((x+y)%4===0||(x-y+400)%4===0)r(x,y,1,1,'#4e8a62')}for(let x=370;x<480;x+=16)r(x,132,2,18,'#2e5a40');r(370,132,110,2,'#3e7a52');
+    r(272,132,52,18,'#c8c6be');r(272,132,52,2,'#dcdad2');r(282,135,30,13,'#6e5a3a');r(283,136,28,11,'#8a7450');k.text(284,136,'京都市立','#efe2b8',false);k.text(286,142,'小学校','#efe2b8',false);
+    for(const x of [324,362]){r(x,124,8,28,'#c8c6be');r(x,124,8,2,'#e0ded6');r(x+7,124,1,28,'#9a988e')}r(332,148,30,2,'#8a8c8a');r(332,140,14,10,'#8a8c8a');for(let x=333;x<346;x+=3)r(x,141,1,8,'#5a5c5a');
+    // The pavement along the far kerb and its grates; the road, its edge lines, 通学路 written across it, the green band of the school route along the near side; the guardrail, then the slope down to the houses.
+    r(92,150,388,8,'#b4b0a6');for(let x=92;x<480;x+=22)r(x,150,1,8,'#9a968c');for(let x=96;x<480;x+=30){r(x,155,22,4,'#8a8c8e');for(let xx=x+1;xx<x+21;xx+=2)r(xx,156,1,2,'#3a3c3e')}
+    for(let x=94;x<268;x+=3)r(x,153+(x%6?0:1),2,1,'#9a5a32');for(const x of [110,170,230])r(x-3,151,7,5,'#c4c0b4');
+    asphalt(36,0,56,208);asphalt(36,158,444,50);asphalt(330,208,50,112);
+    r(39,0,1,160,'#d8d8d2');r(88,0,1,160,'#d8d8d2');r(92,160,388,1,'#e0e0da');r(36,197,444,1,'#e0e0da');r(36,198,294,8,'#3f7c56');r(380,198,100,8,'#3f7c56');k.text(190,172,'通学路','#e6e6e0');
+    r(36,206,294,2,'#a8a49a');r(380,206,100,2,'#a8a49a');for(const [x0,x1] of [[36,330],[380,480]])for(let x=x0+4;x<x1;x+=20){r(x,206,2,10,'#f0f0ec');r(x+2,214,2,1,'#00000030')}r(36,208,294,2,'#f2f2ee');r(380,208,100,2,'#f2f2ee');
+    r(36,216,294,10,'#6a8448');r(380,216,100,10,'#6a8448');for(let i=0;i<160;i++)r(36+k.int(444),216+k.int(10),1,2,k.int(2)?'#7e9a58':'#56703c');
+    // The houses below, seen over their roofs: tiled, sheet metal, glazed brown; a sliver of each house's wall, a garden tree here and there, a persimmon heavy with fruit; the car park between them.
+    const roof=(x:number,y:number,w:number,h:number,c:string)=>{k.shade(x+2,y+h,w,4);const ridge=Math.round(h*.38),hi=blend(c,'#ffffff',.18),lo=blend(c,'#000000',.12);r(x,y,w,ridge,hi);r(x,y+ridge,w,h-ridge,lo);r(x,y+ridge-1,w,2,blend(c,'#000000',.35));for(let xx=x+2;xx<x+w;xx+=3){r(xx,y,1,ridge-1,blend(hi,'#000000',.12));r(xx,y+ridge+1,1,h-ridge-1,blend(lo,'#000000',.12))}r(x,y+h-1,w,1,blend(c,'#000000',.4));r(x+2,y+h,w-4,6,'#d8d0bc');for(let wx=x+8;wx<x+w-8;wx+=18)r(wx,y+h+1,8,4,'#6a7a84')};
+    roof(4,232,84,40,'#4a4e56');roof(104,236,70,34,'#5a6e82');roof(260,234,62,40,'#6e4a38');roof(392,234,88,36,'#4a4e56');roof(2,290,60,30,'#6e4a38');roof(262,292,62,28,'#4a4e56');roof(432,292,48,28,'#6e4a38');
+    r(180,228,74,92,'#7c7c7a');for(let x=184;x<254;x+=22)r(x,232,1,40,'#e8e8e2');for(const [x,c] of [[188,'#eeeeea'],[212,'#b8bcc0']] as const){k.shade(x+1,264,18,3);r(x,236,18,30,c);r(x+2,242,14,7,'#3a4450');r(x+2,256,14,5,'#3a4450');r(x+3,249,12,7,blend(c,'#ffffff',.2))}
+    k.tree(140,292,greens[2]);k.tree(80,286,greens[0]);k.tree(240,300,greens[1]);k.tree(410,300,turning);for(let i=0;i<9;i++)r(400+k.int(22),284+k.int(14),2,2,'#e8822a');
+    r(328,208,2,112,'#a8a49a');r(380,208,2,112,'#a8a49a');
+    // The poles along the far kerb, their cross-arms and insulators, a transformer, two street lamps; the wires sagging between them.
+    const poles=[150,300,452];for(const px of poles){k.shade(px-3,156,8,2);r(px-2,30,4,127,'#b0aca4');r(px-2,30,1,127,'#d0ccc4');r(px+1,30,1,127,'#8a867e');r(px-10,34,20,2,'#5e5e5a');for(const ix of [-9,-3,3,9])r(px+ix,32,2,2,'#f0f0ec');r(px-3,104,6,10,'#2a5a8a');r(px-2,106,4,1,'#ffffff')}
+    r(302,58,8,12,'#8a9494');r(302,58,8,1,'#aab4b4');for(const px of [150,452]){r(px+2,72,12,1,'#5e5e5a');r(px+10,72,6,3,'#e8e8e0');r(px+10,75,6,1,'#9a9a94')}
+    for(const [x0,x1] of [[0,150],[150,300],[300,452],[452,480]] as const)for(const [top,sag] of [[33,8],[37,10],[64,6]] as const)for(let x=x0;x<x1;x++){const t=(x-x0)/(x1-x0);r(x,top+sag*4*t*(1-t),1,1,'#2e3032')}
   }},
   // Dotonbori: the canal through the middle, the Ebisu bridge across it to the mouth of the Shinsaibashi arcade, the wall of signs along the far bank over the Tonbori River Walk: the great crab of Kani Doraku, the octopus, the screens, the Glico runner, Don Quijote's yellow wheel; all of it again in the water.
   dotonbori:{layout:{busy:true,start:[240,270],exit:[206,244],camera:[340,146],solids:[[0,0,480,120],[0,172,204,64],[276,172,204,64],[0,282,480,38]],people:[[224,198,3,'up'],[262,214,7,'left'],[150,152,1,'up'],[424,156,12,'up'],[100,264,5,'up'],[392,268,9,'up'],[452,262,2,'left']],lit:[[0,20,96,72],[96,30,56,70],[150,30,52,72],[204,30,72,62],[284,26,62,78],[346,30,58,70],[402,0,78,100],[0,100,480,18],[0,176,204,56],[276,176,204,56],[0,288,480,10]],lamps:[[240,140,150,0xffd8e0,.9,.4],[60,110,100,0xffc090,.8,.5],[316,120,90,0x90d0ff,.8,.5],[440,110,90,0xffd070,.8,.5],[240,200,60,warm,.7],[120,256,60,warm,.5],[360,256,60,warm,.5],[30,166,24,warm,.8],[94,166,24,warm,.8],[158,166,24,warm,.8],[322,166,24,warm,.8],[386,166,24,warm,.8],[450,166,24,warm,.8],[206,180,20,warm,.9],[274,180,20,warm,.9],[206,226,20,warm,.9],[274,226,20,warm,.9]]},draw:k=>{

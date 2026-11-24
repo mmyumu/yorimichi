@@ -48,6 +48,10 @@ import { StampBook } from './stamp-book';
 import { avenueOf, bowlBox, bowlFoot, cameraBox, climbWay, ridgeWay, dressRoad, exitBox, layoutOf, makeScene, postsOf, viewStone } from './sight-scenes';
 import { chappyHeight, makeHikeSprites } from './daimonji-art';
 import { hikeLines } from './daimonji-lines';
+import { elderHeight, makeElderSprites } from './kenkun-art';
+import { elderLines } from './kenkun-lines';
+import { makeMonsieurSprites, monsieurHeight } from './rakusai-art';
+import { monsieurLines } from './rakusai-lines';
 import { playSunset } from './sunset';
 import { tossCoins } from './coin-toss';
 import { chapters, loadMode, loadPace, savePace, speeds, storyEnd, storyIntro, type Pace } from './story';
@@ -109,6 +113,10 @@ const pavement:[number,number,number,number]=[20,142,440,50];
 const chappyKey='yorimichi-chappy';
 const chappyKept=():{met?:boolean;left?:number}=>{try{return JSON.parse(localStorage.getItem(chappyKey)||'{}')??{}}catch{return {}}};
 const keepChappy=(kept:{met?:boolean;left?:number})=>{try{localStorage.setItem(chappyKey,JSON.stringify(kept))}catch{}};
+/** Whether the traveller has heard the old photographer at Kenkun-jinja (`yorimichi-kenkun`). */
+const elderKey='yorimichi-kenkun',elderMet=()=>{try{return localStorage.getItem(elderKey)==='met'}catch{return false}},meetElder=()=>{try{localStorage.setItem(elderKey,'met')}catch{}};
+/** Whether the man in the village below the Rakusai bamboo park has heard that the traveller comes from France (`yorimichi-rakusai`). */
+const monsieurKey='yorimichi-rakusai',monsieurMet=()=>{try{return localStorage.getItem(monsieurKey)==='met'}catch{return false}},meetMonsieur=()=>{try{localStorage.setItem(monsieurKey,'met')}catch{}};
 class Journey extends Phaser.Scene {
   private player!: Phaser.GameObjects.Container;
   private sprite!:Phaser.GameObjects.Image;
@@ -195,6 +203,8 @@ class Journey extends Phaser.Scene {
   private rolled=0;
   // What glows by itself at night, over the shade (faded in with it): lit windows and signs.
   private neon:Phaser.GameObjects.Graphics|Phaser.GameObjects.Image|null=null;
+  /** Kyoto's lights seen from the fire bed at night, a few of them fading out and back in real time. */
+  private twinkle:{g:Phaser.GameObjects.Graphics;lights:{x:number;y:number;c:number;pace:number;phase:number}[]}|null=null;
   // The way home's sign in the street outside Higashi-Nakano's west exit, in front of the traveller behind it.
   private laneSign:Phaser.GameObjects.Image|null=null;
   // The apartment's windows, night over them as it falls outside.
@@ -236,6 +246,10 @@ class Journey extends Phaser.Scene {
   private guide:{man:Walker;dog:Walker;route:[number,number][];then?:()=>void;seek?:()=>void;aim?:[number,number]}|null=null;
   /** Walkers coming down the path at dusk with their lights. */
   private hikers:Walker[]=[];
+  /** The old photographer before Kenkun-jinja's worship hall, there through the day: he tells the shrine's story, Oda Nobunaga's. */
+  private elder:Walker|null=null;
+  /** The man by the school gate in the village below Rakusai, who once lived in Paris; `hailed` once he has called out to the traveller on this visit. */
+  private monsieur:{man:Walker;hailed:boolean}|null=null;
   private flight:{skip:()=>void}|null=null;
   // When Lorenzo's next move is due (his OK, then his flight), in scene ms.
   private phoneDue=0;
@@ -302,14 +316,14 @@ class Journey extends Phaser.Scene {
     // Back inside from the street or an exit's map: at that exit.
     const back=this.outside?.from===place?this.outside:null;if(isHub(place))this.outside=null;
     if(isHub(place))makeHub(this,place);
-    this.modal?.destroy();this.modal=null;this.world?.destroy(true);this.hud?.destroy(true);this.over.removeAll(true);this.shutter=this.neon=this.pane=this.laneSign=null;this.car=this.bus=null;
+    this.modal?.destroy();this.modal=null;this.world?.destroy(true);this.hud?.destroy(true);this.over.removeAll(true);this.shutter=this.neon=this.pane=this.laneSign=this.twinkle=null;this.car=this.bus=null;
     this.music?.stop();this.music=null;for(const t of this.outingTimers)t.remove();this.outingTimers=[];this.friends=null;this.robot=null;this.waiter=null;this.band=[];this.audience=[];this.outingProps=[];this.friendsAt='';
     if(this.outing&&!((this.outing.who==='namiko'?place==='shabu'||place==='vineyard':place==='yakiniku')||place==='town'&&this.outing.step==='wait'))this.outing=null;
-    this.guide=null;this.hikers=[];if(this.hike&&!this.hikePlace(place)&&place!=='lanterns')this.hike=null;
+    this.guide=null;this.hikers=[];this.elder=null;this.monsieur=null;if(this.hike&&!this.hikePlace(place)&&place!=='lanterns')this.hike=null;
     this.place=place;this.boardAt='';this.stayed=-1;this.overhead=[];this.commuters=[];this.spots.clear();this.playerSpot=this.hallSpot='';this.bump=1;this.stun=0;this.path=[];this.solids=[];this.direction={x:0,y:0};
     // The stations sit lower under the top band, leaving the back wall room for the station's name.
     if(scenic(place))makeScene(this,place);
-    makeOutingSprites(this);makeDinnerSprites(this);makeHikeSprites(this);if(place==='yakiniku')makeYakiniku(this);if(place==='shabu')makeShabu(this);if(place==='vineyard')makeVineyard(this);
+    makeOutingSprites(this);makeDinnerSprites(this);makeHikeSprites(this);makeElderSprites(this);makeMonsieurSprites(this);if(place==='yakiniku')makeYakiniku(this);if(place==='shabu')makeShabu(this);if(place==='vineyard')makeVineyard(this);
     const road=sightOfRoad(place);const avenue=avenueOf(place);if(road)makeSightRoad(this,place,road,this.busesTo(road).length>0,avenue&&dressRoad(this,place));
     this.world=this.add.container(0,isHub(place)?24:0);this.hud=this.add.container(0,0).setDepth(10);
     this.world.add(this.add.image(0,0,place==='town'?this.townMap():place==='corridor'?this.corridorMap():place==='platform'?this.platformMap():'map-'+place).setOrigin(0));const size=layoutOf(place);this.mapWidth=place==='platform'?platformWidth*2:place==='home-street'?homeStreetWidth*2:(size?.width??480)*2;this.mapHeight=place==='corridor'?this.corridor().height*2:place==='apartment'?832:place==='kyoto-house'?680:avenue?avenue.height*2:(size?.height??320)*2;
@@ -320,8 +334,9 @@ class Journey extends Phaser.Scene {
     if(scenic(place)){
       const {solids,lit,exit,camera}=layoutOf(place)!;this.solids.push(...solids.map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));
       if(lit){this.neon=this.add.image(0,0,`map-${place}-lit`).setOrigin(0).setAlpha(0);this.over.add(this.neon)}
-      const out=`return-${place}`,photo=`photo-${place}`;approach[out]=[(exit[0]+10)*2,(exit[1]+26)*2];hotspotFrames[out]=[(exit[0]-6)*2,(exit[1]-4)*2,108,92];hotspotShapes[out]=exitBox(exit);outlines[out]=outline(hotspotShapes[out]);if(camera){approach[photo]=[(camera[0]+9)*2,(camera[1]+24)*2];hotspotFrames[photo]=[(camera[0]-8)*2,(camera[1]-6)*2,72,72];hotspotShapes[photo]=cameraBox(camera);outlines[photo]=outline(hotspotShapes[photo])}
-      const second=layoutOf(place)!.second;if(second){const key=`photo2-${place}`,[x,y]=second.camera;approach[key]=[(x+9)*2,(y+28)*2];hotspotFrames[key]=[(x-8)*2,(y-6)*2,72,72];hotspotShapes[key]=cameraBox(second.camera);outlines[key]=outline(hotspotShapes[key])}
+      if(place==='daimonji'){const g=this.add.graphics().setAlpha(0);this.over.add(g);this.twinkle={g,lights:Array.from({length:160},()=>({x:Math.floor(Math.random()*480)*2,y:(106+Math.floor(Math.random()*38))*2,c:[0xffe8a0,0xfff4d0,0xf8c870,0xe8f0ff][Math.floor(Math.random()*4)],pace:1500+Math.random()*2500,phase:Math.random()*7}))}}
+      const out=`return-${place}`,photo=`photo-${place}`;approach[out]=[(exit[0]+10)*2,(exit[1]+26)*2];hotspotFrames[out]=[(exit[0]-6)*2,(exit[1]-4)*2,108,60];hotspotShapes[out]=exitBox(exit);outlines[out]=outline(hotspotShapes[out]);if(camera){approach[photo]=[(camera[0]+9)*2,(camera[1]+24)*2];hotspotFrames[photo]=[(camera[0]-8)*2,(camera[1]-6)*2,72,60];hotspotShapes[photo]=cameraBox(camera);outlines[photo]=outline(hotspotShapes[photo])}
+      const second=layoutOf(place)!.second;if(second){const key=`photo2-${place}`,[x,y]=second.camera;approach[key]=[(x+9)*2,(y+28)*2];hotspotFrames[key]=[(x-8)*2,(y-6)*2,72,60];hotspotShapes[key]=cameraBox(second.camera);outlines[key]=outline(hotspotShapes[key])}
       const way=layoutOf(place)!.way;if(way)this.signpost(`way-${place}`,way.at);
       // A temple's offering bowl on its stone (coin-toss.ts), solid at its foot.
       const bowl=layoutOf(place)!.bowl;if(bowl){const key=`bowl-${place}`,[x,y]=bowl,[fx,fy,fw,fh]=bowlFoot(bowl);this.solids.push(new Phaser.Geom.Rectangle(fx*2,fy*2,fw*2,fh*2));approach[key]=[(x+11)*2,(y+30)*2];hotspotFrames[key]=[(x-6)*2,(y-6)*2,68,68];hotspotShapes[key]=bowlBox(bowl);outlines[key]=outline(hotspotShapes[key])}
@@ -331,7 +346,7 @@ class Journey extends Phaser.Scene {
     if(avenue){
       const {solids,lit,camera,way}=avenue,photo=`photo-${place}`;this.solids.push(...solids.map(([x,y,w,h])=>new Phaser.Geom.Rectangle(x*2,y*2,w*2,h*2)));
       if(lit){this.neon=this.add.image(0,0,`map-${place}-lit`).setOrigin(0).setAlpha(0);this.over.add(this.neon)}
-      if(camera){approach[photo]=[(camera[0]+9)*2,(camera[1]+24)*2];hotspotFrames[photo]=[(camera[0]-8)*2,(camera[1]-6)*2,72,72];hotspotShapes[photo]=cameraBox(camera);outlines[photo]=outline(hotspotShapes[photo])}
+      if(camera){approach[photo]=[(camera[0]+9)*2,(camera[1]+24)*2];hotspotFrames[photo]=[(camera[0]-8)*2,(camera[1]-6)*2,72,60];hotspotShapes[photo]=cameraBox(camera);outlines[photo]=outline(hotspotShapes[photo])}
       if(way)this.signpost(`way-${place}`,way.at);
     }
     // The station front and the konbini, the vending machines, the konbini's bins, the area map, the planters, the bus stop and the shops across the road (see makeTown).
@@ -512,11 +527,11 @@ class Journey extends Phaser.Scene {
     this.rect(x-2,y-2,w+4,h+4,0x9b9e7d,parent);this.rect(x,y+3,w,h,0x182f2c,parent);const b=this.rect(x,y,w,h,0x415c4f,parent).setInteractive({useHandCursor:true});this.label(x+w/2,y+h/2,text,16,'#fff0d4',parent).setOrigin(.5);b.on('pointerdown',fn);return b;
   }
   private kyotoHouse(place:Place):place is 'kyoto-house'|'kyoto-upstairs'{return place==='kyoto-house'||place==='kyoto-upstairs'}
-  private shapeKey(spot:string){return spot==='chappy'||spot==='path'||spot==='steep'||spot==='view'?`${spot}-${this.place}`:(spot==='return'||spot==='photo'||spot==='photo2'||spot==='way'||spot==='bowl')&&scenic(this.place)||(spot==='photo'||spot==='way')&&avenueOf(this.place)?`${spot}-${this.place}`:(spot==='return'||spot==='adjust'||spot==='window')&&['town','corridor','home-street','kyoto-lane','apartment','kyoto-house'].includes(this.place)||(spot==='home'||spot==='konbini')&&this.place==='kyoto-lane'?spot+'-'+this.place:spot}
+  private shapeKey(spot:string){return spot==='chappy'||spot==='elder'||spot==='monsieur'||spot==='path'||spot==='steep'||spot==='view'?`${spot}-${this.place}`:(spot==='return'||spot==='photo'||spot==='photo2'||spot==='way'||spot==='bowl')&&scenic(this.place)||(spot==='photo'||spot==='way')&&avenueOf(this.place)?`${spot}-${this.place}`:(spot==='return'||spot==='adjust'||spot==='window')&&['town','corridor','home-street','kyoto-lane','apartment','kyoto-house'].includes(this.place)||(spot==='home'||spot==='konbini')&&this.place==='kyoto-lane'?spot+'-'+this.place:spot}
   private frameFor(spot:string){return hotspotFrames[this.shapeKey(spot)]}
   /** Every hotspot of the current place. */
   /** A second signpost's hotspot, on the exit sign's pattern. */
-  private signpost(key:string,[x,y]:[number,number]){approach[key]=[(x+10)*2,(y+26)*2];hotspotFrames[key]=[(x-6)*2,(y-4)*2,108,92];hotspotShapes[key]=exitBox([x,y]);outlines[key]=outline(hotspotShapes[key])}
+  private signpost(key:string,[x,y]:[number,number]){approach[key]=[(x+10)*2,(y+26)*2];hotspotFrames[key]=[(x-6)*2,(y-4)*2,108,60];hotspotShapes[key]=exitBox([x,y]);outlines[key]=outline(hotspotShapes[key])}
   private hotspots(){return [...(this.bin?['bin']:[]),...this.placeSpots()]}
   /** The bin, one per place at most: those of the stations and streets fall where a station's name says (some have none), the homes' by the kitchen. The apartment's is drawn with it. */
   private binOf(place:string):[number,number]|null{
@@ -537,8 +552,10 @@ class Journey extends Phaser.Scene {
       }
     }
     // Once a train has arrived, a click on its queue or body away from a door only walks.
-    return this.hotspots().filter(spot=>!spot.startsWith('door')).find(spot=>{const [fx,fy,w,h]=this.frameFor(spot);return x>=fx&&x<fx+w&&y>=fy&&y<fy+h})??'';
+    return this.hotspots().filter(spot=>!spot.startsWith('door')).find(spot=>this.hits(spot,x,y))??'';
   }
+  /** Whether a click (scene px) falls on a hotspot: on its drawn shape, art px, give or take `pad` scene px, else within its frame. */
+  private hits(spot:string,x:number,y:number,pad=8){const shape=hotspotShapes[this.shapeKey(spot)];if(shape?.length)return shape.some(([sx,sy,w,h])=>x>=sx*2-pad&&x<(sx+w)*2+pad&&y>=sy*2-pad&&y<(sy+h)*2+pad);const [fx,fy,w,h]=this.frameFor(spot);return x>=fx&&x<fx+w&&y>=fy&&y<fy+h}
   private nearby(){const spot=this.placeNear();return spot||(this.bin&&Phaser.Math.Distance.Between(this.player.x,this.player.y,...this.bin)<58?'bin':'')}
   private placeNear(){
     const {x,y}=this.player;
@@ -602,7 +619,7 @@ class Journey extends Phaser.Scene {
       if(x>140&&x<260&&y<280)return 'bed';
     }else{
       const {exit,camera,way,second,bowl}=layoutOf(this.place)!;
-      const hike=this.hikeNear();if(hike&&hike!=='chappy')return hike;
+      const hike=this.hikeNear();if(hike&&hike!=='chappy'&&hike!=='elder'&&hike!=='monsieur')return hike;
       if(bowl&&Phaser.Math.Distance.Between(x,y,(bowl[0]+11)*2,(bowl[1]+14)*2)<48)return 'bowl';
       if(second&&Phaser.Math.Distance.Between(x,y,(second.camera[0]+9)*2,(second.camera[1]+28)*2)<64)return 'photo2';
       if(way&&Phaser.Math.Distance.Between(x,y,(way.at[0]+10)*2,(way.at[1]+22)*2)<64)return 'way';
@@ -813,7 +830,7 @@ class Journey extends Phaser.Scene {
       case 'entrance':if(sightOfRoad(this.place)!.ropeway)this.ropeway(true);else this.loadPlace(sightOfRoad(this.place)!.id);break;
       case 'way':{
         // Into a garden, or on foot to the next place along (its card, the clock running on).
-        const way=(layoutOf(this.place)?.way??avenueOf(this.place)?.way)!,go=()=>this.loadPlace(way.to as Place,way.arrive&&{x:way.arrive[0]*2,y:way.arrive[1]*2});
+        const way=(layoutOf(this.place)?.way??avenueOf(this.place)?.way)!,go=way.station?()=>this.toStation(stationAt(way.station!)!):()=>this.loadPlace(way.to as Place,way.arrive&&{x:way.arrive[0]*2,y:way.arrive[1]*2});
         if(way.walk)this.walking(way.en,way.walk,go);else go();break;
       }
       case 'walkBack':this.walkBack();break;
@@ -2062,6 +2079,25 @@ class Journey extends Phaser.Scene {
     }));
   }
   /** The screens of the way up Mt Daimonji: the path, the ruins, the fire bed. */
+  /** The man by the school gate calls out on his own the first time the traveller comes down the street near him (not in the story, which only walks to the cameras). */
+  private monsieurStep(){
+    const m=this.monsieur;if(!m||m.hailed||this.modal||this.story||monsieurMet())return;
+    if(Phaser.Math.Distance.Between(this.player.x,this.player.y,m.man.x,m.man.y)<150){m.hailed=true;this.meetMonsieurTalk()}
+  }
+  /** Where the traveller is from: France, and he steps back with an "Oh!", then speaks French, the Paris of forty years ago; met again, a greeting. */
+  private meetMonsieurTalk(){
+    const m=this.monsieur!.man,face=()=>m.turn(Math.abs(this.player.x-m.x)>Math.abs(this.player.y-m.y)?this.player.x<m.x?'left':'right':this.player.y<m.y?'up':'down'),done=()=>m.turn('down');face();
+    if(monsieurMet()){this.talk('monsieur',monsieurLines.again,[],()=>this.talk('monsieur',monsieurLines.againBye,[],done));return}
+    const shock=()=>{
+      // A step back, away from the traveller, and an "Oh!" over his head.
+      const dx=m.x-this.player.x,dy=m.y-this.player.y,d=Math.hypot(dx,dy)||1,oh=this.label(m.x,m.y-78,'!',22,'#fff0d4').setOrigin(.5).setPadding(6,2,6,2).setBackgroundColor('#263d39e0');
+      this.tweens.add({targets:m.image,x:m.x+dx/d*14,y:m.y+Math.max(-4,Math.min(10,dy/d*10)),duration:160,ease:'Quad.easeOut',onComplete:()=>this.monsieurSpot()});this.tweens.add({targets:oh,y:oh.y-10,alpha:0,delay:900,duration:400,onComplete:()=>oh.destroy()});
+      this.outingTimers.push(this.time.delayedCall(450,()=>{meetMonsieur();this.talk('monsieur',monsieurLines.shock,[[monsieurLines.praise,()=>this.talk('monsieur',[monsieurLines.thanks,...monsieurLines.bye],[],done)]])}));
+    };
+    this.talk('monsieur',monsieurLines.hello,[[monsieurLines.france,shock],[monsieurLines.later,()=>this.talk('monsieur',monsieurLines.shy,[],done)]]);
+  }
+  /** His hotspot, wherever he stands (he steps back on hearing where the traveller is from). */
+  private monsieurSpot(){const m=this.monsieur?.man;if(!m)return;const x=Math.round(m.x/2),y=Math.round(m.y/2);this.hikeSpot('monsieur',[[x-5,y-22,10,23]],[m.x-30,m.y+30])}
   private hikePlace(place=this.place){return place==='daimonji-trail'||place==='nakao'||place==='daimonji-ridge'||place==='daimonji'}
   /** Chappy is by the path at Hachi-jinja through the day, from seven until half past six, unless he has already ridden home today. */
   private chappyAbout(){const m=minuteOfDay();return m>=7*60&&m<18*60+30&&chappyKept().left!==dayOf()}
@@ -2093,6 +2129,10 @@ class Journey extends Phaser.Scene {
       else if(this.chappyAbout()){this.hike=null;this.meetChappy(874,386)}
     }
     if(this.place==='daimonji')this.hikeSpot('view',[viewStone],[480,378]);
+    // Kenkun-jinja's photographer, left of the flagstones before the hall, from nine till seven in the evening.
+    if(this.place==='kenkun'&&minuteOfDay()>=9*60&&minuteOfDay()<19*60){const [x,y]=[396,276];this.elder=new Walker(this,this.world,'elder',x,y,1.9*elderHeight,'right');this.hikeSpot('elder',[[x/2-5,y/2-22,10,23]],[x+24,y+16])}
+    // The man from the primary school, on the pavement before its gate, from nine till half past five.
+    if(this.place==='rakusai-village'&&minuteOfDay()>=9*60&&minuteOfDay()<17*60+30){const [x,y]=[694,328];this.monsieur={man:new Walker(this,this.world,'monsieur',x,y,1.9*monsieurHeight,'down'),hailed:false};this.monsieurSpot()}
     if(!this.hike)return;
     if(this.place==='daimonji-trail'&&(step==='up'||step==='down')){
       // Leading, a bend or two ahead: up from the shrine, or down from the ridge, the others coming down with their lights.
@@ -2114,23 +2154,31 @@ class Journey extends Phaser.Scene {
   }
   private hikeSpots(){
     const here=!!this.guide?.man.image.visible,spots:string[]=[];
-    if(this.place==='lanterns')spots.push('path','steep');if(this.place==='daimonji')spots.push('view');
+    if(this.place==='lanterns')spots.push('path','steep');if(this.place==='daimonji')spots.push('view');if(this.elder)spots.push('elder');if(this.monsieur)spots.push('monsieur');
     if(here&&!this.guide!.man.moving&&this.hike?.step!=='bye')spots.push('chappy');
     return spots;
   }
   private hikeNear(){
     const {x,y}=this.player,spots=this.hikeSpots(),d=(spot:string)=>{const [ax,ay]=spot==='chappy'?[this.guide!.man.x,this.guide!.man.y]:approach[`${spot}-${this.place}`];return Phaser.Math.Distance.Between(x,y,ax,ay)};
-    return spots.find(spot=>d(spot)<(spot==='chappy'?80:spot==='view'?60:46))??'';
+    return spots.find(spot=>d(spot)<(spot==='chappy'?80:spot==='view'||spot==='elder'||spot==='monsieur'?60:46))??'';
   }
   private hikePrompt(spot:string){
     if(spot==='chappy'){const g=this.guide,waiting=!!g&&!g.route.length&&!g.man.moving&&(this.place==='daimonji-trail'&&(this.hike?.step==='up'||this.hike?.step==='down')||this.place==='nakao'&&(this.hike?.step==='ridge'||this.hike?.step==='down')||this.place==='daimonji-ridge'&&this.hike?.step==='ridge');return this.hike?.step==='lead'||waiting?'Follow Chappy':this.hike?'Chappy':'Chappy & Louis'}
     if(spot==='path')return this.hike?.step==='lead'?'Follow Chappy':hikeLines.alone;
-    if(spot==='steep')return 'A narrow track up the slope';if(spot==='view')return 'The view over Kyoto';
+    if(spot==='elder')return elderLines.prompt;if(spot==='monsieur')return monsieurLines.prompt;if(spot==='steep')return 'A narrow track up the slope';if(spot==='view')return 'The view over Kyoto';
     return null;
   }
   /** What the walk does with a hotspot: false where it leaves it to the place. */
   private hikeUse(spot:string):boolean{
     const step=this.hike?.step,g=this.guide?.man.image.visible?this.guide:null;
+    if(spot==='elder'&&this.elder){
+      // He turns to the traveller, greets them (again, if they have heard him before), and tells the story of the shrine if asked.
+      const e=this.elder,met=elderMet(),done=()=>{e.turn('right')},tell=()=>{meetElder();this.talk('elder',elderLines.story,[[elderLines.thanks,done]])};
+      e.turn(this.player.x<e.x?'left':this.player.y>e.y+10?'down':'right');
+      this.talk('elder',met?elderLines.again:elderLines.hello,[[met?elderLines.tellAgain:elderLines.tell,tell],[elderLines.later,()=>this.talk('elder',elderLines.bye,[],done)]]);
+      return true;
+    }
+    if(spot==='monsieur'&&this.monsieur){this.monsieur.hailed=true;this.meetMonsieurTalk();return true}
     if(this.place==='lanterns'){
       if(spot==='steep'){if(g&&!this.hike)this.talk('chappy',hikeLines.steep);else this.float(hikeLines.steepAlone);return true}
       if((spot==='path'||spot==='chappy')&&step==='lead'){this.hike!.step='up';this.loadPlace('daimonji-trail');return true}
@@ -2143,6 +2191,8 @@ class Journey extends Phaser.Scene {
       if(spot==='path'){this.loadPlace('daimonji-trail');return true}
       return false;
     }
+    // The view from the fire bed, with Chappy or alone.
+    if(spot==='view'&&this.place==='daimonji'){this.sunset();return true}
     if(!this.hike)return false;
     if(spot==='chappy'&&g&&!g.route.length&&!g.man.moving){
       if(this.place==='daimonji-trail'&&step==='up'){this.loadPlace('nakao');return true}
@@ -2150,7 +2200,7 @@ class Journey extends Phaser.Scene {
       if(this.place==='nakao'&&(step==='ridge'||step==='down'))return this.hikeUse(step==='ridge'?'way':'return');
       if(this.place==='daimonji-ridge'&&step==='ridge')return this.hikeUse('way');
     }
-    if(spot==='chappy'){this.talk('chappy',step==='top'?hikeLines.after:['Ganbatte! Not far now.']);return true}
+    if(spot==='chappy'){this.talk('chappy',step==='top'?hikeLines.after:['Ganbatte. It is not far.']);return true}
     // Turning back on the way up: he lets the traveller go.
     if(spot==='return'&&this.place==='daimonji-trail'&&step==='up'){this.hike=null;return false}
     if(spot==='way'&&this.place==='nakao'&&step==='ridge'){this.loadPlace('daimonji-ridge');return true}
@@ -2159,11 +2209,10 @@ class Journey extends Phaser.Scene {
     if(spot==='return'&&this.place==='nakao'&&step==='down'){this.loadPlace('daimonji-trail',{x:524,y:160});return true}
     if(spot==='return'&&this.place==='daimonji'){this.talk('chappy',hikeLines.dark,[],()=>this.hikeDown());return true}
     if(spot==='return'&&this.place==='daimonji-trail'&&step==='down'){this.hike!.step='bye';this.loadPlace('lanterns',{x:936,y:372});return true}
-    if(spot==='view'){this.sunset();return true}
     return false;
   }
-  /** Down from the fire bed together, the dusk coming on: a card, then the path from the ridge, him ahead. */
-  private hikeDown(){if(this.hike)this.hike.step='down';this.walking('The path down',10,()=>this.loadPlace('daimonji-trail',{x:524,y:160}),hikeLines.down)}
+  /** Down from the fire bed together, the dusk coming on: straight onto the path, him ahead. */
+  private hikeDown(){if(this.hike)this.hike.step='down';this.loadPlace('daimonji-trail',{x:524,y:160})}
   /** Chappy leading and Louis at his heel; the outline kept on them; his caramel when the traveller is flagging on the way up; the phone's light coming on. */
   private hikeStep(delta:number){
     for(const h of this.hikers)h.update(delta);
@@ -2196,8 +2245,8 @@ class Journey extends Phaser.Scene {
     const now=minuteOfDay(),start=17*60+20,watch=()=>{
       const from=Math.max(minuteOfDay(),start),late=minuteOfDay()>=18*60+10,people=['traveller-up-0',...(this.guide?['chappy-up-0','louis-up-0']:[])].map(key=>this.textures.get(key).getSourceImage() as HTMLCanvasElement);
       this.stopNavigation();this.direction={x:0,y:0};this.facing='up';this.modal?.destroy(true);this.modal=this.add.container(0,0).setDepth(20);
-      this.flight=playSunset(late,from,late?0:30,people,()=>{
-        this.flight=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();if(!late)addMinutes(Math.max(0,from+30-minuteOfDay()));
+      this.flight=playSunset(late,from,30,people,()=>{
+        this.flight=null;this.modal?.destroy(true);this.modal=null;this.input.keyboard?.resetKeys();addMinutes(Math.max(0,from+30-minuteOfDay()));
         if(late)return;
         if(this.story){this.storyMemory('daimonji-sunset');return}
         this.collected.add('daimonji-sunset');localStorage.setItem('yorimichi-memories',JSON.stringify([...this.collected]));
@@ -2256,7 +2305,7 @@ class Journey extends Phaser.Scene {
   /** Nightfall (darkness on the clock): out of doors the scene turns a deep blue but where the lamps shine, the lit platforms dim evenly, a little; indoors the lights are always on. */
   private nightfall(){
     this.over.setPosition(this.world.x,this.world.y);this.rollShutters();this.pane?.setAlpha(darkness()*.85);
-    const k=this.dusk()*(this.outdoors()?1:this.place==='platform'?.4:0);this.shade.setVisible(k>0);this.neon?.setAlpha(k);if(!k)return;
+    const k=this.dusk()*(this.outdoors()?1:this.place==='platform'?.4:0);this.shade.setVisible(k>0);this.neon?.setAlpha(k);if(this.twinkle){const {g,lights}=this.twinkle,t=performance.now();g.clear().setAlpha(k);if(k)for(const l of lights){const a=Phaser.Math.Clamp(Math.sin(t/l.pace+l.phase)*1.5+.5,0,1);if(a){g.fillStyle(l.c,a);g.fillRect(l.x,l.y,2,2)}}}if(!k)return;
     const tint=Phaser.Display.Color.Interpolate.ColorWithColor(Phaser.Display.Color.ValueToColor(0xffffff),Phaser.Display.Color.ValueToColor(0x303c68),1,k);
     this.shade.clear().fill(Phaser.Display.Color.GetColor(tint.r,tint.g,tint.b));
     for(const [x,y,r,color,a=1,flat=1] of this.lamps())this.shade.stamp('light',undefined,x+this.world.x,y+this.world.y,{scaleX:r/16,scaleY:r/16*flat,tint:color,alpha:a*k,originX:.5,originY:.5});
@@ -2280,7 +2329,7 @@ class Journey extends Phaser.Scene {
     // Closing time: once off the train, the staff see the traveller back through the gates.
     if(!stationOpen()&&(this.place==='corridor'||this.place==='platform'&&!this.trains.some(train=>train.player))){this.closeStation();return}
     if(this.place==='platform')this.runTrains(delta);
-    this.outingStep(Math.min(delta,100));this.hikeStep(Math.min(delta,100));
+    this.outingStep(Math.min(delta,100));this.hikeStep(Math.min(delta,100));this.monsieurStep();
     this.pigeons?.update(Math.min(delta,100),this.player.x,this.player.y);this.cat?.update(Math.min(delta,100),this.player.x,this.player.y);
     if(isHub(this.place)||this.place==='corridor'||this.place==='platform'){
       // The spot the player has taken: a machine of the bank, or the corridor's fare adjustment machine or staffed window.
